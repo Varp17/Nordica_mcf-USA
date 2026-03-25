@@ -19,7 +19,13 @@ export function normalizeState(stateName) {
   
   if (name.length === 2) return name.toUpperCase();
   
-  return STATE_MAP[name] || stateName.toUpperCase();
+  const mapped = STATE_MAP[name];
+  if (!mapped && stateName.length > 2) {
+    // If it's not a US state, it might be a CA province. 
+    // We'll return the uppercase version and let the fulfillment service validate against the country.
+    return stateName.toUpperCase();
+  }
+  return mapped || stateName.toUpperCase();
 }
 
 export default { normalizeState };

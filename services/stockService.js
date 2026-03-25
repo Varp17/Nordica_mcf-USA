@@ -32,8 +32,8 @@ export async function checkInventoryLevels() {
         logger.info(`Product ${name} (${sku}) updated back to In Stock`);
       }
 
-      // Send alert
-      await sendStockAlertEmail(name, in_stock, sku);
+      // Send alert (Disabled per user request)
+      // await sendStockAlertEmail(name, in_stock, sku);
     }
 
     // 2. Check product variants table
@@ -48,7 +48,8 @@ export async function checkInventoryLevels() {
       const { product_name, color_name, amazon_sku, stock } = variant;
       const fullName = `${product_name} (${color_name})`;
       
-      await sendStockAlertEmail(fullName, stock, amazon_sku);
+      // Send alert (Disabled per user request)
+      // await sendStockAlertEmail(fullName, stock, amazon_sku);
     }
 
     logger.info(`Stock check complete. Processed ${lowStockProducts.length} products and ${lowStockVariants.length} variants.`);

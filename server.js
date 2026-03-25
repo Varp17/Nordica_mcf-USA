@@ -30,6 +30,8 @@ import invoiceRoutes from './routes/invoices.js';
 import shippoAdminRoutes from './shippo.js';
 import shippoWebhookRoutes from './shippoWebhook.js';
 import trackingRoutes from './routes/tracking.js';
+import debugRoutes from './routes/debug.js';
+
 
 // Missing routes stub (can be implemented later)
 const webhookRoutes = express.Router();
@@ -138,6 +140,8 @@ app.use('/api/webhooks', webhookRoutes);
 app.use('/api/webhooks/shippo', shippoWebhookRoutes);
 app.use('/api/admin', invoiceRoutes);
 app.use('/api/admin', crmRoutes);
+app.use('/api/debug', debugRoutes);
+
 
 // Error handling
 app.use((req, res) => {

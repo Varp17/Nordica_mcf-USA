@@ -133,16 +133,27 @@ router.post('/validate-address', async (req, res) => {
     try {
         const address = req.body;
         const result = await shippoService.validateAddress({
-            name: `${address.firstName} ${address.lastName}`,
-            street1: address.address1,
+            firstName: address.firstName,
+            lastName: address.lastName,
+            address1: address.address1,
             city: address.city,
             state: address.province || address.state,
+            province: address.province || address.state,
             zip: address.postalCode || address.zip,
-            country: 'CA' // Mostly used for CA validation as per frontend
+            postalCode: address.postalCode || address.zip,
+            country: address.country || 'US'
         });
-        return res.json({ success: true, validation_results: result });
+        
+        // Return 200 but including the 'valid' flag and details
+        return res.json({ 
+            success: true, 
+            valid: result.valid,
+            fieldErrors: result.fieldErrors,
+            validation_results: result 
+        });
     } catch (err) {
-        return res.status(500).json({ success: false, message: err.message });
+        logger.error(`POST /api/fulfillment/validate-address error: ${err.message}`);
+        return res.status(500).json({ success: false, message: 'Internal validation error', error: err.message });
     }
 });
 

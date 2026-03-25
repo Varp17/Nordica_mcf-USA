@@ -242,7 +242,7 @@ router.get("/slug/:slug", async (req, res) => {
     const countryCondition = `(p.country IN (${countryMatch.map(() => '?').join(',')}) OR p.country IS NULL)`;
 
     const [products] = await db.execute(
-      `SELECT p.*, c.name as category_name, b.name as brand_name
+      `SELECT p.*, c.name as cat_name, b.name as br_name
        FROM products p
        LEFT JOIN categories c ON p.category_id = c.id
        LEFT JOIN brands b ON p.brand_id = b.id
@@ -263,6 +263,8 @@ router.get("/slug/:slug", async (req, res) => {
     );
     const formattedProduct = {
       ...product,
+      category: product.cat_name || product.category || 'Uncategorized',
+      brand: product.br_name || product.brand || 'Generic',
       color_options: typeof product.color_options === "string"
         ? JSON.parse(product.color_options)
         : (product.color_options || []),
@@ -274,7 +276,7 @@ router.get("/slug/:slug", async (req, res) => {
         ? JSON.parse(product.specifications)
         : (product.specifications || {}),
       originalPrice: product.original_price,
-      imageUrl: product.image_url,
+      imageUrl: product.image,
       createdAt: product.created_at,
     }
 
@@ -293,7 +295,7 @@ router.get("/:id", async (req, res) => {
     const countryCondition = `(p.country IN (${countryMatch.map(() => '?').join(',')}) OR p.country IS NULL)`;
 
     const [products] = await db.execute(
-      `SELECT p.*, c.name as category_name, b.name as brand_name
+      `SELECT p.*, c.name as cat_name, b.name as br_name
        FROM products p
        LEFT JOIN categories c ON p.category_id = c.id
        LEFT JOIN brands b ON p.brand_id = b.id
@@ -315,6 +317,8 @@ router.get("/:id", async (req, res) => {
 
     const formattedProduct = {
       ...product,
+      category: product.cat_name || product.category || 'Uncategorized',
+      brand: product.br_name || product.brand || 'Generic',
       color_options: typeof product.color_options === "string"
         ? JSON.parse(product.color_options)
         : (product.color_options || []),

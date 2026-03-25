@@ -121,14 +121,7 @@ router.post('/', requireAuth, validateCreateOrder, async (req, res) => {
       logger.error(`Background fulfillment failed for order ${order.id}: ${err.message}`);
     });
 
-    // Lazy load invoiceService to avoid circular dependency
-    import('../services/invoiceService.js').then(({ createInvoiceFromOrder }) => {
-        createInvoiceFromOrder(order.id).catch((err) => {
-            logger.error(`Background invoice generation failed for order ${order.id}: ${err.message}`);
-        });
-    }).catch(err => {
-        logger.error(`Failed to load invoiceService: ${err.message}`);
-    });
+    logger.info(`Order created: ${order.order_number} | Country: ${country} | Total: ${total}`);
 
     logger.info(`Order created: ${order.order_number} | Country: ${country} | Total: ${total}`);
 

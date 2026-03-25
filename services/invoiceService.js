@@ -65,8 +65,8 @@ export async function generateInvoicePDF(invoiceData) {
       const writeStream = fs.createWriteStream(filepath);
       doc.pipe(writeStream);
       const primaryColor = '#2563eb', textColor = '#1f2937', lightGray = '#f3f4f6';
-      doc.fontSize(24).fillColor(primaryColor).text('Nordica E-Commerce', 50, 50);
-      doc.fontSize(10).fillColor(textColor).text('Nordica Parts & Accessories', 50, 80).text('Email: info@nordica.com', 50, 95);
+      doc.fontSize(24).fillColor(primaryColor).text('Detail Guardz', 50, 50);
+      doc.fontSize(10).fillColor(textColor).text('Premium Car Care Solutions', 50, 80).text('Email: info@detailguardz.com', 50, 95);
       doc.fontSize(28).fillColor(primaryColor).text('INVOICE', 350, 50, { align: 'right' });
       doc.fontSize(10).fillColor(textColor).text(`Invoice #: ${invoiceData.invoice_number}`, 350, 85, { align: 'right' }).text(`Invoice Date: ${formatDate(invoiceData.invoice_date || new Date())}`, 350, 100, { align: 'right' }).text(`Order #: ${invoiceData.order_number}`, 350, 115, { align: 'right' });
       let currentY = 180;
@@ -105,7 +105,7 @@ export async function createInvoiceFromOrder(orderId) {
   const connection = await db.getConnection();
   try {
     await connection.beginTransaction();
-    const [orders] = await connection.execute(`SELECT o.*, c.email as customer_email, c.first_name, c.last_name FROM orders o LEFT JOIN customers c ON o.customer_id = c.id WHERE o.id = ?`, [orderId]);
+    const [orders] = await connection.execute(`SELECT o.*, u.email as customer_email, u.first_name, u.last_name FROM orders o LEFT JOIN users u ON o.user_id = u.id WHERE o.id = ?`, [orderId]);
     if (orders.length === 0) throw new Error('Order not found');
     const order = orders[0];
     const [items] = await connection.execute(`SELECT * FROM order_items WHERE order_id = ?`, [orderId]);
@@ -114,7 +114,7 @@ export async function createInvoiceFromOrder(orderId) {
     const country = order.country || shippingAddr?.country || 'US', state = shippingAddr?.state || shippingAddr?.province || '';
     const taxInfo = await calculateTax(subtotal, country, state);
     const invoiceId = uuidv4(), invoiceNumber = await generateInvoiceNumber();
-    await connection.execute(`INSERT INTO invoices (id, order_id, user_id, invoice_number, status, subtotal, tax_amount, shipping_amount, total_amount, tax_rate, tax_type, currency, billing_name, billing_email, shipping_address, payment_method, payment_status, payment_reference, invoice_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`, [invoiceId, orderId, order.customer_id, invoiceNumber, 'issued', subtotal, taxInfo.tax_amount, shipping, subtotal + taxInfo.tax_amount + shipping, taxInfo.tax_rate, taxInfo.tax_type, order.currency || 'USD', `${order.first_name} ${order.last_name}`, order.customer_email, JSON.stringify(shippingAddr), order.payment_method, order.payment_status, order.payment_reference]);
+    await connection.execute(`INSERT INTO invoices (id, order_id, user_id, invoice_number, status, subtotal, tax_amount, shipping_amount, total_amount, tax_rate, tax_type, currency, billing_name, billing_email, shipping_address, payment_method, payment_status, payment_reference, invoice_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`, [invoiceId, orderId, order.user_id, invoiceNumber, 'issued', subtotal, taxInfo.tax_amount, shipping, subtotal + taxInfo.tax_amount + shipping, taxInfo.tax_rate, taxInfo.tax_type, order.currency || 'USD', `${order.first_name || ''} ${order.last_name || ''}`, order.customer_email, JSON.stringify(shippingAddr), order.payment_method, order.payment_status, order.payment_reference]);
     for (let i = 0; i < items.length; i++) {
         const item = items[i], itemSubtotal = parseFloat(item.unit_price) * item.quantity, itemTax = (itemSubtotal * taxInfo.tax_rate) / 100;
         await connection.execute(`INSERT INTO invoice_items (id, invoice_id, product_id, product_name, product_sku, unit_price, quantity, subtotal, tax_per_item, total, line_item_number) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [uuidv4(), invoiceId, item.product_id, item.product_name, item.sku, item.unit_price, item.quantity, itemSubtotal, itemTax, itemSubtotal + itemTax, i + 1]);
@@ -124,7 +124,7 @@ export async function createInvoiceFromOrder(orderId) {
     await connection.execute(`UPDATE invoices SET pdf_url = ?, pdf_generated_at = NOW() WHERE id = ?`, [pdfInfo.url, invoiceId]);
     await connection.commit();
     logger.info(`Invoice ${invoiceNumber} created for order ${order.order_number}`);
-    return { invoiceId, invoiceNumber, pdfUrl: pdfInfo.url };
+    return { invoiceId, invoiceNumber, pdfUrl: pdfInfo.url, pdfPath: pdfInfo.filepath };
   } catch (err) { if (connection) await connection.rollback(); logger.error(`Failed to create invoice from order ${orderId}: ${err.message}`); throw err; } finally { if (connection) connection.release(); }
 }
 

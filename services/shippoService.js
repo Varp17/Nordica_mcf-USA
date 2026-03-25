@@ -51,29 +51,59 @@ function getWarehouseAddress() {
 
 export async function validateAddress(addressData) {
   const shippo = getShippo();
+  const country = addressData.country || 'CA';
 
-  const address = await retryWithBackoff(async () =>
-    shippo.addresses.create({
-      name:    `${addressData.firstName} ${addressData.lastName}`.trim(),
-      street1: addressData.address1,
-      street2: addressData.address2 || '',
-      city:    addressData.city,
-      state:   addressData.province,
-      zip:     (addressData.postalCode || '').replace(/\s+/g, '').toUpperCase(),
-      country: 'CA',
-      phone:   addressData.phone   || '',
-      email:   addressData.email   || '',
-      validate: true
-    })
-  );
+  try {
+    const address = await retryWithBackoff(async () =>
+      shippo.addresses.create({
+        name:    `${addressData.firstName} ${addressData.lastName}`.trim(),
+        street1: addressData.address1,
+        street2: addressData.address2 || '',
+        city:    addressData.city,
+        state:   addressData.province || addressData.state,
+        zip:     (addressData.postalCode || addressData.zip || '').replace(/\s+/g, '').toUpperCase(),
+        country: country,
+        phone:   addressData.phone   || '',
+        email:   addressData.email   || '',
+        validate: true
+      })
+    );
 
-  // Re-fetch with validation if objectState is not VALID yet
-  const messages = address.validationResults?.messages || [];
-  const hasCriticalError = messages.some(m => m.type === 'address_error' && (m.code === 'postal_code_not_found' || m.text.toLowerCase().includes('not found')));
-  
-  const isValid = !hasCriticalError && (address.objectState === 'VALID' || address.validationResults?.isValid !== false);
+    const messages = address.validationResults?.messages || [];
+    const fieldErrors = {};
 
-  return { valid: !!isValid, messages, addressId: address.objectId || address.id };
+    // Shippo error codes to field mapping
+    messages.forEach(m => {
+      if (m.type === 'address_error') {
+        const text = m.text.toLowerCase();
+        if (text.includes('postal_code') || text.includes('zip') || m.code === 'postal_code_not_found') {
+          fieldErrors.zip = m.text;
+        } else if (text.includes('street') || text.includes('address')) {
+          fieldErrors.street = m.text;
+        } else if (text.includes('city')) {
+          fieldErrors.city = m.text;
+        } else if (text.includes('state') || text.includes('province')) {
+          fieldErrors.state = m.text;
+        } else if (text.includes('country')) {
+          fieldErrors.country = m.text;
+        } else {
+          fieldErrors.general = fieldErrors.general ? `${fieldErrors.general}; ${m.text}` : m.text;
+        }
+      }
+    });
+
+    const isValid = address.validationResults?.isValid === true || (address.objectState === 'VALID' && Object.keys(fieldErrors).length === 0);
+
+    return { 
+      valid: !!isValid, 
+      messages, 
+      fieldErrors,
+      addressId: address.objectId || address.id 
+    };
+  } catch (err) {
+    logger.error(`Shippo Address Validation Error: ${err.message}`);
+    return { valid: false, messages: [{ type: 'error', text: err.message }], fieldErrors: { general: err.message } };
+  }
 }
 
 export async function getShippingRates(order) {

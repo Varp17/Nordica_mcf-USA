@@ -2,6 +2,7 @@ import db from '../config/database.js';
 import mcfService from './mcfService.js';
 import shippoService from './shippoService.js';
 import emailService from './emailService.js';
+import { createInvoiceFromOrder } from './invoiceService.js';
 import logger from '../utils/logger.js';
 
 export async function fulfillOrder(orderId) {
@@ -13,12 +14,23 @@ export async function fulfillOrder(orderId) {
     return { success: true, alreadyFulfilled: true, status: order.fulfillment_status };
   }
   await _updateOrderStatus(orderId, { fulfillment_status: 'processing' });
+  
+  // ── 0. Generate Invoice ───────────────────────────────────────────────
+  let invoicePdf = null;
+  try {
+    const inv = await createInvoiceFromOrder(orderId);
+    invoicePdf = inv.pdfPath;
+  } catch (err) {
+    logger.error(`Invoice generation failed for order ${orderId}: ${err.message}`);
+    // Non-blocking: continue with fulfillment even if invoice fails
+  }
+
   try {
     let result;
     if (order.country === 'US') {
-      result = await _fulfillUS(order);
+      result = await _fulfillUS(order, invoicePdf);
     } else if (order.country === 'CA') {
-      result = await _fulfillCA(order);
+      result = await _fulfillCA(order, invoicePdf);
     } else {
       throw new Error(`Unsupported fulfillment country: ${order.country}`);
     }
@@ -31,22 +43,22 @@ export async function fulfillOrder(orderId) {
   }
 }
 
-async function _fulfillUS(order) {
+async function _fulfillUS(order, invoicePdf = null) {
   logger.info(`Fulfilling US order ${order.order_number} via Amazon MCF`);
   const mcfResult = await mcfService.createFulfillmentOrder(order);
   await _updateOrderStatus(order.id, { fulfillment_status: 'submitted_to_amazon', fulfillment_channel: 'amazon_mcf', amazon_fulfillment_id: mcfResult.sellerFulfillmentOrderId });
   logger.info(`US order ${order.order_number} submitted to Amazon MCF — ${mcfResult.sellerFulfillmentOrderId}`);
-  await emailService.sendOrderConfirmationEmail(order);
+  await emailService.sendOrderConfirmationEmail(order, invoicePdf);
   return { success: true, fulfillmentChannel: 'amazon_mcf', status: 'submitted_to_amazon', amazonFulfillmentId: mcfResult.sellerFulfillmentOrderId };
 }
 
-async function _fulfillCA(order) {
+async function _fulfillCA(order, invoicePdf = null) {
   logger.info(`Fulfilling CA order ${order.order_number} via Shippo`);
   const shipResult = await shippoService.createShipment(order);
   await _updateOrderStatus(order.id, { fulfillment_status: 'label_created', fulfillment_channel: 'shippo', tracking_number: shipResult.trackingNumber, tracking_url: shipResult.trackingUrl, label_url: shipResult.labelUrl, carrier: shipResult.carrier, service_name: shipResult.serviceName, estimated_delivery: shipResult.estimatedDays ? new Date(Date.now() + shipResult.estimatedDays * 86400000).toISOString().split('T')[0] : null, shippo_transaction_id: shipResult.shippoTransactionId });
   logger.info(`CA order ${order.order_number} label created — tracking: ${shipResult.trackingNumber}`);
   try { await shippoService.registerTracking(shipResult.carrier, shipResult.trackingNumber); } catch (trackErr) { logger.warn(`Shippo tracking registration failed (non-critical): ${trackErr.message}`); }
-  await emailService.sendOrderConfirmationEmail(order);
+  await emailService.sendOrderConfirmationEmail(order, invoicePdf);
   await emailService.sendOrderShippedEmail(order, { carrier: shipResult.carrier, trackingNumber: shipResult.trackingNumber, trackingUrl: shipResult.trackingUrl, estimatedDelivery: shipResult.estimatedDays ? new Date(Date.now() + shipResult.estimatedDays * 86400000).toLocaleDateString() : null });
   return { success: true, fulfillmentChannel: 'shippo', status: 'label_created', trackingNumber: shipResult.trackingNumber, trackingUrl: shipResult.trackingUrl, labelUrl: shipResult.labelUrl, carrier: shipResult.carrier };
 }

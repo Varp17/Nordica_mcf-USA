@@ -57,7 +57,8 @@ export async function sendEmail({ to, subject, html, text }) {
       to,
       subject,
       html,
-      text: text || html.replace(/<[^>]+>/g, '')
+      text: text || html.replace(/<[^>]+>/g, ''),
+      attachments: arguments[0].attachments || []
     });
     logger.info(`Email sent: ${subject} → ${to} [${info.messageId}]`);
     return { success: true, messageId: info.messageId };
@@ -106,9 +107,9 @@ const baseStyle = `
 `;
 
 function wrapEmail(headerTitle, headerSub, bodyContent) {
-  const storeName    = process.env.STORE_NAME    || 'Your Store';
-  const storeWebsite = process.env.STORE_WEBSITE  || 'https://yourstore.com';
-  const supportEmail = process.env.STORE_SUPPORT_EMAIL || 'support@yourstore.com';
+  const storeName    = process.env.STORE_NAME    || 'Detail Guardz';
+  const storeWebsite = process.env.STORE_WEBSITE  || 'https://detailguardz.com';
+  const supportEmail = process.env.STORE_SUPPORT_EMAIL || 'info@detailguardz.com';
 
   return `<!DOCTYPE html><html><head><meta charset="UTF-8">${baseStyle}</head><body>
   <div class="wrapper">
@@ -159,7 +160,7 @@ function itemsTableHtml(items = [], subtotal, shipping, tax, total) {
     </table>`;
 }
 
-export async function sendOrderConfirmationEmail(order) {
+export async function sendOrderConfirmationEmail(order, invoicePdf = null) {
   const firstName = order.shipping_first_name || 'Customer';
   const table     = itemsTableHtml(order.items, order.subtotal, order.shipping_cost, order.tax, order.total);
 
@@ -178,11 +179,20 @@ export async function sendOrderConfirmationEmail(order) {
     <p>If you have any questions, reply to this email or contact <a href="mailto:${process.env.STORE_SUPPORT_EMAIL}">${process.env.STORE_SUPPORT_EMAIL}</a>.</p>
   `;
 
-  return sendEmail({
+  const mailOptions = {
     to:      order.customer_email,
     subject: `Order Confirmed — #${order.order_number}`,
     html:    wrapEmail('Order Confirmed! 🎉', `Order #${order.order_number}`, body)
-  });
+  };
+
+  if (invoicePdf) {
+    mailOptions.attachments = [{
+      filename: `invoice-${order.order_number}.pdf`,
+      path: invoicePdf
+    }];
+  }
+
+  return sendEmail(mailOptions);
 }
 
 export async function sendOrderShippedEmail(order, tracking) {
@@ -273,7 +283,7 @@ ${error.stack || String(error)}</pre>
 }
 
 export async function sendOTPEmail(email, otp) {
-  const storeName = process.env.STORE_NAME || 'Nordica Plastics';
+  const storeName = process.env.STORE_NAME || 'Detail Guardz';
   const body = `
     <p>Welcome to ${storeName}!</p>
     <p>To complete your registration, please use the following verification code:</p>
@@ -294,7 +304,7 @@ export async function sendOTPEmail(email, otp) {
 }
 
 export async function sendStockAlertEmail(productName, currentStock, sku) {
-  const adminEmail = process.env.ADMIN_ALERT_EMAIL || 'k739156@gmail.com';
+  const adminEmail = process.env.ADMIN_ALERT_EMAIL || 'k7391356@gmail.com';
   const isOutOfStock = currentStock <= 0;
   const statusLabel = isOutOfStock ? 'OUT OF STOCK' : 'LOW STOCK';
   const color = isOutOfStock ? '#dc2626' : '#ea580c';

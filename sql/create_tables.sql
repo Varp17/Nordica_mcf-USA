@@ -947,11 +947,11 @@ INSERT INTO products (
     'manufacturer', 'DETAIL GUARDZ Canada'
   ),
   JSON_ARRAY(
-    JSON_OBJECT('name', 'Blue', 'value', 'blue', 'image', '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (blue) B07CKLPJZR/1. Hero Image.webp', 'price', 24.99),
-    JSON_OBJECT('name', 'Black', 'value', 'black', 'image', '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (black) B07CKC4M9D/1. Hero Image.webp', 'price', 24.99),
-    JSON_OBJECT('name', 'Red', 'value', 'red', 'image', '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (red) B07CKG1VCH/1. Hero Image.webp', 'price', 24.99),
-    JSON_OBJECT('name', 'White', 'value', 'white', 'image', '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (white) B088PZXQY1/1. Hero Image.webp', 'price', 24.99),
-    JSON_OBJECT('name', 'Yellow', 'value', 'yellow', 'image', '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (yellow) B07P9CWKLJ/1. Hero Image.webp', 'price', 24.99)
+    JSON_OBJECT('name', 'Blue', 'value', 'blue', 'sku', 'DLRP-BLUE-3-stickerless', 'asin', 'B07CKLPJZR', 'amazon_sku', 'DLRP-BLUE-3-stickerless', 'image', '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (blue) B07CKLPJZR/1. Hero Image.webp', 'price', 24.99),
+    JSON_OBJECT('name', 'Black', 'value', 'black', 'sku', 'DLRP-BLACK-1-stickerless', 'asin', 'B07CKC4M9D', 'amazon_sku', 'DLRP-BLACK-1-stickerless', 'image', '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (black) B07CKC4M9D/1. Hero Image.webp', 'price', 24.99),
+    JSON_OBJECT('name', 'Red', 'value', 'red', 'sku', 'DLRP-RED-2-stickerless', 'asin', 'B07CKG1VCH', 'amazon_sku', 'DLRP-RED-2-stickerless', 'image', '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (red) B07CKG1VCH/1. Hero Image.webp', 'price', 24.99),
+    JSON_OBJECT('name', 'White', 'value', 'white', 'sku', 'DLRP-W-stickerless', 'asin', 'B07P8BMSTH', 'amazon_sku', 'DLRP-W-stickerless', 'image', '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (white) B088PZXQY1/1. Hero Image.webp', 'price', 24.99),
+    JSON_OBJECT('name', 'Yellow', 'value', 'yellow', 'sku', 'DLRP-G-stickerless', 'asin', 'B07P9CWKLJ', 'amazon_sku', 'DLRP-G-stickerless', 'image', '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (yellow) B07P9CWKLJ/1. Hero Image.webp', 'price', 24.99)
   ),
   JSON_OBJECT(
     'main', JSON_OBJECT('url', 'https://www.youtube.com/embed/2LndE9cD63A', 'title', 'DETAIL GUARDZ Dirt Lock Car Wash Insert', 'description', 'The original Dirt Lock is the ultimate tool for a swirl-free wash. See how the patented Venturi system traps grit and debris effectively, keeping your wash water clean.'),
@@ -1066,9 +1066,9 @@ INSERT INTO products (
     'manufacturer', 'DETAIL GUARDZ Canada'
   ),
   JSON_ARRAY(
-    JSON_OBJECT('name', 'White', 'value', 'white', 'image', '/assets/Amazon Listing Images/Scrub Wall-20260122T171828Z-1-001/Scrub Wall/Dirt Lock Scrub Wall (white)/1. Hero Image.webp', 'price', 20.99),
-    JSON_OBJECT('name', 'Black', 'value', 'black', 'image', '/assets/Amazon Listing Images/Scrub Wall-20260122T171828Z-1-001/Scrub Wall/Dirt Lock Scrub Wall (black)/1. Hero Image.webp', 'price', 20.99),
-    JSON_OBJECT('name', 'Red', 'value', 'red', 'image', '/assets/Amazon Listing Images/Scrub Wall-20260122T171828Z-1-001/Scrub Wall/Dirt Lock Scrub Wall (red)/1. Hero Image.webp', 'price', 20.99)
+    JSON_OBJECT('name', 'White', 'value', 'white', 'sku', 'DIRT LOCK-SW180 WHITE', 'asin', 'B09CRX2D31', 'amazon_sku', 'DIRT LOCK-SW180 WHITE', 'image', '/assets/Amazon Listing Images/Scrub Wall-20260122T171828Z-1-001/Scrub Wall/Dirt Lock Scrub Wall (white)/1. Hero Image.webp', 'price', 20.99),
+    JSON_OBJECT('name', 'Black', 'value', 'black', 'sku', 'DIRT LOCK-SW180 BLACK', 'asin', 'B09CRZD82Q', 'amazon_sku', 'DIRT LOCK-SW180 BLACK', 'image', '/assets/Amazon Listing Images/Scrub Wall-20260122T171828Z-1-001/Scrub Wall/Dirt Lock Scrub Wall (black)/1. Hero Image.webp', 'price', 20.99),
+    JSON_OBJECT('name', 'Red', 'value', 'red', 'sku', 'DIRT LOCK-SW180 RED', 'asin', 'B0D66Z4DJB', 'amazon_sku', 'DIRT LOCK-SW180 RED', 'image', '/assets/Amazon Listing Images/Scrub Wall-20260122T171828Z-1-001/Scrub Wall/Dirt Lock Scrub Wall (red)/1. Hero Image.webp', 'price', 20.99)
   ),
   JSON_OBJECT(
     'main', JSON_OBJECT('url', 'https://www.youtube.com/embed/wgR1NE6h6Zk', 'title', 'DETAIL GUARDZ Dirt Lock Scrub Wall 180/360', 'description', 'Maximize your cleaning power with the Scrub Wall. This video shows how to install and use the 180/360 configurations.'),
@@ -1157,8 +1157,8 @@ INSERT INTO products (
     'manufacturer', 'DETAIL GUARDZ Canada'
   ),
   JSON_ARRAY(
-    JSON_OBJECT('name', 'BLACK', 'value', 'black', 'image', '/assets/The Dirt Lock Scrub and Pump black.webp', 'price', 16.99, 'title', 'DETAIL GUARDZ The Dirt Lock Scrub and Pump Attachment for Car Wash Bucket Filter (Black)'),
-    JSON_OBJECT('name', 'WHITE', 'value', 'white', 'image', '/assets/The Dirt Lock Scrub and Pump white.webp', 'price', 16.99, 'title', 'DETAIL GUARDZ The Dirt Lock Scrub and Pump Attachment for Car Wash Bucket Filter (White)')
+    JSON_OBJECT('name', 'BLACK', 'value', 'black', 'sku', 'DIRT-LOCK-SAP-BLACK', 'asin', 'B08FTBJ9XT', 'amazon_sku', 'DIRT-LOCK-SAP-BLACK', 'image', '/assets/The Dirt Lock Scrub and Pump black.webp', 'price', 16.99, 'title', 'DETAIL GUARDZ The Dirt Lock Scrub and Pump Attachment for Car Wash Bucket Filter (Black)'),
+    JSON_OBJECT('name', 'WHITE', 'value', 'white', 'sku', 'DIRT-LOCK-SAP-WHITE', 'asin', 'B08FTK9PJJ', 'amazon_sku', 'DIRT-LOCK-SAP-WHITE', 'image', '/assets/The Dirt Lock Scrub and Pump white.webp', 'price', 16.99, 'title', 'DETAIL GUARDZ The Dirt Lock Scrub and Pump Attachment for Car Wash Bucket Filter (White)')
   ),
   JSON_OBJECT(
     'main', JSON_OBJECT('url', 'https://www.youtube.com/embed/Ck9pNdgxRp4', 'title', 'DETAIL GUARDZ Dirt Lock Scrub and Pump Attachment', 'description', 'Experience the power of filtered water. The Scrub and Pump attachment ensures you are always using the cleanest possible water on your vehicle.'),
@@ -1243,10 +1243,10 @@ INSERT INTO products (
     'manufacturer', 'DETAIL GUARDZ Canada'
   ),
   JSON_ARRAY(
-    JSON_OBJECT('name', 'Black + 650ML Cleaner', 'value', 'black-cleaner', 'image', '/assets/Amazon Listing Images/Pad Washer Images/Black + 650ML Cleaner.webp', 'price', 58.99, 'title', 'The Detail Guardz - Dirt Lock Pad Washer System Attachment with Spray Cleaner (Black)', 'url', 'https://www.amazon.com/Detail-Guardz-Attachment-Without-Cleaner/dp/B07VGMKW7S/ref=pd_cer_fm_1/135-9153945-0013018?pd_rd_r=457f8f31-4d35-4d41-86e7-f8ad048dcd17&pd_rd_wg=vU41E&pd_rd_w=ynUdM&pd_rd_i=B07XL4CL1T&th=1'),
-    JSON_OBJECT('name', 'White + 650ML Cleaner', 'value', 'white-cleaner', 'image', '/assets/Amazon Listing Images/Pad Washer Images/White + 650ML Cleaner.webp', 'price', 58.99, 'title', 'DETAIL GUARDZ The Dirt Lock Pad Washer System Attachment with Spray Cleaner (White)', 'url', 'https://www.amazon.com/Detail-Guardz-Attachment-Without-Cleaner/dp/B08KTV77ZC/ref=pd_cer_fm_1/135-9153945-0013018?pd_rd_r=457f8f31-4d35-4d41-86e7-f8ad048dcd17&pd_rd_wg=vU41E&pd_rd_w=ynUdM&pd_rd_i=B07XL4CL1T&th=1'),
-    JSON_OBJECT('name', 'black', 'value', 'black', 'image', '/assets/Amazon Listing Images/Pad Washer Images/black.webp', 'price', 49.99, 'title', 'The Detail Guardz - Dirt Lock Pad Washer System Attachment (Black)', 'url', 'https://www.amazon.com/Detail-Guardz-Attachment-Without-Cleaner/dp/B07XL4CL1T/ref=pd_cer_fm_1/135-9153945-0013018?pd_rd_r=457f8f31-4d35-4d41-86e7-f8ad048dcd17&pd_rd_wg=vU41E&pd_rd_w=ynUdM&pd_rd_i=B07XL4CL1T&th=1'),
-    JSON_OBJECT('name', 'white', 'value', 'white', 'image', '/assets/Amazon Listing Images/Pad Washer Images/white.webp', 'price', 49.99, 'title', 'DETAIL GUARDZ The Dirt Lock Pad Washer System Attachment (White)', 'url', 'https://www.amazon.com/Detail-Guardz-Attachment-Without-Cleaner/dp/B08KTVWVMJ/ref=pd_cer_fm_1/135-9153945-0013018?pd_rd_r=457f8f31-4d35-4d41-86e7-f8ad048dcd17&pd_rd_wg=vU41E&pd_rd_w=ynUdM&pd_rd_i=B07XL4CL1T&th=1')
+    JSON_OBJECT('name', 'Black + 650ML Cleaner', 'value', 'black-cleaner', 'sku', 'DIRT-LOCK-PWSBL', 'asin', 'B07VGMKW7S', 'amazon_sku', 'DIRT-LOCK-PWSBL', 'image', '/assets/Amazon Listing Images/Pad Washer Images/Black + 650ML Cleaner.webp', 'price', 58.99, 'title', 'The Detail Guardz - Dirt Lock Pad Washer System Attachment with Spray Cleaner (Black)', 'url', 'https://www.amazon.com/Detail-Guardz-Attachment-Without-Cleaner/dp/B07VGMKW7S/ref=pd_cer_fm_1/135-9153945-0013018?pd_rd_r=457f8f31-4d35-4d41-86e7-f8ad048dcd17&pd_rd_wg=vU41E&pd_rd_w=ynUdM&pd_rd_i=B07XL4CL1T&th=1'),
+    JSON_OBJECT('name', 'White + 650ML Cleaner', 'value', 'white-cleaner', 'sku', 'DIRT-LOCK-PWSW-1', 'asin', 'B08KTV77ZC', 'amazon_sku', 'DIRT-LOCK-PWSW-1', 'image', '/assets/Amazon Listing Images/Pad Washer Images/White + 650ML Cleaner.webp', 'price', 58.99, 'title', 'DETAIL GUARDZ The Dirt Lock Pad Washer System Attachment with Spray Cleaner (White)', 'url', 'https://www.amazon.com/Detail-Guardz-Attachment-Without-Cleaner/dp/B08KTV77ZC/ref=pd_cer_fm_1/135-9153945-0013018?pd_rd_r=457f8f31-4d35-4d41-86e7-f8ad048dcd17&pd_rd_wg=vU41E&pd_rd_w=ynUdM&pd_rd_i=B07XL4CL1T&th=1'),
+    JSON_OBJECT('name', 'black', 'value', 'black', 'sku', 'DIRT-LOCK-PWS-BLACK', 'asin', 'B07XL4CL1T', 'amazon_sku', 'DIRT-LOCK-PWS-BLACK', 'image', '/assets/Amazon Listing Images/Pad Washer Images/black.webp', 'price', 49.99, 'title', 'The Detail Guardz - Dirt Lock Pad Washer System Attachment (Black)', 'url', 'https://www.amazon.com/Detail-Guardz-Attachment-Without-Cleaner/dp/B07XL4CL1T/ref=pd_cer_fm_1/135-9153945-0013018?pd_rd_r=457f8f31-4d35-4d41-86e7-f8ad048dcd17&pd_rd_wg=vU41E&pd_rd_w=ynUdM&pd_rd_i=B07XL4CL1T&th=1'),
+    JSON_OBJECT('name', 'white', 'value', 'white', 'sku', 'DIRT-LOCK-PWS-WHITE-1', 'asin', 'B08KTVWVMJ', 'amazon_sku', 'DIRT-LOCK-PWS-WHITE-1', 'image', '/assets/Amazon Listing Images/Pad Washer Images/white.webp', 'price', 49.99, 'title', 'DETAIL GUARDZ The Dirt Lock Pad Washer System Attachment (White)', 'url', 'https://www.amazon.com/Detail-Guardz-Attachment-Without-Cleaner/dp/B08KTVWVMJ/ref=pd_cer_fm_1/135-9153945-0013018?pd_rd_r=457f8f31-4d35-4d41-86e7-f8ad048dcd17&pd_rd_wg=vU41E&pd_rd_w=ynUdM&pd_rd_i=B07XL4CL1T&th=1')
   ),
   JSON_OBJECT(
     'main', JSON_OBJECT('url', 'https://www.youtube.com/embed/_ZHI-xV6XLg', 'title', 'DETAIL GUARDZ Dirt Lock Pad Washer System', 'description', 'See how the SEMA Award-winning Dirt Lock Pad Washer System cleans your polishing pads safely and gently in seconds.'),
@@ -1363,11 +1363,11 @@ INSERT INTO products (
     'manufacturer', 'DETAIL GUARDZ Canada'
   ),
   JSON_ARRAY(
-    JSON_OBJECT('name', 'Black', 'value', 'black', 'image', '/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Black/1. Hero Image.webp', 'price', 19.99),
-    JSON_OBJECT('name', 'Blue', 'value', 'blue', 'image', '/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Blue/1. Hero Image.webp', 'price', 19.99),
-    JSON_OBJECT('name', 'Red', 'value', 'red', 'image', '/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Red/1. Hero Image.webp', 'price', 19.99),
-    JSON_OBJECT('name', 'Yellow', 'value', 'yellow', 'image', '/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Yellow/1. Hero Image.webp', 'price', 19.99),
-    JSON_OBJECT('name', 'Neon', 'value', 'neon', 'image', '/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Neon/1. Hero Image.webp', 'price', 19.99)
+    JSON_OBJECT('name', 'Black', 'value', 'black', 'sku', '1008-4-stickerless', 'asin', 'B07ND5F6N8', 'amazon_sku', '1008-4-stickerless', 'image', '/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Black/1. Hero Image.webp', 'price', 19.99),
+    JSON_OBJECT('name', 'Blue', 'value', 'blue', 'sku', 'Detail-Guardz-Hose-Guides-2.0-Blue', 'asin', 'B0FFBC4B67', 'amazon_sku', 'Detail Guardz Hose Guides 2.0 -Blue', 'image', '/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Blue/1. Hero Image.webp', 'price', 19.99),
+    JSON_OBJECT('name', 'Red', 'value', 'red', 'sku', 'Detail-Guardz-Hose-Guides-2.0-Red', 'asin', 'B0FHKV1PRW', 'amazon_sku', 'Detail Guardz Hose Guides 2.0_Red', 'image', '/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Red/1. Hero Image.webp', 'price', 19.99),
+    JSON_OBJECT('name', 'Yellow', 'value', 'yellow', 'sku', 'Detail-Guardz-Hose-Guides-2.0-Yellow', 'asin', 'B0FHKV4JZT', 'amazon_sku', 'Detail Guardz Hose Guides 2.0_Yellow', 'image', '/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Yellow/1. Hero Image.webp', 'price', 19.99),
+    JSON_OBJECT('name', 'Neon', 'value', 'neon', 'sku', 'Detail-Guardz-Hose-Guides-2.0-Neon', 'asin', 'B0FHJMVP5V', 'amazon_sku', 'Detail Guardz Hose Guides 2.0_Neon', 'image', '/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Neon/1. Hero Image.webp', 'price', 19.99)
   ),
   JSON_OBJECT(
     'main', JSON_OBJECT('url', 'https://www.youtube.com/embed/W37xy__Vou4', 'title', 'DETAIL GUARDZ Hose Guide', 'description', 'Stop fighting your hose! See how the Detail Guardz Hose Guide keeps your wash flowing smoothly with its anti-jam roller system.'),
@@ -1466,8 +1466,8 @@ INSERT INTO products (
     'manufacturer', 'DETAIL GUARDZ Canada'
   ),
   JSON_ARRAY(
-    JSON_OBJECT('name', 'Black', 'value', 'black', 'image', '/assets/Amazon Listing Images/Pad Washer Images/black.webp', 'price', 49.99, 'title', 'The Detail Guardz - Dirt Lock Pad Washer System Attachment (Black)', 'url', 'https://www.amazon.com/Detail-Guardz-Attachment-Without-Cleaner/dp/B07XL4CL1T/ref=pd_cer_fm_1/135-9153945-0013018?pd_rd_r=457f8f31-4d35-4d41-86e7-f8ad048dcd17&pd_rd_wg=vU41E&pd_rd_w=ynUdM&pd_rd_i=B07XL4CL1T&th=1'),
-    JSON_OBJECT('name', 'White', 'value', 'white', 'image', '/assets/Amazon Listing Images/Pad Washer Images/white.webp', 'price', 49.99, 'title', 'DETAIL GUARDZ The Dirt Lock Pad Washer System Attachment (White)', 'url', 'https://www.amazon.com/Detail-Guardz-Attachment-Without-Cleaner/dp/B08KTVWVMJ/ref=pd_cer_fm_1/135-9153945-0013018?pd_rd_r=457f8f31-4d35-4d41-86e7-f8ad048dcd17&pd_rd_wg=vU41E&pd_rd_w=ynUdM&pd_rd_i=B07XL4CL1T&th=1')
+    JSON_OBJECT('name', 'Black', 'value', 'black', 'sku', 'DIRT LOCK-PWS-BLACK', 'asin', 'B07XL4CL1T', 'amazon_sku', 'DIRT LOCK-PWS-BLACK', 'image', '/assets/Amazon Listing Images/Pad Washer Images/black.webp', 'price', 49.99, 'title', 'The Detail Guardz - Dirt Lock Pad Washer System Attachment (Black)', 'url', 'https://www.amazon.com/Detail-Guardz-Attachment-Without-Cleaner/dp/B07XL4CL1T/ref=pd_cer_fm_1/135-9153945-0013018?pd_rd_r=457f8f31-4d35-4d41-86e7-f8ad048dcd17&pd_rd_wg=vU41E&pd_rd_w=ynUdM&pd_rd_i=B07XL4CL1T&th=1'),
+    JSON_OBJECT('name', 'White', 'value', 'white', 'sku', 'DIRT LOCK-PWS-WHITE-1', 'asin', 'B08KTVWVMJ', 'amazon_sku', 'DIRT LOCK-PWS-WHITE-1', 'image', '/assets/Amazon Listing Images/Pad Washer Images/white.webp', 'price', 49.99, 'title', 'DETAIL GUARDZ The Dirt Lock Pad Washer System Attachment (White)', 'url', 'https://www.amazon.com/Detail-Guardz-Attachment-Without-Cleaner/dp/B08KTVWVMJ/ref=pd_cer_fm_1/135-9153945-0013018?pd_rd_r=457f8f31-4d35-4d41-86e7-f8ad048dcd17&pd_rd_wg=vU41E&pd_rd_w=ynUdM&pd_rd_i=B07XL4CL1T&th=1')
   ),
   JSON_OBJECT(
     'main', JSON_OBJECT('url', 'https://www.youtube.com/embed/_ZHI-xV6XLg', 'title', 'DETAIL GUARDZ Dirt Lock Pad Washer System', 'description', 'The complete guide to using the Pad Washer system with the Dirt Lock filter.'),

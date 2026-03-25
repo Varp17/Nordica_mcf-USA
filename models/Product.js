@@ -1,51 +1,6 @@
 import db from '../config/database.js';
 import logger from '../utils/logger.js';
 
-// Real Amazon Seller SKU Mapping provided by User
-const MCF_SKU_MAP = {
-  "B07ND5F6N8": "1008-4-stickerless",
-  "B09CRZD82Q": "DIRT LOCK-SW180 BLACK",
-  "B07CKG1VCH": "DLRP-RED-2-stickerless",
-  "B09CRX2D31": "DIRT LOCK-SW180 WHITE",
-  "B08KTV77ZC": "DIRT LOCK-PWSW-1",
-  "B0D66Z4DJB": "DIRT LOCK-SW180 RED",
-  "B08FTB19XT": "DIRT LOCK-SAP BLACK",
-  "B0FHXV1PRW": "Detail Guardz Hose Guides 2.0_Red",
-  "B0FHKTM2YW": "Detail Guardz Hose Guides 2.0_NewBlack",
-  "B0FFBC4B67": "Detail Guardz Hose Guides 2.0-Blue",
-  "B07P9CWKLJ": "DLRP-G-stickerless",
-  "B08KTVWVMJ": "DIRT LOCK-PWS-WHITE-1",
-  "B07PBBMSTH": "DLRP-W-stickerless",
-  "B07ND4L2ML": "1008-2",
-  "B0FHVMVPSV": "Detail Guardz Hose Guides 2.0_Neon",
-  "B07CKLPJZR": "DLRP-BLUE-3-stickerless",
-  "B08FTK9PJJ": "DIRT LOCK-SAP WHITE",
-  "B0FHKV4JZT": "Detail Guardz Hose Guides 2.0_Yellow",
-  "B07VGMKW7S": "DIRT LOCK-PW5BL",
-  "B07XL4CL1T": "DIRT LOCK-PWS-BLACK",
-  "B07CKC4M9D": "DLRP-BLACK-1-stickerless",
-  
-  // FNSKU fallbacks
-  "X002D8MK2D": "DIRT LOCK-PWSW-1",
-  "X002D8MDE3": "DIRT LOCK-PWS-WHITE-1",
-  "X0021B93NH": "1008-2",
-  "X0028XRPQZ": "DIRT LOCK-PW5BL",
-  "X00286Q00N": "DIRT LOCK-PWS-BLACK",
-  "DG-DL-BLU": "DLRP-BLUE-3-stickerless",
-  "DG-DL-SW180-WHT": "DIRT LOCK-SW180 WHITE",
-  "DG-DL-SW180-BLK": "DIRT LOCK-SW180 BLACK"
-};
-
-/**
- * Resolves a potential ASIN or internal ID to a real Amazon Seller SKU
- */
-function resolveMcfSku(id) {
-  if (!id) return id;
-  // If we have a direct mapping for this identifier (ASIN/FNSKU)
-  if (MCF_SKU_MAP[id]) return MCF_SKU_MAP[id];
-  return id;
-}
-
 export async function findAll({ country = 'US', page = 1, limit = 50, category = null, search = null } = {}) {
   const conditions = ['is_active = 1'];
   const params = [];
@@ -99,7 +54,7 @@ export async function findBySku(sku) {
   if (rows.length) return _parseProduct(rows[0]);
   [rows] = await db.query(`SELECT p.* FROM product_color_variants cv JOIN products p ON cv.product_id = p.id WHERE cv.amazon_sku = ? AND cv.is_active = 1 LIMIT 1`, [sku]);
   if (rows.length) return _parseProduct(rows[0]);
-  return null; 
+  return null;
 }
 
 export async function findVariantById(identifier) {
@@ -107,7 +62,9 @@ export async function findVariantById(identifier) {
   let [rows] = await db.query(`SELECT * FROM products WHERE (id = ? OR slug = ? OR sku = ?) AND is_active = 1`, [identifier, identifier, identifier]);
   if (rows.length) {
     const p = _parseProduct(rows[0]);
-    return { ...p, product_id: p.id, variant_name: p.name, amazon_sku: p.amazon_sku || p.sku || p.specifications?.asin || p.specifications?.itemModelNumber };
+    // Only use amazon_sku or sku if they exist; do NOT fallback to itemModelNumber as it's often not the Seller SKU
+    let amazonSku = p.amazon_sku || p.sku || null;
+    return { ...p, product_id: p.id, variant_name: p.name, amazon_sku: amazonSku };
   }
 
   // 2. Check legacy product_color_variants table
@@ -117,20 +74,20 @@ export async function findVariantById(identifier) {
     JOIN products p ON cv.product_id = p.id 
     WHERE (cv.id = ? OR cv.amazon_sku = ?) AND cv.is_active = 1
   `, [identifier, identifier]);
-  
+
   if (rows.length) {
     const v = rows[0];
     const vName = v.variant_name || v.color_name || 'Default';
-    return { 
-      id: v.id, 
-      product_id: v.product_id, 
-      name: `${v.product_name} (${vName})`, 
-      variant_name: vName, 
-      price: parseFloat(v.price), 
-      stock: v.stock, 
-      sku: v.amazon_sku || v.sku, 
-      country: v.country, 
-      image: v.image_url || v.product_image 
+    return {
+      id: v.id,
+      product_id: v.product_id,
+      name: `${v.product_name} (${vName})`,
+      variant_name: vName,
+      price: parseFloat(v.price),
+      stock: v.stock,
+      sku: v.amazon_sku || v.sku,
+      country: v.country,
+      image: v.image_url || v.product_image
     };
   }
 
@@ -141,28 +98,28 @@ export async function findVariantById(identifier) {
     JOIN products p ON v.product_id = p.id 
     WHERE (v.id = ? OR v.sku = ? OR v.amazon_sku = ?) AND v.is_active = 1
   `, [identifier, identifier, identifier]);
-  
+
   if (rows.length) {
     const v = rows[0];
     let variantSuffix = v.variant_name || v.sku || '';
     try {
-        const attrs = typeof v.attributes === 'string' ? JSON.parse(v.attributes) : v.attributes;
-        if (attrs && typeof attrs === 'object' && !Array.isArray(attrs)) {
-            const vals = Object.values(attrs).join(' / ');
-            if (vals) variantSuffix = vals;
-        }
-    } catch (e) {}
+      const attrs = typeof v.attributes === 'string' ? JSON.parse(v.attributes) : v.attributes;
+      if (attrs && typeof attrs === 'object' && !Array.isArray(attrs)) {
+        const vals = Object.values(attrs).join(' / ');
+        if (vals) variantSuffix = vals;
+      }
+    } catch (e) { }
 
-    return { 
-      id: v.id, 
-      product_id: v.product_id, 
-      name: variantSuffix ? `${v.product_name} (${variantSuffix})` : v.product_name, 
-      variant_name: variantSuffix, 
-      price: parseFloat(v.price), 
-      stock: v.stock, 
-      sku: v.amazon_sku || v.sku, 
-      country: v.p_country, 
-      image: v.product_image 
+    return {
+      id: v.id,
+      product_id: v.product_id,
+      name: variantSuffix ? `${v.product_name} (${variantSuffix})` : v.product_name,
+      variant_name: variantSuffix,
+      price: parseFloat(v.price),
+      stock: v.stock,
+      sku: v.amazon_sku || v.sku,
+      country: v.p_country,
+      image: v.product_image
     };
   }
 
@@ -178,53 +135,140 @@ export async function validateCartItems(cartItems, country = 'US') {
     let colorValue = null;
     if (typeof idValue === 'string' && idValue.includes('::')) [baseProductId, colorValue] = idValue.split('::');
     const product = await findVariantById(baseProductId);
-    if (!product) { 
-        logger.warn(`Cart validation failed: Item ${idValue} not found at all (id, sku or amazon_sku checked)`);
-        errors.push(`Product ${idValue} not found or inactive`); 
-        continue; 
+    if (!product) {
+      logger.warn(`Cart validation failed: Item ${idValue} not found at all (id, sku or amazon_sku checked)`);
+      errors.push(`Product ${idValue} not found or inactive`);
+      continue;
     }
-    // Prioritize amazon_sku (Seller SKU) for US MCF fulfillment
-    let sku = product.amazon_sku || product.sku || product.specifications?.asin || product.specifications?.itemModelNumber || product.id;
-    
-    // Resolve via real mapping layer
-    sku = resolveMcfSku(sku);
-    
-    // Final check: if it still looks like an ASIN (B0...) and we didn't map it, try itemModelNumber
-    if (sku && sku.startsWith('B0') && product.specifications?.itemModelNumber) {
-      sku = resolveMcfSku(product.specifications.itemModelNumber);
-    }
+    // Prioritize amazon_sku (Seller SKU) for US MCF fulfillment, auto-correcting poisoned cache payload
+    let sku = null;
+
     let variantName = product.name;
-    if (colorValue) {
-      const [vRows] = await db.query(`SELECT price, variant_name, amazon_sku, stock FROM product_color_variants WHERE product_id = ? AND (color = ? OR variant_name = ?) AND is_active = 1 LIMIT 1`, [product.id, colorValue, colorValue]);
-      if (vRows.length) { 
-        if (vRows[0].amazon_sku) {
-          sku = resolveMcfSku(vRows[0].amazon_sku);
-        }
-        if (vRows[0].variant_name) variantName = `${product.name} (${vRows[0].variant_name})`; 
+
+    // Priority 1: variant-level SKU
+    if (colorValue && Array.isArray(product.color_options)) {
+      const searchColor = colorValue.trim().toLowerCase();
+      const option = product.color_options.find(o =>
+        (o.value && o.value.toLowerCase() === searchColor) ||
+        (o.name && o.name.toLowerCase() === searchColor) ||
+        (o.name && o.name.toLowerCase().includes(searchColor))
+      );
+
+      if (option?.amazon_sku) {
+        sku = option.amazon_sku;
+        variantName = `${product.name} (${option.name})`;
       }
+    }
+
+    // Priority 2: product-level SKU (only if valid)
+    if (!sku && product.amazon_sku) {
+      sku = product.amazon_sku;
+    }
+
+    // 🚨 HARD FAIL (NO FALLBACKS)
+    if (!sku) {
+      logger.error(`❌ No valid amazon_sku found for ${product.name}`);
+      errors.push(`Product ${product.name} is unavailable`);
+      continue;
     }
     validItems.push({ variantId: idValue, productId: product.id, sku: sku, productName: variantName, quantity: cartItem.quantity || 1, unitPrice: parseFloat(cartItem.price || product.price), weightKg: 0.5, country: product.country });
   }
   return { valid: errors.length === 0, errors, items: validItems };
 }
 
-function _parseProduct(p) {
-  if (!p) return p;
-  const jsonFields = ['images', 'variant_images', 'features', 'compatibility', 'about_section', 'specifications', 'color_options', 'videos', 'reviews', 'rating_breakdown', 'sizes'];
-  jsonFields.forEach(field => {
-    if (p[field] && typeof p[field] === 'string') {
-      try { p[field] = JSON.parse(p[field]); } catch (err) { if (p[field].startsWith('{') || p[field].startsWith('[')) logger.warn(`Failed to parse JSON for product ${p.id} field ${field}: ${err.message}`); }
+export async function deductStock(items, connection = null) {
+  const dbConn = connection || db;
+  for (const item of items) {
+    const qty = parseInt(item.quantity) || 0;
+    if (qty <= 0) continue;
+
+    // 1. Try updating new product_variants table first
+    if (item.variantId) {
+      const [vRes] = await dbConn.execute(
+        `UPDATE product_variants SET stock = GREATEST(0, stock - ?) WHERE id = ? OR sku = ?`,
+        [qty, item.variantId, item.sku]
+      );
+      if (vRes.affectedRows > 0) continue;
+
+      // 2. Try legacy product_color_variants
+      const [cvRes] = await dbConn.execute(
+        `UPDATE product_color_variants SET stock = GREATEST(0, stock - ?) WHERE id = ? OR amazon_sku = ?`,
+        [qty, item.variantId, item.sku]
+      );
+      if (cvRes.affectedRows > 0) continue;
     }
-  });
-  if (p.about_section) p.aboutSection = p.about_section;
-  if (p.variant_images) p.variantImages = p.variant_images;
-  if (p.color_options) p.colorOptions = p.color_options;
-  if (p.review_count) p.reviewCount = p.review_count;
-  if (p.original_price) p.originalPrice = parseFloat(p.original_price);
-  if (p.price) p.price = parseFloat(p.price);
-  if (p.rating) p.rating = parseFloat(p.rating);
-  if (p.stock === undefined && p.inventory_cache !== undefined) p.stock = p.inventory_cache;
-  return p;
+
+    // 3. Fallback to main products table
+    await dbConn.execute(
+      `UPDATE products SET inventory_cache = GREATEST(0, inventory_cache - ?) WHERE id = ? OR slug = ? OR sku = ?`,
+      [qty, item.productId || item.variantId, item.productId, item.sku]
+    );
+  }
 }
 
-export default { findAll, findById, findBySlug, findBySku, findVariantById, validateCartItems };
+export async function restoreStock(items, connection = null) {
+  const dbConn = connection || db;
+  for (const item of items) {
+    const qty = parseInt(item.quantity) || 0;
+    if (qty <= 0) continue;
+
+    if (item.variantId || item.product_variant_id) {
+      const vId = item.variantId || item.product_variant_id;
+      const [vRes] = await dbConn.execute(
+        `UPDATE product_variants SET stock = stock + ? WHERE id = ? OR sku = ?`,
+        [qty, vId, item.sku]
+      );
+      if (vRes.affectedRows > 0) continue;
+
+      const [cvRes] = await dbConn.execute(
+        `UPDATE product_color_variants SET stock = stock + ? WHERE id = ? OR amazon_sku = ?`,
+        [qty, vId, item.sku]
+      );
+      if (cvRes.affectedRows > 0) continue;
+    }
+
+    await dbConn.execute(
+      `UPDATE products SET inventory_cache = inventory_cache + ? WHERE id = ? OR slug = ? OR sku = ?`,
+      [qty, item.productId || item.variantId || item.product_id, item.productId, item.sku]
+    );
+  }
+}
+
+function _parseProduct(p) {
+  if (!p) return null;
+  const parseJSON = (val) => {
+    if (typeof val === 'string') {
+      try { return JSON.parse(val); } catch (e) { return []; }
+    }
+    return val || [];
+  };
+  const parseJSONObject = (val) => {
+    if (typeof val === 'string') {
+      try { return JSON.parse(val); } catch (e) { return {}; }
+    }
+    return val || {};
+  };
+
+  return {
+    ...p,
+    price: parseFloat(p.price || 0),
+    original_price: p.original_price ? parseFloat(p.original_price) : null,
+    rating: parseFloat(p.rating || 0),
+    review_count: parseInt(p.review_count || 0),
+    in_stock: parseInt(p.in_stock || 0),
+    images: parseJSON(p.images),
+    variant_images: parseJSONObject(p.variant_images),
+    videos: parseJSONObject(p.videos),
+    features: parseJSON(p.features),
+    compatibility: parseJSON(p.compatibility),
+    specifications: parseJSONObject(p.specifications),
+    about_section: parseJSONObject(p.about_section),
+    color_options: parseJSON(p.color_options),
+    reviews: parseJSON(p.reviews),
+    rating_breakdown: parseJSONObject(p.rating_breakdown),
+    tags: parseJSON(p.tags),
+    sizes: parseJSON(p.sizes)
+  };
+}
+
+export default { findAll, findById, findBySlug, findBySku, findVariantById, validateCartItems, deductStock, restoreStock };

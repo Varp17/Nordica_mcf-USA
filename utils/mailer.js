@@ -33,7 +33,7 @@ const transporter = nodemailer.createTransport({
 /* ─────────────────────────────────────────────────── */
 /* HTML email wrapper                                  */
 /* ─────────────────────────────────────────────────── */
-const storeName = () => process.env.STORE_NAME || "Nordica Plastics";
+const storeName = () => process.env.STORE_NAME || "Detail Guardz";
 
 const emailWrapper = (bodyHtml) => `
 <!DOCTYPE html>

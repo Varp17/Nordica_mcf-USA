@@ -1,10 +1,14 @@
 import db from '../config/database.js';
 import { generateOrderNumber, generateUUID } from '../utils/helpers.js';
+import Product from './Product.js';
 
 export async function createOrder(orderData) {
   const conn = await db.getConnection();
   try {
     await conn.beginTransaction();
+
+    // 1. Deduct Stock first (will fail if not enough or error)
+    await Product.deductStock(orderData.items, conn);
 
     const orderId = generateUUID();
     const orderNumber = generateOrderNumber();
@@ -138,13 +142,27 @@ export async function updatePaymentStatus(orderId, { paymentStatus, paymentRefer
   return findById(orderId);
 }
 
-export async function updateFulfillmentStatus(orderId, fields) {
-  const allowed = ['fulfillment_status', 'fulfillment_channel', 'amazon_fulfillment_id', 'tracking_number', 'tracking_url', 'label_url', 'carrier', 'service_name', 'estimated_delivery', 'shippo_transaction_id', 'fulfillment_error'];
-  const safeFields = Object.fromEntries(Object.entries(fields).filter(([k]) => allowed.includes(k)));
-  if (!Object.keys(safeFields).length) return;
-  const setClauses = Object.keys(safeFields).map(k => `${k} = ?`).join(', ');
-  const values = [...Object.values(safeFields), new Date(), orderId];
-  await db.query(`UPDATE orders SET ${setClauses}, updated_at = ? WHERE id = ?`, values);
+export async function updateOrderStatus(orderId, status, notes = null) {
+  await db.query(
+    `UPDATE orders SET status = ?, notes = COALESCE(?, notes), updated_at = NOW() WHERE id = ?`,
+    [status, notes, orderId]
+  );
+  return findById(orderId);
 }
 
-export default { createOrder, findById, findByOrderNumber, findByCustomer, updatePaymentStatus, updateFulfillmentStatus };
+export async function updateOrder(orderId, fields) {
+  const setClauses = Object.keys(fields).map(k => `${k} = ?`).join(', ');
+  const values = [...Object.values(fields), new Date(), orderId];
+  await db.query(`UPDATE orders SET ${setClauses}, updated_at = ? WHERE id = ?`, values);
+  return findById(orderId);
+}
+
+export async function updateFulfillmentStatus(orderId, status) {
+  await db.query(
+    `UPDATE orders SET fulfillment_status = ?, updated_at = NOW() WHERE id = ?`,
+    [status, orderId]
+  );
+  return findById(orderId);
+}
+
+export default { createOrder, findById, findByOrderNumber, findByCustomer, updatePaymentStatus, updateFulfillmentStatus, updateOrderStatus, updateOrder };
