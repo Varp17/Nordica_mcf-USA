@@ -2,17 +2,18 @@ import express from "express";
 import { v4 as uuidv4 } from "uuid";
 import Joi from "joi";
 import db from "../config/database.js";
+import { formatImageUrl, deepFormatImages } from '../utils/helpers.js';
 import { authenticateToken, requireAdmin } from "../middleware/auth.js";
 import logger from "../utils/logger.js";
 
 const _log = logger.child({ module: "products" });
 
 const normalizeCountryCode = (val) => {
-  if (!val) return 'US';
+  if (!val) return 'CA';
   const upper = String(val).trim().toUpperCase();
   if (upper === 'CA' || upper === 'CAD' || upper === 'CAN') return 'CA';
   if (upper === 'US' || upper === 'USA') return 'US';
-  return 'US';
+  return 'CA';
 };
 
 const router = express.Router()
@@ -51,10 +52,32 @@ router.get("/banners", async (req, res) => {
     query += " ORDER BY sort_order ASC, created_at DESC";
 
     const [banners] = await db.query(query, params);
-    res.json({ success: true, banners });
+    res.json({ success: true, banners: deepFormatImages(banners) });
   } catch (error) {
     console.error("Public get banners error:", error);
     res.status(500).json({ error: "Failed to fetch banners" });
+  }
+});
+
+// GET /api/products/categories - Public route for storefront categories
+router.get("/categories", async (req, res) => {
+  try {
+    const [categories] = await db.query("SELECT * FROM categories WHERE is_active = 1 ORDER BY sort_order ASC, name ASC");
+    res.json({ success: true, categories });
+  } catch (error) {
+    console.error("Public get categories error:", error);
+    res.status(500).json({ error: "Failed to fetch categories" });
+  }
+});
+
+// GET /api/products/brands - Public route for storefront brands
+router.get("/brands", async (req, res) => {
+  try {
+    const [brands] = await db.query("SELECT * FROM brands WHERE is_active = 1 ORDER BY name ASC");
+    res.json({ success: true, brands });
+  } catch (error) {
+    console.error("Public get brands error:", error);
+    res.status(500).json({ error: "Failed to fetch brands" });
   }
 });
 
@@ -136,7 +159,7 @@ router.get("/", async (req, res) => {
     const queryParams = [];
 
     // Country filtering
-    const userCountry = normalizeCountryCode(req.query.country || req.country || 'US');
+    const userCountry = normalizeCountryCode(req.query.country || req.country || 'CA');
     _log.debug("Fetching products for country:", { userCountry, queryCountry: req.query.country, reqCountry: req.country });
     const countryMatch = userCountry === 'CA' ? ['CA', 'CAD'] : ['US', 'USA'];
     whereConditions.push(`(p.country IN (${countryMatch.map(() => '?').join(',')}) OR p.country IS NULL)`);
@@ -206,20 +229,24 @@ router.get("/", async (req, res) => {
       ...product,
       category: product.cat_name || product.category || 'Uncategorized',
       brand: product.br_name || product.brand || 'None',
-      keyFeatures: typeof product.key_features === "string"
-        ? JSON.parse(product.key_features)
-        : (product.key_features || []),
-      specifications: typeof product.specifications === "string"
-        ? JSON.parse(product.specifications)
-        : (product.specifications || {}),
+      keyFeatures: typeof product.key_features === "string" ? JSON.parse(product.key_features) : (product.key_features || []),
+      specifications: typeof product.specifications === "string" ? JSON.parse(product.specifications) : (product.specifications || {}),
+      aboutSection: typeof product.about_section === "string" ? JSON.parse(product.about_section) : (product.about_section || {}),
+      videos: typeof product.videos === "string" ? JSON.parse(product.videos) : (product.videos || {}),
+      images: typeof product.images === "string" ? JSON.parse(product.images) : (product.images || []),
+      variantImages: typeof product.variant_images === "string" ? JSON.parse(product.variant_images) : (product.variant_images || {}),
+      reviews: typeof product.reviews === "string" ? JSON.parse(product.reviews) : (product.reviews || []),
+      ratingBreakdown: typeof product.rating_breakdown === "string" ? JSON.parse(product.rating_breakdown) : (product.rating_breakdown || []),
+      colorOptions: typeof product.color_options === "string" ? JSON.parse(product.color_options) : (product.color_options || []),
+      sizes: typeof product.sizes === "string" ? JSON.parse(product.sizes) : (product.sizes || []),
       originalPrice: product.original_price,
-      imageUrl: product.image_url,
+      imageUrl: product.image, // Changed from image_url to match table column 'image'
       createdAt: product.created_at,
     }));
 
     res.json({
       success: true,
-      products: formattedProducts,
+      products: deepFormatImages(formattedProducts),
       pagination: {
         page: Number.parseInt(page),
         limit: limitNum,
@@ -237,7 +264,7 @@ router.get("/", async (req, res) => {
 router.get("/slug/:slug", async (req, res) => {
   _log.debug("GET /slug/:slug request:", { slug: req.params.slug, country: req.query.country });
   try {
-    const userCountry = normalizeCountryCode(req.query.country || req.country || 'US');
+    const userCountry = normalizeCountryCode(req.query.country || req.country || 'CA');
     const countryMatch = userCountry === 'CA' ? ['CA', 'CAD'] : ['US', 'USA'];
     const countryCondition = `(p.country IN (${countryMatch.map(() => '?').join(',')}) OR p.country IS NULL)`;
 
@@ -265,22 +292,23 @@ router.get("/slug/:slug", async (req, res) => {
       ...product,
       category: product.cat_name || product.category || 'Uncategorized',
       brand: product.br_name || product.brand || 'Generic',
-      color_options: typeof product.color_options === "string"
-        ? JSON.parse(product.color_options)
-        : (product.color_options || []),
+      color_options: typeof product.color_options === "string" ? JSON.parse(product.color_options) : (product.color_options || []),
       variants: variants && variants.length > 0 ? variants : (typeof product.color_options === "string" ? JSON.parse(product.color_options) : (product.color_options || [])),
-      keyFeatures: typeof product.key_features === "string"
-        ? JSON.parse(product.key_features)
-        : (product.key_features || []),
-      specifications: typeof product.specifications === "string"
-        ? JSON.parse(product.specifications)
-        : (product.specifications || {}),
+      keyFeatures: typeof product.key_features === "string" ? JSON.parse(product.key_features) : (product.key_features || []),
+      specifications: typeof product.specifications === "string" ? JSON.parse(product.specifications) : (product.specifications || {}),
+      aboutSection: typeof product.about_section === "string" ? JSON.parse(product.about_section) : (product.about_section || {}),
+      videos: typeof product.videos === "string" ? JSON.parse(product.videos) : (product.videos || {}),
+      images: typeof product.images === "string" ? JSON.parse(product.images) : (product.images || []),
+      variantImages: typeof product.variant_images === "string" ? JSON.parse(product.variant_images) : (product.variant_images || {}),
+      reviews: typeof product.reviews === "string" ? JSON.parse(product.reviews) : (product.reviews || []),
+      ratingBreakdown: typeof product.rating_breakdown === "string" ? JSON.parse(product.rating_breakdown) : (product.rating_breakdown || []),
+      sizes: typeof product.sizes === "string" ? JSON.parse(product.sizes) : (product.sizes || []),
       originalPrice: product.original_price,
-      imageUrl: product.image,
+      imageUrl: product.image, // Standardized to match table column 'image'
       createdAt: product.created_at,
     }
 
-    res.json({ success: true, product: formattedProduct })
+    res.json({ success: true, product: deepFormatImages(formattedProduct) })
   } catch (error) {
     console.error("Get product by slug error:", error)
     res.status(500).json({ error: "Failed to fetch product" })
@@ -290,7 +318,7 @@ router.get("/slug/:slug", async (req, res) => {
 // Get single product
 router.get("/:id", async (req, res) => {
   try {
-    const userCountry = normalizeCountryCode(req.query.country || req.country || 'US');
+    const userCountry = normalizeCountryCode(req.query.country || req.country || 'CA');
     const countryMatch = userCountry === 'CA' ? ['CA', 'CAD'] : ['US', 'USA'];
     const countryCondition = `(p.country IN (${countryMatch.map(() => '?').join(',')}) OR p.country IS NULL)`;
 
@@ -319,22 +347,23 @@ router.get("/:id", async (req, res) => {
       ...product,
       category: product.cat_name || product.category || 'Uncategorized',
       brand: product.br_name || product.brand || 'Generic',
-      color_options: typeof product.color_options === "string"
-        ? JSON.parse(product.color_options)
-        : (product.color_options || []),
+      color_options: typeof product.color_options === "string" ? JSON.parse(product.color_options) : (product.color_options || []),
       variants: variants && variants.length > 0 ? variants : (typeof product.color_options === "string" ? JSON.parse(product.color_options) : (product.color_options || [])),
-      keyFeatures: typeof product.key_features === "string"
-        ? JSON.parse(product.key_features)
-        : (product.key_features || []),
-      specifications: typeof product.specifications === "string"
-        ? JSON.parse(product.specifications)
-        : (product.specifications || {}),
+      keyFeatures: typeof product.key_features === "string" ? JSON.parse(product.key_features) : (product.key_features || []),
+      specifications: typeof product.specifications === "string" ? JSON.parse(product.specifications) : (product.specifications || {}),
+      aboutSection: typeof product.about_section === "string" ? JSON.parse(product.about_section) : (product.about_section || {}),
+      videos: typeof product.videos === "string" ? JSON.parse(product.videos) : (product.videos || {}),
+      images: typeof product.images === "string" ? JSON.parse(product.images) : (product.images || []),
+      variantImages: typeof product.variant_images === "string" ? JSON.parse(product.variant_images) : (product.variant_images || {}),
+      reviews: typeof product.reviews === "string" ? JSON.parse(product.reviews) : (product.reviews || []),
+      ratingBreakdown: typeof product.rating_breakdown === "string" ? JSON.parse(product.rating_breakdown) : (product.rating_breakdown || []),
+      sizes: typeof product.sizes === "string" ? JSON.parse(product.sizes) : (product.sizes || []),
       originalPrice: product.original_price,
-      imageUrl: product.image_url,
+      imageUrl: product.image, // Changed from image_url to match table column 'image'
       createdAt: product.created_at,
     }
 
-    res.json({ success: true, product: formattedProduct })
+    res.json({ success: true, product: deepFormatImages(formattedProduct) })
   } catch (error) {
     console.error("Get product error:", error)
     res.status(500).json({ error: "Failed to fetch product" })
@@ -361,8 +390,12 @@ router.post("/", authenticateToken, requireAdmin, async (req, res) => {
       return res.status(400).json({ message: "Invalid Category or Brand ID provided." });
     }
 
-    if(imageUrl)
-      imageUrl = "https://desertsbird-assets.s3.ap-south-1.amazonaws.com/product-images/" + imageUrl;
+    if(imageUrl && !imageUrl.startsWith('http')) {
+      // Ensure path starts with /assets/ as per the database schema in create_tables.sql
+      imageUrl = imageUrl.startsWith('/') 
+        ? (imageUrl.startsWith('/assets/') ? imageUrl : `/assets${imageUrl}`)
+        : `/assets/${imageUrl}`;
+    }
 
     const sql = `
         id, name, name_ar, price, original_price, description, description_ar, image, sku, 

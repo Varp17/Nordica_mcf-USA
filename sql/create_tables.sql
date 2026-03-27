@@ -858,49 +858,49 @@ INSERT INTO products (
   'DETAIL GUARDZ DIRT LOCK CAR WASH BUCKET INSERT\n\nOur patented design utilizes the motion of your hand to pump and trap debris underneath the screen. The Dirt Lock has a complex Venturi filtering system that manipulates the flow of water in a downward direction. This allows dirt particles to collect underneath the screen without a way for it to re-enter into the clean water. In short, every time you pump your hand in the bucket you are cycling the dirt underneath the screen and replenishing clean water above to help prevent swirl-marks and scratches on the painted surface.\n\nONE Dirt Lock will filter your wash water like you have never seen before. Protect your car and eliminate the main cause of swirl marks on your paintwork! Proudly Made In Canada.\n\nFits inside nearly any 3, 4, 5, 6, 7 or 8 gallon standard round wash pail with its flexible, self-adjusting, rubber locking grips.\n\nVENTURI EFFECT: The Dirt Lock manipulates the flow of water by creating a high pressure underneath the filter and a low pressure above. This results in a tunneling effect and pushes the debris safely underneath the screen and provides much cleaner water above to reuse on your vehicle''s paintwork.\n\nAUTOMATIC SELF-LOCKING: Simply push the Dirt Lock inside almost any 3–8 gallon round wash bucket and it will automatically adjust itself for the perfect fit. The Dirt Lock is molded from a special plastic resin that sinks like an anchor in the bucket.\n\nTHE ULTIMATE SCRATCH-PROTECTION: It''s locked and loaded with every detail possible to ensure your vehicle''s finish is maintained to the highest standards.',
   24.99, NULL,
   'Detailing-Accessories', 'DETAIL GUARDZ',
-  '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (black) B07CKC4M9D/1. Hero Image.webp',
+  'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (black) B07CKC4M9D/1. Hero Image.webp',
   JSON_ARRAY(
-    '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (blue) B07CKLPJZR/1. Hero Image.webp',
-    '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (blue) B07CKLPJZR/2. Product Features.webp',
-    '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (blue) B07CKLPJZR/3. How it works.webp',
-    '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (blue) B07CKLPJZR/4. Product Fitting & Dimensions.webp',
-    '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (blue) B07CKLPJZR/5. Product Uses.webp'
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (blue) B07CKLPJZR/1. Hero Image.webp',
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (blue) B07CKLPJZR/2. Product Features.webp',
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (blue) B07CKLPJZR/3. How it works.webp',
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (blue) B07CKLPJZR/4. Product Fitting & Dimensions.webp',
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (blue) B07CKLPJZR/5. Product Uses.webp'
   ),
   JSON_OBJECT(
     'black', JSON_ARRAY(
-      '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (black) B07CKC4M9D/1. Hero Image.webp',
-      '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (black) B07CKC4M9D/2. Product Features_V2_Option 2 (1).webp',
-      '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (black) B07CKC4M9D/3. How it works.webp',
-      '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (black) B07CKC4M9D/4. Product Fitting & Dimensions.webp',
-      '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (black) B07CKC4M9D/5. Product Uses.webp'
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (black) B07CKC4M9D/1. Hero Image.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (black) B07CKC4M9D/2. Product Features_V2_Option 2 (1).webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (black) B07CKC4M9D/3. How it works.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (black) B07CKC4M9D/4. Product Fitting & Dimensions.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (black) B07CKC4M9D/5. Product Uses.webp'
     ),
     'blue', JSON_ARRAY(
-      '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (blue) B07CKLPJZR/1. Hero Image.webp',
-      '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (blue) B07CKLPJZR/2. Product Features.webp',
-      '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (blue) B07CKLPJZR/3. How it works.webp',
-      '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (blue) B07CKLPJZR/4. Product Fitting & Dimensions.webp',
-      '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (blue) B07CKLPJZR/5. Product Uses.webp'
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (blue) B07CKLPJZR/1. Hero Image.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (blue) B07CKLPJZR/2. Product Features.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (blue) B07CKLPJZR/3. How it works.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (blue) B07CKLPJZR/4. Product Fitting & Dimensions.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (blue) B07CKLPJZR/5. Product Uses.webp'
     ),
     'red', JSON_ARRAY(
-      '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (red) B07CKG1VCH/1. Hero Image.webp',
-      '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (red) B07CKG1VCH/2. Product Features.webp',
-      '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (red) B07CKG1VCH/3. How it works.webp',
-      '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (red) B07CKG1VCH/4. Product Fitting & Dimensions.webp',
-      '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (red) B07CKG1VCH/5. Product Uses.webp'
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (red) B07CKG1VCH/1. Hero Image.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (red) B07CKG1VCH/2. Product Features.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (red) B07CKG1VCH/3. How it works.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (red) B07CKG1VCH/4. Product Fitting & Dimensions.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (red) B07CKG1VCH/5. Product Uses.webp'
     ),
     'white', JSON_ARRAY(
-      '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (white) B088PZXQY1/1. Hero Image.webp',
-      '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (white) B088PZXQY1/2. Product Features.webp',
-      '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (white) B088PZXQY1/3. How it works.webp',
-      '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (white) B088PZXQY1/4. Product Fitting & Dimensions.webp',
-      '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (white) B088PZXQY1/5. Product Uses.webp'
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (white) B088PZXQY1/1. Hero Image.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (white) B088PZXQY1/2. Product Features.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (white) B088PZXQY1/3. How it works.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (white) B088PZXQY1/4. Product Fitting & Dimensions.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (white) B088PZXQY1/5. Product Uses.webp'
     ),
     'yellow', JSON_ARRAY(
-      '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (yellow) B07P9CWKLJ/1. Hero Image.webp',
-      '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (yellow) B07P9CWKLJ/2. Product Features.webp',
-      '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (yellow) B07P9CWKLJ/3. How it works.webp',
-      '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (yellow) B07P9CWKLJ/4. Product Fitting & Dimensions.webp',
-      '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (yellow) B07P9CWKLJ/5. Product Uses.webp'
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (yellow) B07P9CWKLJ/1. Hero Image.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (yellow) B07P9CWKLJ/2. Product Features.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (yellow) B07P9CWKLJ/3. How it works.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (yellow) B07P9CWKLJ/4. Product Fitting & Dimensions.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (yellow) B07P9CWKLJ/5. Product Uses.webp'
     )
   ),
   JSON_ARRAY(
@@ -913,20 +913,20 @@ INSERT INTO products (
   JSON_ARRAY('3–8 Gallon Round Pails', 'Standard Wash Buckets', 'Cars', 'Trucks', 'Motorcycles'),
   4.7, 2203, 1,
   JSON_OBJECT(
-    'heroImage', '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/about section large.jpg',
+    'heroImage', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/about section large.jpg',
     'heroImageAlt', 'Dirt Lock Bucket Filter Insert',
     'description', 'Our patented design utilizes the motion of your hand to pump and trap debris underneath the screen. The Dirt Lock has a complex Venturi filtering system that manipulates the flow of water in a downward direction. This allows dirt particles to collect underneath the screen without a way for it to re-enter into the clean water. In short, every time you pump your hand in the bucket you are cycling the dirt underneath the screen and replenishing clean water above to help prevent swirl-marks and scratches on the painted surface.\n\nONE Dirt Lock will filter your wash water like you have never seen before. Protect your car and eliminate the main cause of swirl marks on your paintwork! Proudly Made In Canada.\n\nFit''s inside nearly any 3,4,5,6,7 or 8 gallon standard round wash pail with it''s flexible, self-adjusting, rubber locking grips.',
     'features', JSON_ARRAY(
-      JSON_OBJECT('image', '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/about section small.jpg', 'alt', 'Venturi Effect', 'label', 'VENTURI EFFECT', 'description', 'The Dirt Lock manipulates the flow of water by creating a high pressure underneath the filter and a low pressure above. This results in a tunneling effect and pushes the debris safely underneath the screen and provides much cleaner water above to reuse on your vehicles paintwork!'),
-      JSON_OBJECT('image', '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/about section small1.jpg', 'alt', 'Automatic Self-Locking', 'label', 'AUTOMATIC SELF-LOCKING', 'description', 'The Dirt Lock comes equipped with rubber grips and also a self-locking feature. Simply push the dirt lock inside almost any 3,4,5,6,7 or 8 gallon round wash bucket and it will automatically adjust itself for the perfect fit. The Dirt Lock is molded from a special plastic resin that sinks like an anchor in the bucket!'),
-      JSON_OBJECT('image', '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/about section small2.jpg', 'alt', 'Ultimate Scratch Protection', 'label', 'THE ULTIMATE SCRATCH-PROTECTION', 'description', 'The Dirt Lock is the ultimate bucket filter to ensure your vehicle is as safe as possible from swirl-marks and scratches. It''s locked and loaded with every detail possible to ensure your vehicles finish is maintained to the highest standards. Feel confident knowing you have a proven bucket filter to keep your investment safe.')
+      JSON_OBJECT('image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/about section small.jpg', 'alt', 'Venturi Effect', 'label', 'VENTURI EFFECT', 'description', 'The Dirt Lock manipulates the flow of water by creating a high pressure underneath the filter and a low pressure above. This results in a tunneling effect and pushes the debris safely underneath the screen and provides much cleaner water above to reuse on your vehicles paintwork!'),
+      JSON_OBJECT('image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/about section small1.jpg', 'alt', 'Automatic Self-Locking', 'label', 'AUTOMATIC SELF-LOCKING', 'description', 'The Dirt Lock comes equipped with rubber grips and also a self-locking feature. Simply push the dirt lock inside almost any 3,4,5,6,7 or 8 gallon round wash bucket and it will automatically adjust itself for the perfect fit. The Dirt Lock is molded from a special plastic resin that sinks like an anchor in the bucket!'),
+      JSON_OBJECT('image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/about section small2.jpg', 'alt', 'Ultimate Scratch Protection', 'label', 'THE ULTIMATE SCRATCH-PROTECTION', 'description', 'The Dirt Lock is the ultimate bucket filter to ensure your vehicle is as safe as possible from swirl-marks and scratches. It''s locked and loaded with every detail possible to ensure your vehicles finish is maintained to the highest standards. Feel confident knowing you have a proven bucket filter to keep your investment safe.')
     ),
     'secondarySection', JSON_OBJECT(
       'title', 'ATTACH AND EXPAND YOUR DIRT LOCK SYSTEM',
       'items', JSON_ARRAY(
-        JSON_OBJECT('image', '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/ATTACH AND EXPAND SECTION 1.jpg', 'title', 'DIRT LOCK PAD WASHER SYSTEM ATTACHMENT', 'description', 'Clean your polishing pads safely and gently within seconds! Simply attach the pad washer attachment into your Dirt Lock bucket filter, place your dirty pads onto the supplied hook and loop handle, spray with our pad cleaner to break down polish and wax, pump pads on the attachment and your done within seconds!'),
-        JSON_OBJECT('image', '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/ATTACH AND EXPAND SECTION 2.jpg', 'title', 'DIRT LOCK SCRUB AND PUMP SYSTEM ATTACHMENT', 'description', 'Use the Scrub And Pump attachment for added cleaning power with your Dirt Lock bucket filter. Simply push the attachment into place and use it to scrub wash mitts, brushes, hand applicator pads and more! The Dirt Lock scrub and pump attachment works on a spring loaded system to pump cleaner water up and cycle dirty debris safely underneath the screen and out of harms way.'),
-        JSON_OBJECT('image', '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/ATTACH AND EXPAND SECTION 3.jpg', 'title', 'DIRT LOCK SCRUB WALL 180/360 SYSTEM ATTACHMENT', 'description', 'The Dirt Lock Scrub Wall attachment is a vertical extension of the Dirt Lock’s pressurized cleaning power. Simply snap the attachment into your Dirt Lock bucket filter to easily clean your wheel brushes, wash mitts and more without having to sacrifice hardly any bucket space. Simply scrub your wash media on the side of the Scrub Wall.')
+        JSON_OBJECT('image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/ATTACH AND EXPAND SECTION 1.jpg', 'title', 'DIRT LOCK PAD WASHER SYSTEM ATTACHMENT', 'description', 'Clean your polishing pads safely and gently within seconds! Simply attach the pad washer attachment into your Dirt Lock bucket filter, place your dirty pads onto the supplied hook and loop handle, spray with our pad cleaner to break down polish and wax, pump pads on the attachment and your done within seconds!'),
+        JSON_OBJECT('image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/ATTACH AND EXPAND SECTION 2.jpg', 'title', 'DIRT LOCK SCRUB AND PUMP SYSTEM ATTACHMENT', 'description', 'Use the Scrub And Pump attachment for added cleaning power with your Dirt Lock bucket filter. Simply push the attachment into place and use it to scrub wash mitts, brushes, hand applicator pads and more! The Dirt Lock scrub and pump attachment works on a spring loaded system to pump cleaner water up and cycle dirty debris safely underneath the screen and out of harms way.'),
+        JSON_OBJECT('image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/ATTACH AND EXPAND SECTION 3.jpg', 'title', 'DIRT LOCK SCRUB WALL 180/360 SYSTEM ATTACHMENT', 'description', 'The Dirt Lock Scrub Wall attachment is a vertical extension of the Dirt Lock’s pressurized cleaning power. Simply snap the attachment into your Dirt Lock bucket filter to easily clean your wheel brushes, wash mitts and more without having to sacrifice hardly any bucket space. Simply scrub your wash media on the side of the Scrub Wall.')
       )
     )
   ),
@@ -947,11 +947,11 @@ INSERT INTO products (
     'manufacturer', 'DETAIL GUARDZ Canada'
   ),
   JSON_ARRAY(
-    JSON_OBJECT('name', 'Blue', 'value', 'blue', 'sku', 'DLRP-BLUE-3-stickerless', 'asin', 'B07CKLPJZR', 'amazon_sku', 'DLRP-BLUE-3-stickerless', 'image', '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (blue) B07CKLPJZR/1. Hero Image.webp', 'price', 24.99),
-    JSON_OBJECT('name', 'Black', 'value', 'black', 'sku', 'DLRP-BLACK-1-stickerless', 'asin', 'B07CKC4M9D', 'amazon_sku', 'DLRP-BLACK-1-stickerless', 'image', '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (black) B07CKC4M9D/1. Hero Image.webp', 'price', 24.99),
-    JSON_OBJECT('name', 'Red', 'value', 'red', 'sku', 'DLRP-RED-2-stickerless', 'asin', 'B07CKG1VCH', 'amazon_sku', 'DLRP-RED-2-stickerless', 'image', '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (red) B07CKG1VCH/1. Hero Image.webp', 'price', 24.99),
-    JSON_OBJECT('name', 'White', 'value', 'white', 'sku', 'DLRP-W-stickerless', 'asin', 'B07P8BMSTH', 'amazon_sku', 'DLRP-W-stickerless', 'image', '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (white) B088PZXQY1/1. Hero Image.webp', 'price', 24.99),
-    JSON_OBJECT('name', 'Yellow', 'value', 'yellow', 'sku', 'DLRP-G-stickerless', 'asin', 'B07P9CWKLJ', 'amazon_sku', 'DLRP-G-stickerless', 'image', '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (yellow) B07P9CWKLJ/1. Hero Image.webp', 'price', 24.99)
+    JSON_OBJECT('name', 'Blue', 'value', 'blue', 'sku', 'DLRP-BLUE-3-stickerless', 'asin', 'B07CKLPJZR', 'amazon_sku', 'DLRP-BLUE-3-stickerless', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (blue) B07CKLPJZR/1. Hero Image.webp', 'price', 24.99),
+    JSON_OBJECT('name', 'Black', 'value', 'black', 'sku', 'DLRP-BLACK-1-stickerless', 'asin', 'B07CKC4M9D', 'amazon_sku', 'DLRP-BLACK-1-stickerless', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (black) B07CKC4M9D/1. Hero Image.webp', 'price', 24.99),
+    JSON_OBJECT('name', 'Red', 'value', 'red', 'sku', 'DLRP-RED-2-stickerless', 'asin', 'B07CKG1VCH', 'amazon_sku', 'DLRP-RED-2-stickerless', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (red) B07CKG1VCH/1. Hero Image.webp', 'price', 24.99),
+    JSON_OBJECT('name', 'White', 'value', 'white', 'sku', 'DLRP-W-stickerless', 'asin', 'B07P8BMSTH', 'amazon_sku', 'DLRP-W-stickerless', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (white) B088PZXQY1/1. Hero Image.webp', 'price', 24.99),
+    JSON_OBJECT('name', 'Yellow', 'value', 'yellow', 'sku', 'DLRP-G-stickerless', 'asin', 'B07P9CWKLJ', 'amazon_sku', 'DLRP-G-stickerless', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (yellow) B07P9CWKLJ/1. Hero Image.webp', 'price', 24.99)
   ),
   JSON_OBJECT(
     'main', JSON_OBJECT('url', 'https://www.youtube.com/embed/2LndE9cD63A', 'title', 'DETAIL GUARDZ Dirt Lock Car Wash Insert', 'description', 'The original Dirt Lock is the ultimate tool for a swirl-free wash. See how the patented Venturi system traps grit and debris effectively, keeping your wash water clean.'),
@@ -994,35 +994,35 @@ INSERT INTO products (
   'DETAIL GUARDZ DIRT LOCK SCRUB WALL 180/360 SYSTEM ATTACHMENT\n\nThe Dirt Lock Scrub Wall attachment is a vertical extension of the Dirt Lock''s pressurized cleaning power. Simply snap the attachment into your Dirt Lock bucket filter to easily clean your wheel brushes, wash mitts and more without having to sacrifice hardly any bucket space. Simply scrub your wash media on the side of the Scrub Wall. The debris is now behind the scrub wall screen and is pumped and trapped below the filter to provide cleaner, filtered water for reuse. Whether you move your wash media forward, backward, left, right, up or down in the bucket, debris is quickly trapped behind the screen and pumped out of harms way with the Dirt Lock Scrub Wall 180/360 system.\n\nVERTICAL EXTENSION OF THE DIRT LOCK''S PRESSURIZED CLEANING POWER: Simply snap the attachment into your Dirt Lock bucket filter to easily clean your wheel brushes, wash mitts and more without having to sacrifice hardly any bucket space.\n\nATTACHES INTO DIRT LOCK BUCKET FILTER: The Dirt Lock bucket filter allows you to attach the Scrub Wall 180/360 or any of our other detailing tools when needed. When you''re finished, simply detach it!\n\nEach Scrub Wall kit contains 180 degrees of coverage, simply connect two 180 kits together for full 360 degree bucket coverage.\n\nOUR MOST ADVANCED BUCKET FILTERING SYSTEM: With the addition of our scrub wall 180/360 attachment, it takes the product to another level by flushing out your wash mitt and tools more thoroughly, resulting in even cleaner wash media and the ability to cycle the debris even quicker underneath the screen. Proudly Made In Canada.',
   20.99, NULL,
   'Detailing-Accessories', 'DETAIL GUARDZ',
-  '/assets/Amazon Listing Images/Scrub Wall-20260122T171828Z-1-001/Scrub Wall/Dirt Lock Scrub Wall (black)/1. Hero Image.webp',
+  'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Scrub Wall-20260122T171828Z-1-001/Scrub Wall/Dirt Lock Scrub Wall (black)/1. Hero Image.webp',
   JSON_ARRAY(
-    '/assets/Amazon Listing Images/Scrub Wall-20260122T171828Z-1-001/Scrub Wall/Dirt Lock Scrub Wall (white)/1. Hero Image.webp',
-    '/assets/Amazon Listing Images/Scrub Wall-20260122T171828Z-1-001/Scrub Wall/Dirt Lock Scrub Wall (white)/2. Product Features.webp',
-    '/assets/Amazon Listing Images/Scrub Wall-20260122T171828Z-1-001/Scrub Wall/Dirt Lock Scrub Wall (white)/3. How it works.webp',
-    '/assets/Amazon Listing Images/Scrub Wall-20260122T171828Z-1-001/Scrub Wall/Dirt Lock Scrub Wall (white)/4. Product Fitting & Dimensions.webp',
-    '/assets/Amazon Listing Images/Scrub Wall-20260122T171828Z-1-001/Scrub Wall/Dirt Lock Scrub Wall (white)/5. Product Uses.webp'
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Scrub Wall-20260122T171828Z-1-001/Scrub Wall/Dirt Lock Scrub Wall (white)/1. Hero Image.webp',
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Scrub Wall-20260122T171828Z-1-001/Scrub Wall/Dirt Lock Scrub Wall (white)/2. Product Features.webp',
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Scrub Wall-20260122T171828Z-1-001/Scrub Wall/Dirt Lock Scrub Wall (white)/3. How it works.webp',
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Scrub Wall-20260122T171828Z-1-001/Scrub Wall/Dirt Lock Scrub Wall (white)/4. Product Fitting & Dimensions.webp',
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Scrub Wall-20260122T171828Z-1-001/Scrub Wall/Dirt Lock Scrub Wall (white)/5. Product Uses.webp'
   ),
   JSON_OBJECT(
     'white', JSON_ARRAY(
-      '/assets/Amazon Listing Images/Scrub Wall-20260122T171828Z-1-001/Scrub Wall/Dirt Lock Scrub Wall (white)/1. Hero Image.webp',
-      '/assets/Amazon Listing Images/Scrub Wall-20260122T171828Z-1-001/Scrub Wall/Dirt Lock Scrub Wall (white)/2. Product Features.webp',
-      '/assets/Amazon Listing Images/Scrub Wall-20260122T171828Z-1-001/Scrub Wall/Dirt Lock Scrub Wall (white)/3. How it works.webp',
-      '/assets/Amazon Listing Images/Scrub Wall-20260122T171828Z-1-001/Scrub Wall/Dirt Lock Scrub Wall (white)/4. Product Fitting & Dimensions.webp',
-      '/assets/Amazon Listing Images/Scrub Wall-20260122T171828Z-1-001/Scrub Wall/Dirt Lock Scrub Wall (white)/5. Product Uses.webp'
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Scrub Wall-20260122T171828Z-1-001/Scrub Wall/Dirt Lock Scrub Wall (white)/1. Hero Image.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Scrub Wall-20260122T171828Z-1-001/Scrub Wall/Dirt Lock Scrub Wall (white)/2. Product Features.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Scrub Wall-20260122T171828Z-1-001/Scrub Wall/Dirt Lock Scrub Wall (white)/3. How it works.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Scrub Wall-20260122T171828Z-1-001/Scrub Wall/Dirt Lock Scrub Wall (white)/4. Product Fitting & Dimensions.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Scrub Wall-20260122T171828Z-1-001/Scrub Wall/Dirt Lock Scrub Wall (white)/5. Product Uses.webp'
     ),
     'black', JSON_ARRAY(
-      '/assets/Amazon Listing Images/Scrub Wall-20260122T171828Z-1-001/Scrub Wall/Dirt Lock Scrub Wall (black)/1. Hero Image.webp',
-      '/assets/Amazon Listing Images/Scrub Wall-20260122T171828Z-1-001/Scrub Wall/Dirt Lock Scrub Wall (black)/2. Product Features.webp',
-      '/assets/Amazon Listing Images/Scrub Wall-20260122T171828Z-1-001/Scrub Wall/Dirt Lock Scrub Wall (black)/3. How it works.webp',
-      '/assets/Amazon Listing Images/Scrub Wall-20260122T171828Z-1-001/Scrub Wall/Dirt Lock Scrub Wall (black)/4. Product Fitting & Dimensions.webp',
-      '/assets/Amazon Listing Images/Scrub Wall-20260122T171828Z-1-001/Scrub Wall/Dirt Lock Scrub Wall (black)/5. Product Uses.webp'
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Scrub Wall-20260122T171828Z-1-001/Scrub Wall/Dirt Lock Scrub Wall (black)/1. Hero Image.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Scrub Wall-20260122T171828Z-1-001/Scrub Wall/Dirt Lock Scrub Wall (black)/2. Product Features.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Scrub Wall-20260122T171828Z-1-001/Scrub Wall/Dirt Lock Scrub Wall (black)/3. How it works.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Scrub Wall-20260122T171828Z-1-001/Scrub Wall/Dirt Lock Scrub Wall (black)/4. Product Fitting & Dimensions.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Scrub Wall-20260122T171828Z-1-001/Scrub Wall/Dirt Lock Scrub Wall (black)/5. Product Uses.webp'
     ),
     'red', JSON_ARRAY(
-      '/assets/Amazon Listing Images/Scrub Wall-20260122T171828Z-1-001/Scrub Wall/Dirt Lock Scrub Wall (red)/1. Hero Image.webp',
-      '/assets/Amazon Listing Images/Scrub Wall-20260122T171828Z-1-001/Scrub Wall/Dirt Lock Scrub Wall (red)/2. Product Features.webp',
-      '/assets/Amazon Listing Images/Scrub Wall-20260122T171828Z-1-001/Scrub Wall/Dirt Lock Scrub Wall (red)/3. How it works.webp',
-      '/assets/Amazon Listing Images/Scrub Wall-20260122T171828Z-1-001/Scrub Wall/Dirt Lock Scrub Wall (red)/4. Product Fitting & Dimensions.webp',
-      '/assets/Amazon Listing Images/Scrub Wall-20260122T171828Z-1-001/Scrub Wall/Dirt Lock Scrub Wall (red)/5. Product Uses.webp'
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Scrub Wall-20260122T171828Z-1-001/Scrub Wall/Dirt Lock Scrub Wall (red)/1. Hero Image.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Scrub Wall-20260122T171828Z-1-001/Scrub Wall/Dirt Lock Scrub Wall (red)/2. Product Features.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Scrub Wall-20260122T171828Z-1-001/Scrub Wall/Dirt Lock Scrub Wall (red)/3. How it works.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Scrub Wall-20260122T171828Z-1-001/Scrub Wall/Dirt Lock Scrub Wall (red)/4. Product Fitting & Dimensions.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Scrub Wall-20260122T171828Z-1-001/Scrub Wall/Dirt Lock Scrub Wall (red)/5. Product Uses.webp'
     )
   ),
   JSON_ARRAY(
@@ -1035,20 +1035,20 @@ INSERT INTO products (
   JSON_ARRAY('Dirt Lock Bucket Filter', '3–8 Gallon Round Pails', 'Wash Mitts', 'Wheel Brushes'),
   4.5, 828, 1,
   JSON_OBJECT(
-    'heroImage', '/assets/Amazon Listing Images/Scrub Wall-20260122T171828Z-1-001/ABOUT SECTION LARGE.jpg',
+    'heroImage', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Scrub Wall-20260122T171828Z-1-001/ABOUT SECTION LARGE.jpg',
     'heroImageAlt', 'Dirt Lock Scrub Wall System',
     'description', 'The Dirt Lock Scrub Wall attachment is a vertical extension of the Dirt Lock’s pressurized cleaning power. Simply snap the attachment into your Dirt Lock bucket filter to easily clean your wheel brushes, wash mitts and more without having to sacrifice hardly any bucket space. Simply scrub your wash media on the side of the Scrub Wall. The debris is now behind the scrub wall screen and is pumped and trapped below the filter to provide cleaner, filtered water for reuse. Whether you move your wash media forward, backward, left, right, up or down in the bucket, debris is quickly trapped behind the screen and pumped out of harms way with the Dirt Lock Scrub Wall 180/360 system.',
     'features', JSON_ARRAY(
-      JSON_OBJECT('image', '/assets/Amazon Listing Images/Scrub Wall-20260122T171828Z-1-001/ABOUT SECTION SMALL.jpg', 'alt', 'Vertical Cleaning Power', 'label', 'VERTICAL EXTENSION OF THE DIRT LOCK''S PRESSURIZED CLEANING POWER', 'description', 'The Dirt Lock Scrub Wall attachment is a vertical extension of the Dirt Lock’s pressurized cleaning power. Simply snap the attachment into your Dirt Lock bucket filter to easily clean your wheel brushes, wash mitts and more without having to sacrifice hardly any bucket space.'),
-      JSON_OBJECT('image', '/assets/Amazon Listing Images/Scrub Wall-20260122T171828Z-1-001/ABOUT SECTION SMALL 1.jpg', 'alt', 'Attaches Into Filter', 'label', 'ATTACHES INTO DIRT LOCK BUCKET FILTER', 'description', 'The Dirt Lock bucket filter allows you to attach the Scrub Wall 180/360 or any of our other detailing tools when needed. When your finished, simply detach it!\n\nEach Scrub Wall kit contains 180 degrees of coverage, simply connect two 180 kits together for full 360 degree bucket coverage.'),
-      JSON_OBJECT('image', '/assets/Amazon Listing Images/Scrub Wall-20260122T171828Z-1-001/ABOUT SECTION SMALL 2.jpg', 'alt', 'Advanced Filtering', 'label', 'OUR MOST ADVANCED BUCKET FILTERING SYSTEM', 'description', 'The Dirt Lock bucket filter is extremely powerful on it''s own. With the addition of our scrub wall 180/360 attachment, it takes the product to another level by flushing out your wash mitt and tools more thoroughly, resulting in even cleaner wash media and the ability to cycle the debris even quicker underneath the screen with the added vertical extension.')
+      JSON_OBJECT('image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Scrub Wall-20260122T171828Z-1-001/ABOUT SECTION SMALL.jpg', 'alt', 'Vertical Cleaning Power', 'label', 'VERTICAL EXTENSION OF THE DIRT LOCK''S PRESSURIZED CLEANING POWER', 'description', 'The Dirt Lock Scrub Wall attachment is a vertical extension of the Dirt Lock’s pressurized cleaning power. Simply snap the attachment into your Dirt Lock bucket filter to easily clean your wheel brushes, wash mitts and more without having to sacrifice hardly any bucket space.'),
+      JSON_OBJECT('image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Scrub Wall-20260122T171828Z-1-001/ABOUT SECTION SMALL 1.jpg', 'alt', 'Attaches Into Filter', 'label', 'ATTACHES INTO DIRT LOCK BUCKET FILTER', 'description', 'The Dirt Lock bucket filter allows you to attach the Scrub Wall 180/360 or any of our other detailing tools when needed. When your finished, simply detach it!\n\nEach Scrub Wall kit contains 180 degrees of coverage, simply connect two 180 kits together for full 360 degree bucket coverage.'),
+      JSON_OBJECT('image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Scrub Wall-20260122T171828Z-1-001/ABOUT SECTION SMALL 2.jpg', 'alt', 'Advanced Filtering', 'label', 'OUR MOST ADVANCED BUCKET FILTERING SYSTEM', 'description', 'The Dirt Lock bucket filter is extremely powerful on it''s own. With the addition of our scrub wall 180/360 attachment, it takes the product to another level by flushing out your wash mitt and tools more thoroughly, resulting in even cleaner wash media and the ability to cycle the debris even quicker underneath the screen with the added vertical extension.')
     ),
     'secondarySection', JSON_OBJECT(
       'title', 'ADDITIONAL ATTACHMENTS',
       'items', JSON_ARRAY(
-        JSON_OBJECT('image', '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/ATTACH AND EXPAND SECTION 1.jpg', 'title', 'DIRT LOCK PAD WASHER SYSTEM ATTACHMENT', 'description', 'Clean your polishing pads safely and gently within seconds! Simply attach the pad washer attachment into your Dirt Lock bucket filter, place your dirty pads onto the supplied hook and loop handle, spray with our pad cleaner to break down polish and wax, pump pads on the attachment and your done within seconds!'),
-        JSON_OBJECT('image', '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/ATTACH AND EXPAND SECTION 2.jpg', 'title', 'DIRT LOCK SCRUB AND PUMP SYSTEM ATTACHMENT', 'description', 'Use the Scrub And Pump attachment for added cleaning power with your Dirt Lock bucket filter. Simply push the attachment into place and use it to scrub wash mitts, brushes, hand applicator pads and more! The Dirt Lock scrub and pump attachment works on a spring loaded system to pump cleaner water up and cycle dirty debris safely underneath the screen and out of harms way.'),
-        JSON_OBJECT('image', '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/ATTACH AND EXPAND SECTION 3.jpg', 'title', 'DIRT LOCK SCRUB WALL 180/360 SYSTEM ATTACHMENT', 'description', 'The Dirt Lock Scrub Wall attachment is a vertical extension of the Dirt Lock’s pressurized cleaning power. Simply snap the attachment into your Dirt Lock bucket filter to easily clean your wheel brushes, wash mitts and more without having to sacrifice hardly any bucket space. Simply scrub your wash media on the side of the Scrub Wall.')
+        JSON_OBJECT('image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/ATTACH AND EXPAND SECTION 1.jpg', 'title', 'DIRT LOCK PAD WASHER SYSTEM ATTACHMENT', 'description', 'Clean your polishing pads safely and gently within seconds! Simply attach the pad washer attachment into your Dirt Lock bucket filter, place your dirty pads onto the supplied hook and loop handle, spray with our pad cleaner to break down polish and wax, pump pads on the attachment and your done within seconds!'),
+        JSON_OBJECT('image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/ATTACH AND EXPAND SECTION 2.jpg', 'title', 'DIRT LOCK SCRUB AND PUMP SYSTEM ATTACHMENT', 'description', 'Use the Scrub And Pump attachment for added cleaning power with your Dirt Lock bucket filter. Simply push the attachment into place and use it to scrub wash mitts, brushes, hand applicator pads and more! The Dirt Lock scrub and pump attachment works on a spring loaded system to pump cleaner water up and cycle dirty debris safely underneath the screen and out of harms way.'),
+        JSON_OBJECT('image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/ATTACH AND EXPAND SECTION 3.jpg', 'title', 'DIRT LOCK SCRUB WALL 180/360 SYSTEM ATTACHMENT', 'description', 'The Dirt Lock Scrub Wall attachment is a vertical extension of the Dirt Lock’s pressurized cleaning power. Simply snap the attachment into your Dirt Lock bucket filter to easily clean your wheel brushes, wash mitts and more without having to sacrifice hardly any bucket space. Simply scrub your wash media on the side of the Scrub Wall.')
       )
     )
   ),
@@ -1066,9 +1066,9 @@ INSERT INTO products (
     'manufacturer', 'DETAIL GUARDZ Canada'
   ),
   JSON_ARRAY(
-    JSON_OBJECT('name', 'White', 'value', 'white', 'sku', 'DIRT LOCK-SW180 WHITE', 'asin', 'B09CRX2D31', 'amazon_sku', 'DIRT LOCK-SW180 WHITE', 'image', '/assets/Amazon Listing Images/Scrub Wall-20260122T171828Z-1-001/Scrub Wall/Dirt Lock Scrub Wall (white)/1. Hero Image.webp', 'price', 20.99),
-    JSON_OBJECT('name', 'Black', 'value', 'black', 'sku', 'DIRT LOCK-SW180 BLACK', 'asin', 'B09CRZD82Q', 'amazon_sku', 'DIRT LOCK-SW180 BLACK', 'image', '/assets/Amazon Listing Images/Scrub Wall-20260122T171828Z-1-001/Scrub Wall/Dirt Lock Scrub Wall (black)/1. Hero Image.webp', 'price', 20.99),
-    JSON_OBJECT('name', 'Red', 'value', 'red', 'sku', 'DIRT LOCK-SW180 RED', 'asin', 'B0D66Z4DJB', 'amazon_sku', 'DIRT LOCK-SW180 RED', 'image', '/assets/Amazon Listing Images/Scrub Wall-20260122T171828Z-1-001/Scrub Wall/Dirt Lock Scrub Wall (red)/1. Hero Image.webp', 'price', 20.99)
+    JSON_OBJECT('name', 'White', 'value', 'white', 'sku', 'DIRT LOCK-SW180 WHITE', 'asin', 'B09CRX2D31', 'amazon_sku', 'DIRT LOCK-SW180 WHITE', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Scrub Wall-20260122T171828Z-1-001/Scrub Wall/Dirt Lock Scrub Wall (white)/1. Hero Image.webp', 'price', 20.99),
+    JSON_OBJECT('name', 'Black', 'value', 'black', 'sku', 'DIRT LOCK-SW180 BLACK', 'asin', 'B09CRZD82Q', 'amazon_sku', 'DIRT LOCK-SW180 BLACK', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Scrub Wall-20260122T171828Z-1-001/Scrub Wall/Dirt Lock Scrub Wall (black)/1. Hero Image.webp', 'price', 20.99),
+    JSON_OBJECT('name', 'Red', 'value', 'red', 'sku', 'DIRT LOCK-SW180 RED', 'asin', 'B0D66Z4DJB', 'amazon_sku', 'DIRT LOCK-SW180 RED', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Scrub Wall-20260122T171828Z-1-001/Scrub Wall/Dirt Lock Scrub Wall (red)/1. Hero Image.webp', 'price', 20.99)
   ),
   JSON_OBJECT(
     'main', JSON_OBJECT('url', 'https://www.youtube.com/embed/wgR1NE6h6Zk', 'title', 'DETAIL GUARDZ Dirt Lock Scrub Wall 180/360', 'description', 'Maximize your cleaning power with the Scrub Wall. This video shows how to install and use the 180/360 configurations.'),
@@ -1107,13 +1107,13 @@ INSERT INTO products (
   'DETAIL GUARDZ DIRT LOCK SCRUB AND PUMP SYSTEM\n\nUse the Scrub And Pump attachment for added cleaning power with your Dirt Lock bucket filter. Simply push the attachment into place and use it to scrub wash mitts, brushes, hand applicator pads and more! The Dirt Lock scrub and pump attachment works on a spring loaded system to pump cleaner water up and cycle dirty debris safely underneath the screen and out of harms way. The soft rounded scrubbing ridges allow you to scrub and pump away dirt and grime safely under the screen. This is the ultimate bucket filtering system to further enhance the Dirt Locks cleaning power and help ensure your vehicle is safe from swirl-marks and scratches! Proudly Made In Canada.\n\nPUSH ACTIVATED PUMP: Simply push down on the pump and a heavy stream of cleaner water will blast upward. This allows you to scrub and pump away the debris safely under the Dirt Lock bucket filter.\n\nATTACHES INTO DIRT LOCK BUCKET FILTER: The Dirt Lock bucket filter allows you to attach the scrub and pump or any of our other detailing tools when needed. When you''re finished, simply detach it!\n\nOUR MOST ADVANCED BUCKET FILTERING SYSTEM: The Dirt Lock bucket filter is extremely powerful on its own. With the addition of our scrub and pump attachment, it takes the product to another level by flushing out your wash mitt and tools more thoroughly, resulting in even cleaner wash media and the ability to cycle the debris even quicker underneath the screen with the added pump system.',
   16.99, NULL,
   'Detailing-Accessories', 'DETAIL GUARDZ',
-  '/assets/The Dirt Lock Scrub and Pump black.webp',
+  'https://detailguardz.s3.us-east-1.amazonaws.com/assets/The Dirt Lock Scrub and Pump black.webp',
   JSON_ARRAY(
-    '/assets/The Dirt Lock Scrub and Pump black.webp',
-    '/assets/Amazon Listing Images/Scrub & Pump Images-20260312T173939Z-1-001/Scrub & Pump Images/1.webp',
-    '/assets/Amazon Listing Images/Scrub & Pump Images-20260312T173939Z-1-001/Scrub & Pump Images/2.webp',
-    '/assets/Amazon Listing Images/Scrub & Pump Images-20260312T173939Z-1-001/Scrub & Pump Images/3.webp',
-    '/assets/Amazon Listing Images/Scrub & Pump Images-20260312T173939Z-1-001/Scrub & Pump Images/4.webp'
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/The Dirt Lock Scrub and Pump black.webp',
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Scrub & Pump Images-20260312T173939Z-1-001/Scrub & Pump Images/1.webp',
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Scrub & Pump Images-20260312T173939Z-1-001/Scrub & Pump Images/2.webp',
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Scrub & Pump Images-20260312T173939Z-1-001/Scrub & Pump Images/3.webp',
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Scrub & Pump Images-20260312T173939Z-1-001/Scrub & Pump Images/4.webp'
   ),
   NULL,
   JSON_ARRAY(
@@ -1126,20 +1126,20 @@ INSERT INTO products (
   JSON_ARRAY('Dirt Lock Bucket Filter', '3-8 Gallon Round Pails'),
   4.5, 236, 1,
   JSON_OBJECT(
-    'heroImage', '/assets/Amazon Listing Images/Scrub & Pump Images-20260312T173939Z-1-001/ABOUT SECTION LARGE.jpg',
+    'heroImage', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Scrub & Pump Images-20260312T173939Z-1-001/ABOUT SECTION LARGE.jpg',
     'heroImageAlt', 'Dirt Lock Scrub and Pump System',
     'description', 'Use the Scrub And Pump attachment for added cleaning power with your Dirt Lock bucket filter. Simply push the attachment into place and use it to scrub wash mitts, brushes, hand applicator pads and more! The Dirt Lock scrub and pump attachment works on a spring loaded system to pump cleaner water up and cycle dirty debris safely underneath the screen and out of harms way. The soft rounded scrubbing ridges allow you to scrub and pump away dirt and grime safely under the screen. This is the ultimate bucket filtering system to further enhance the Dirt Locks cleaning power and help ensure your vehicle is safe from swirl-marks and scratches! Proudly Made In Canada.',
     'features', JSON_ARRAY(
-      JSON_OBJECT('image', '/assets/Amazon Listing Images/Scrub & Pump Images-20260312T173939Z-1-001/ABOUT SECTION SMALL.jpg', 'alt', 'Push Activated Pump', 'label', 'PUSH ACTIVATED PUMP', 'description', 'Simply push down on the pump and a heavy stream of cleaner water will blast upward. This allows you to scrub and pump away the debris safely under the Dirt Lock bucket filter.'),
-      JSON_OBJECT('image', '/assets/Amazon Listing Images/Scrub & Pump Images-20260312T173939Z-1-001/ABOUT SECTION SMALL 1.jpg', 'alt', 'Attaches Into Filter', 'label', 'ATTACHES INTO DIRT LOCK BUCKET FILTER', 'description', 'The Dirt Lock bucket filter allows you to attach the scrub and pump or any of our other detailing tools when needed. When your finished, simply detach it!'),
-      JSON_OBJECT('image', '/assets/Amazon Listing Images/Scrub & Pump Images-20260312T173939Z-1-001/ABOUT SECTION SMALL 2.jpg', 'alt', 'Advanced Filtering', 'label', 'OUR MOST ADVANCED BUCKET FILTERING SYSTEM', 'description', 'The Dirt Lock bucket filter is extremely powerful on it''s own. With the addition of our scrub and pump attachment, it takes the product to another level by flushing out your wash mitt and tools more thoroughly, resulting in even cleaner wash media and the ability to cycle the debris even quicker underneath the screen with the added pump system.')
+      JSON_OBJECT('image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Scrub & Pump Images-20260312T173939Z-1-001/ABOUT SECTION SMALL.jpg', 'alt', 'Push Activated Pump', 'label', 'PUSH ACTIVATED PUMP', 'description', 'Simply push down on the pump and a heavy stream of cleaner water will blast upward. This allows you to scrub and pump away the debris safely under the Dirt Lock bucket filter.'),
+      JSON_OBJECT('image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Scrub & Pump Images-20260312T173939Z-1-001/ABOUT SECTION SMALL 1.jpg', 'alt', 'Attaches Into Filter', 'label', 'ATTACHES INTO DIRT LOCK BUCKET FILTER', 'description', 'The Dirt Lock bucket filter allows you to attach the scrub and pump or any of our other detailing tools when needed. When your finished, simply detach it!'),
+      JSON_OBJECT('image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Scrub & Pump Images-20260312T173939Z-1-001/ABOUT SECTION SMALL 2.jpg', 'alt', 'Advanced Filtering', 'label', 'OUR MOST ADVANCED BUCKET FILTERING SYSTEM', 'description', 'The Dirt Lock bucket filter is extremely powerful on it''s own. With the addition of our scrub and pump attachment, it takes the product to another level by flushing out your wash mitt and tools more thoroughly, resulting in even cleaner wash media and the ability to cycle the debris even quicker underneath the screen with the added pump system.')
     ),
     'secondarySection', JSON_OBJECT(
       'title', 'ADDITIONAL ATTACHMENTS',
       'items', JSON_ARRAY(
-        JSON_OBJECT('image', '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/ATTACH AND EXPAND SECTION 1.jpg', 'title', 'DIRT LOCK PAD WASHER SYSTEM ATTACHMENT', 'description', 'Clean your polishing pads safely and gently within seconds! Simply attach the pad washer attachment into your Dirt Lock bucket filter, place your dirty pads onto the supplied hook and loop handle, spray with our pad cleaner to break down polish and wax, pump pads on the attachment and your done within seconds!'),
-        JSON_OBJECT('image', '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/ATTACH AND EXPAND SECTION 2.jpg', 'title', 'DIRT LOCK SCRUB AND PUMP SYSTEM ATTACHMENT', 'description', 'Use the Scrub And Pump attachment for added cleaning power with your Dirt Lock bucket filter. Simply push the attachment into place and use it to scrub wash mitts, brushes, hand applicator pads and more! The Dirt Lock scrub and pump attachment works on a spring loaded system to pump cleaner water up and cycle dirty debris safely underneath the screen and out of harms way.'),
-        JSON_OBJECT('image', '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/ATTACH AND EXPAND SECTION 3.jpg', 'title', 'DIRT LOCK SCRUB WALL 180/360 SYSTEM ATTACHMENT', 'description', 'The Dirt Lock Scrub Wall attachment is a vertical extension of the Dirt Lock’s pressurized cleaning power. Simply snap the attachment into your Dirt Lock bucket filter to easily clean your wheel brushes, wash mitts and more without having to sacrifice hardly any bucket space. Simply scrub your wash media on the side of the Scrub Wall.')
+        JSON_OBJECT('image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/ATTACH AND EXPAND SECTION 1.jpg', 'title', 'DIRT LOCK PAD WASHER SYSTEM ATTACHMENT', 'description', 'Clean your polishing pads safely and gently within seconds! Simply attach the pad washer attachment into your Dirt Lock bucket filter, place your dirty pads onto the supplied hook and loop handle, spray with our pad cleaner to break down polish and wax, pump pads on the attachment and your done within seconds!'),
+        JSON_OBJECT('image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/ATTACH AND EXPAND SECTION 2.jpg', 'title', 'DIRT LOCK SCRUB AND PUMP SYSTEM ATTACHMENT', 'description', 'Use the Scrub And Pump attachment for added cleaning power with your Dirt Lock bucket filter. Simply push the attachment into place and use it to scrub wash mitts, brushes, hand applicator pads and more! The Dirt Lock scrub and pump attachment works on a spring loaded system to pump cleaner water up and cycle dirty debris safely underneath the screen and out of harms way.'),
+        JSON_OBJECT('image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/ATTACH AND EXPAND SECTION 3.jpg', 'title', 'DIRT LOCK SCRUB WALL 180/360 SYSTEM ATTACHMENT', 'description', 'The Dirt Lock Scrub Wall attachment is a vertical extension of the Dirt Lock’s pressurized cleaning power. Simply snap the attachment into your Dirt Lock bucket filter to easily clean your wheel brushes, wash mitts and more without having to sacrifice hardly any bucket space. Simply scrub your wash media on the side of the Scrub Wall.')
       )
     )
   ),
@@ -1157,8 +1157,8 @@ INSERT INTO products (
     'manufacturer', 'DETAIL GUARDZ Canada'
   ),
   JSON_ARRAY(
-    JSON_OBJECT('name', 'BLACK', 'value', 'black', 'sku', 'DIRT-LOCK-SAP-BLACK', 'asin', 'B08FTBJ9XT', 'amazon_sku', 'DIRT-LOCK-SAP-BLACK', 'image', '/assets/The Dirt Lock Scrub and Pump black.webp', 'price', 16.99, 'title', 'DETAIL GUARDZ The Dirt Lock Scrub and Pump Attachment for Car Wash Bucket Filter (Black)'),
-    JSON_OBJECT('name', 'WHITE', 'value', 'white', 'sku', 'DIRT-LOCK-SAP-WHITE', 'asin', 'B08FTK9PJJ', 'amazon_sku', 'DIRT-LOCK-SAP-WHITE', 'image', '/assets/The Dirt Lock Scrub and Pump white.webp', 'price', 16.99, 'title', 'DETAIL GUARDZ The Dirt Lock Scrub and Pump Attachment for Car Wash Bucket Filter (White)')
+    JSON_OBJECT('name', 'BLACK', 'value', 'black', 'sku', 'DIRT-LOCK-SAP-BLACK', 'asin', 'B08FTBJ9XT', 'amazon_sku', 'DIRT-LOCK-SAP-BLACK', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/The Dirt Lock Scrub and Pump black.webp', 'price', 16.99, 'title', 'DETAIL GUARDZ The Dirt Lock Scrub and Pump Attachment for Car Wash Bucket Filter (Black)'),
+    JSON_OBJECT('name', 'WHITE', 'value', 'white', 'sku', 'DIRT-LOCK-SAP-WHITE', 'asin', 'B08FTK9PJJ', 'amazon_sku', 'DIRT-LOCK-SAP-WHITE', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/The Dirt Lock Scrub and Pump white.webp', 'price', 16.99, 'title', 'DETAIL GUARDZ The Dirt Lock Scrub and Pump Attachment for Car Wash Bucket Filter (White)')
   ),
   JSON_OBJECT(
     'main', JSON_OBJECT('url', 'https://www.youtube.com/embed/Ck9pNdgxRp4', 'title', 'DETAIL GUARDZ Dirt Lock Scrub and Pump Attachment', 'description', 'Experience the power of filtered water. The Scrub and Pump attachment ensures you are always using the cleanest possible water on your vehicle.'),
@@ -1194,18 +1194,18 @@ INSERT INTO products (
   'DETAIL GUARDZ DIRT LOCK PAD WASHER SYSTEM ATTACHMENT\n\nThe Dirt Lock pad washer attachment clicks into your Dirt Lock bucket filter to clean any polishing pads safely and gently within seconds! Clean your foam, wool, microfiber, buffing bonnets and more within the blink of an eye.\n\nHOW TO USE: Simply insert the pad washer attachment into your Dirt Lock bucket filter and place into a bucket with clean water. Attach your dirty pads onto the supplied hook and loop handle and pump up and down on the attachment for about 15-20 seconds. Clean water will blast inside the pad and flush out any unwanted chemicals to create a perfectly clean polishing pad!\n\nWORKS WITH ANY 1" TO 10" PADS: The Dirt Lock pad washer system will quickly and gently clean any polishing pad from 1 inch all the way to 10 inches. This system replicates a gentle hand wash, so it does not tear or damage your polishing pad.\n\nSEMA AWARD WINNING: The Dirt Lock pad washer system works so well it won the SEMA global media awards! Feel confident knowing you are receiving a rigorously tested and proven pad washer system that will last for years!\n\nThe Dirt Lock pad washer attachment is made from industrial grade plastic and metal for extreme durability. Proudly Made In Canada.',
   58.99, NULL,
   'Detailing-Accessories', 'DETAIL GUARDZ',
-  '/assets/Amazon Listing Images/Pad Washer Images/0.webp',
+  'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Pad Washer Images/0.webp',
   JSON_ARRAY(
-    '/assets/Amazon Listing Images/Pad Washer Images/0.webp',
-    '/assets/Amazon Listing Images/Pad Washer Images/1.webp',
-    '/assets/Amazon Listing Images/Pad Washer Images/2.webp',
-    '/assets/Amazon Listing Images/Pad Washer Images/3.webp',
-    '/assets/Amazon Listing Images/Pad Washer Images/4.webp',
-    '/assets/Amazon Listing Images/Pad Washer Images/5.webp',
-    '/assets/Amazon Listing Images/Pad Washer Images/about section large.jpg',
-    '/assets/Amazon Listing Images/Pad Washer Images/about section small.jpg',
-    '/assets/Amazon Listing Images/Pad Washer Images/about section small1.jpg',
-    '/assets/Amazon Listing Images/Pad Washer Images/about section small2.jpg'
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Pad Washer Images/0.webp',
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Pad Washer Images/1.webp',
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Pad Washer Images/2.webp',
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Pad Washer Images/3.webp',
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Pad Washer Images/4.webp',
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Pad Washer Images/5.webp',
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Pad Washer Images/about section large.jpg',
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Pad Washer Images/about section small.jpg',
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Pad Washer Images/about section small1.jpg',
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Pad Washer Images/about section small2.jpg'
   ),
   NULL,
   JSON_ARRAY(
@@ -1218,15 +1218,15 @@ INSERT INTO products (
   JSON_ARRAY('Dirt Lock Bucket Filter', 'All Polishing Pads 1"–10"', 'Foam Pads', 'Wool Pads', 'Microfiber Pads'),
   4.0, 69, 1,
   JSON_OBJECT(
-    'heroImage', '/assets/Amazon Listing Images/Pad Washer Images/about section large.jpg',
+    'heroImage', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Pad Washer Images/about section large.jpg',
     'heroImageAlt', 'Dirt Lock Pad Washer System',
     'description', 'The Dirt Lock pad washer attachment clicks into your Dirt Lock bucket filter to clean any polishing pads safely and gently within seconds! Clean your foam, wool, microfiber, buffing bonnets and more within the blink of an eye. HOW TO USE: Simply insert the pad washer attachment into your Dirt Lock bucket filter and place into a bucket with clean water. Attach your dirty pads onto the supplied hook and loop handle and pump up and down on the attachment for about 15-20 seconds. Clean water will blast inside the pad and flush our any unwanted chemicals to create a perfectly clean polishing pad! The Dirt Lock pad washer attachment is made from industrial grade plastic and metal for extreme durability. The Detail Guardz Dirt Lock pad washer system is an extremely effective way to clean all your polishing pads gently, quickly and thoroughly within seconds. Works with ALL polishing pads and is extremely safe and gentle to prolong the life of the pad! Proudly Made In Canada.',
     'secondarySection', JSON_OBJECT(
       'title', 'ATTACH AND EXPAND YOUR DIRT LOCK SYSTEM',
       'items', JSON_ARRAY(
-        JSON_OBJECT('image', '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/ATTACH AND EXPAND SECTION 1.jpg', 'title', 'DIRT LOCK PAD WASHER SYSTEM ATTACHMENT', 'description', 'Clean your polishing pads safely and gently within seconds! Simply attach the pad washer attachment into your Dirt Lock bucket filter, place your dirty pads onto the supplied hook and loop handle, spray with our pad cleaner to break down polish and wax, pump pads on the attachment and your done within seconds!'),
-        JSON_OBJECT('image', '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/ATTACH AND EXPAND SECTION 2.jpg', 'title', 'DIRT LOCK SCRUB AND PUMP SYSTEM ATTACHMENT', 'description', 'Use the Scrub And Pump attachment for added cleaning power with your Dirt Lock bucket filter. Simply push the attachment into place and use it to scrub wash mitts, brushes, hand applicator pads and more! The Dirt Lock scrub and pump attachment works on a spring loaded system to pump cleaner water up and cycle dirty debris safely underneath the screen and out of harms way.'),
-        JSON_OBJECT('image', '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/ATTACH AND EXPAND SECTION 3.jpg', 'title', 'DIRT LOCK SCRUB WALL 180/360 SYSTEM ATTACHMENT', 'description', 'The Dirt Lock Scrub Wall attachment is a vertical extension of the Dirt Lock’s pressurized cleaning power. Simply snap the attachment into your Dirt Lock bucket filter to easily clean your wheel brushes, wash mitts and more without having to sacrifice hardly any bucket space. Simply scrub your wash media on the side of the Scrub Wall.')
+        JSON_OBJECT('image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/ATTACH AND EXPAND SECTION 1.jpg', 'title', 'DIRT LOCK PAD WASHER SYSTEM ATTACHMENT', 'description', 'Clean your polishing pads safely and gently within seconds! Simply attach the pad washer attachment into your Dirt Lock bucket filter, place your dirty pads onto the supplied hook and loop handle, spray with our pad cleaner to break down polish and wax, pump pads on the attachment and your done within seconds!'),
+        JSON_OBJECT('image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/ATTACH AND EXPAND SECTION 2.jpg', 'title', 'DIRT LOCK SCRUB AND PUMP SYSTEM ATTACHMENT', 'description', 'Use the Scrub And Pump attachment for added cleaning power with your Dirt Lock bucket filter. Simply push the attachment into place and use it to scrub wash mitts, brushes, hand applicator pads and more! The Dirt Lock scrub and pump attachment works on a spring loaded system to pump cleaner water up and cycle dirty debris safely underneath the screen and out of harms way.'),
+        JSON_OBJECT('image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/ATTACH AND EXPAND SECTION 3.jpg', 'title', 'DIRT LOCK SCRUB WALL 180/360 SYSTEM ATTACHMENT', 'description', 'The Dirt Lock Scrub Wall attachment is a vertical extension of the Dirt Lock’s pressurized cleaning power. Simply snap the attachment into your Dirt Lock bucket filter to easily clean your wheel brushes, wash mitts and more without having to sacrifice hardly any bucket space. Simply scrub your wash media on the side of the Scrub Wall.')
       )
     )
   ),
@@ -1243,10 +1243,10 @@ INSERT INTO products (
     'manufacturer', 'DETAIL GUARDZ Canada'
   ),
   JSON_ARRAY(
-    JSON_OBJECT('name', 'Black + 650ML Cleaner', 'value', 'black-cleaner', 'sku', 'DIRT-LOCK-PWSBL', 'asin', 'B07VGMKW7S', 'amazon_sku', 'DIRT-LOCK-PWSBL', 'image', '/assets/Amazon Listing Images/Pad Washer Images/Black + 650ML Cleaner.webp', 'price', 58.99, 'title', 'The Detail Guardz - Dirt Lock Pad Washer System Attachment with Spray Cleaner (Black)', 'url', 'https://www.amazon.com/Detail-Guardz-Attachment-Without-Cleaner/dp/B07VGMKW7S/ref=pd_cer_fm_1/135-9153945-0013018?pd_rd_r=457f8f31-4d35-4d41-86e7-f8ad048dcd17&pd_rd_wg=vU41E&pd_rd_w=ynUdM&pd_rd_i=B07XL4CL1T&th=1'),
-    JSON_OBJECT('name', 'White + 650ML Cleaner', 'value', 'white-cleaner', 'sku', 'DIRT-LOCK-PWSW-1', 'asin', 'B08KTV77ZC', 'amazon_sku', 'DIRT-LOCK-PWSW-1', 'image', '/assets/Amazon Listing Images/Pad Washer Images/White + 650ML Cleaner.webp', 'price', 58.99, 'title', 'DETAIL GUARDZ The Dirt Lock Pad Washer System Attachment with Spray Cleaner (White)', 'url', 'https://www.amazon.com/Detail-Guardz-Attachment-Without-Cleaner/dp/B08KTV77ZC/ref=pd_cer_fm_1/135-9153945-0013018?pd_rd_r=457f8f31-4d35-4d41-86e7-f8ad048dcd17&pd_rd_wg=vU41E&pd_rd_w=ynUdM&pd_rd_i=B07XL4CL1T&th=1'),
-    JSON_OBJECT('name', 'black', 'value', 'black', 'sku', 'DIRT-LOCK-PWS-BLACK', 'asin', 'B07XL4CL1T', 'amazon_sku', 'DIRT-LOCK-PWS-BLACK', 'image', '/assets/Amazon Listing Images/Pad Washer Images/black.webp', 'price', 49.99, 'title', 'The Detail Guardz - Dirt Lock Pad Washer System Attachment (Black)', 'url', 'https://www.amazon.com/Detail-Guardz-Attachment-Without-Cleaner/dp/B07XL4CL1T/ref=pd_cer_fm_1/135-9153945-0013018?pd_rd_r=457f8f31-4d35-4d41-86e7-f8ad048dcd17&pd_rd_wg=vU41E&pd_rd_w=ynUdM&pd_rd_i=B07XL4CL1T&th=1'),
-    JSON_OBJECT('name', 'white', 'value', 'white', 'sku', 'DIRT-LOCK-PWS-WHITE-1', 'asin', 'B08KTVWVMJ', 'amazon_sku', 'DIRT-LOCK-PWS-WHITE-1', 'image', '/assets/Amazon Listing Images/Pad Washer Images/white.webp', 'price', 49.99, 'title', 'DETAIL GUARDZ The Dirt Lock Pad Washer System Attachment (White)', 'url', 'https://www.amazon.com/Detail-Guardz-Attachment-Without-Cleaner/dp/B08KTVWVMJ/ref=pd_cer_fm_1/135-9153945-0013018?pd_rd_r=457f8f31-4d35-4d41-86e7-f8ad048dcd17&pd_rd_wg=vU41E&pd_rd_w=ynUdM&pd_rd_i=B07XL4CL1T&th=1')
+    JSON_OBJECT('name', 'Black + 650ML Cleaner', 'value', 'black-cleaner', 'sku', 'DIRT-LOCK-PWSBL', 'asin', 'B07VGMKW7S', 'amazon_sku', 'DIRT-LOCK-PWSBL', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Pad Washer Images/Black + 650ML Cleaner.webp', 'price', 58.99, 'title', 'The Detail Guardz - Dirt Lock Pad Washer System Attachment with Spray Cleaner (Black)', 'url', 'https://www.amazon.com/Detail-Guardz-Attachment-Without-Cleaner/dp/B07VGMKW7S/ref=pd_cer_fm_1/135-9153945-0013018?pd_rd_r=457f8f31-4d35-4d41-86e7-f8ad048dcd17&pd_rd_wg=vU41E&pd_rd_w=ynUdM&pd_rd_i=B07XL4CL1T&th=1'),
+    JSON_OBJECT('name', 'White + 650ML Cleaner', 'value', 'white-cleaner', 'sku', 'DIRT-LOCK-PWSW-1', 'asin', 'B08KTV77ZC', 'amazon_sku', 'DIRT-LOCK-PWSW-1', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Pad Washer Images/White + 650ML Cleaner.webp', 'price', 58.99, 'title', 'DETAIL GUARDZ The Dirt Lock Pad Washer System Attachment with Spray Cleaner (White)', 'url', 'https://www.amazon.com/Detail-Guardz-Attachment-Without-Cleaner/dp/B08KTV77ZC/ref=pd_cer_fm_1/135-9153945-0013018?pd_rd_r=457f8f31-4d35-4d41-86e7-f8ad048dcd17&pd_rd_wg=vU41E&pd_rd_w=ynUdM&pd_rd_i=B07XL4CL1T&th=1'),
+    JSON_OBJECT('name', 'black', 'value', 'black', 'sku', 'DIRT-LOCK-PWS-BLACK', 'asin', 'B07XL4CL1T', 'amazon_sku', 'DIRT-LOCK-PWS-BLACK', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Pad Washer Images/black.webp', 'price', 49.99, 'title', 'The Detail Guardz - Dirt Lock Pad Washer System Attachment (Black)', 'url', 'https://www.amazon.com/Detail-Guardz-Attachment-Without-Cleaner/dp/B07XL4CL1T/ref=pd_cer_fm_1/135-9153945-0013018?pd_rd_r=457f8f31-4d35-4d41-86e7-f8ad048dcd17&pd_rd_wg=vU41E&pd_rd_w=ynUdM&pd_rd_i=B07XL4CL1T&th=1'),
+    JSON_OBJECT('name', 'white', 'value', 'white', 'sku', 'DIRT-LOCK-PWS-WHITE-1', 'asin', 'B08KTVWVMJ', 'amazon_sku', 'DIRT-LOCK-PWS-WHITE-1', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Pad Washer Images/white.webp', 'price', 49.99, 'title', 'DETAIL GUARDZ The Dirt Lock Pad Washer System Attachment (White)', 'url', 'https://www.amazon.com/Detail-Guardz-Attachment-Without-Cleaner/dp/B08KTVWVMJ/ref=pd_cer_fm_1/135-9153945-0013018?pd_rd_r=457f8f31-4d35-4d41-86e7-f8ad048dcd17&pd_rd_wg=vU41E&pd_rd_w=ynUdM&pd_rd_i=B07XL4CL1T&th=1')
   ),
   JSON_OBJECT(
     'main', JSON_OBJECT('url', 'https://www.youtube.com/embed/_ZHI-xV6XLg', 'title', 'DETAIL GUARDZ Dirt Lock Pad Washer System', 'description', 'See how the SEMA Award-winning Dirt Lock Pad Washer System cleans your polishing pads safely and gently in seconds.'),
@@ -1285,49 +1285,49 @@ INSERT INTO products (
   'DETAIL GUARDZ CAR HOSE GUIDES\n\nUsing a set of Detail Guardz is the most efficient way to work around your vehicle without being interrupted by stubborn hose & cord jams. The roller system allows for effortless movements without the need to tug and adjust your equipment. This unique tool has a locking mechanism to instantly grip onto the tire to keep it firmly in place. Quickly slide the Detail Guardz underneath your tires and forget about your hoses and cords getting caught!\n\nLINE GUIDANCE: If a hose or cable slides above the Detail Guardz, it is guided down the rounded tip and back onto the roller. This ensures you are never interrupted!\n\nUNIVERSAL FIT: The Detail Guardz car hose guides will fit just about any size tire!\n\nMADE IN CANADA: Detail Guardz are manufactured in Canada from industrial grade plastic and metal. Each unit is hand checked for the highest standards of quality!\n\nANTI-JAM: You can have several cables or hoses running at the same time and it will still work perfectly! The 2 rollers are independently spinning and therefore never jam-up!',
   19.99, NULL,
   'Detailing-Accessories', 'DETAIL GUARDZ',
-  '/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Black/1. Hero Image.webp',
+  'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Black/1. Hero Image.webp',
   JSON_ARRAY(
-    '/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Black/1. Hero Image.webp',
-    '/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Black/2. Product features.webp',
-    '/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Black/3. How It Works.webp',
-    '/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Black/4. Product Fitting & Dimensions.webp',
-    '/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Black/5. Product Uses.webp'
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Black/1. Hero Image.webp',
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Black/2. Product features.webp',
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Black/3. How It Works.webp',
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Black/4. Product Fitting & Dimensions.webp',
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Black/5. Product Uses.webp'
   ),
   JSON_OBJECT(
     'black', JSON_ARRAY(
-      '/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Black/1. Hero Image.webp',
-      '/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Black/2. Product features.webp',
-      '/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Black/3. How It Works.webp',
-      '/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Black/4. Product Fitting & Dimensions.webp',
-      '/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Black/5. Product Uses.webp'
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Black/1. Hero Image.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Black/2. Product features.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Black/3. How It Works.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Black/4. Product Fitting & Dimensions.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Black/5. Product Uses.webp'
     ),
     'blue', JSON_ARRAY(
-      '/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Blue/1. Hero Image.webp',
-      '/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Blue/2. Product features.webp',
-      '/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Blue/3. How It Works.webp',
-      '/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Blue/4. Product Fitting & Dimensions.webp',
-      '/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Blue/5. Product Uses.webp'
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Blue/1. Hero Image.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Blue/2. Product features.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Blue/3. How It Works.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Blue/4. Product Fitting & Dimensions.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Blue/5. Product Uses.webp'
     ),
     'red', JSON_ARRAY(
-      '/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Red/1. Hero Image.webp',
-      '/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Red/2. Product features.webp',
-      '/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Red/3. How It Works.webp',
-      '/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Red/4. Product Fitting & Dimensions.webp',
-      '/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Red/5. Product Uses.webp'
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Red/1. Hero Image.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Red/2. Product features.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Red/3. How It Works.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Red/4. Product Fitting & Dimensions.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Red/5. Product Uses.webp'
     ),
     'yellow', JSON_ARRAY(
-      '/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Yellow/1. Hero Image.webp',
-      '/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Yellow/2. Product features.webp',
-      '/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Yellow/3. How It Works.webp',
-      '/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Yellow/4. Product Fitting & Dimensions.webp',
-      '/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Yellow/5. Product Uses.webp'
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Yellow/1. Hero Image.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Yellow/2. Product features.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Yellow/3. How It Works.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Yellow/4. Product Fitting & Dimensions.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Yellow/5. Product Uses.webp'
     ),
     'neon', JSON_ARRAY(
-      '/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Neon/1. Hero Image.webp',
-      '/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Neon/2. Product features.webp',
-      '/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Neon/3. How It Works.webp',
-      '/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Neon/4. Product Fitting & Dimensions.webp',
-      '/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Neon/5. Product Uses.webp'
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Neon/1. Hero Image.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Neon/2. Product features.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Neon/3. How It Works.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Neon/4. Product Fitting & Dimensions.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Neon/5. Product Uses.webp'
     )
   ),
   JSON_ARRAY(
@@ -1340,14 +1340,14 @@ INSERT INTO products (
   JSON_ARRAY('All Cars', 'Trucks', 'Motorcycles', 'All Tire Sizes'),
   4.6, 2779, 1,
   JSON_OBJECT(
-    'heroImage', '/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/about section large.jpg',
+    'heroImage', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/about section large.jpg',
     'heroImageAlt', 'Detail Guardz Hose Guide under tire',
     'description', 'Using a set of Detail Guardz is the most efficient way to work around your vehicle without being interrupted by stubborn hose and cord jams. The roller system allows smooth movement without tugging your hose or cable. The locking system grips onto the tire and stays firmly in place.',
     'features', JSON_ARRAY(
-      JSON_OBJECT('image', '/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/about section small.jpg', 'alt', 'Line Guidance', 'label', 'LINE GUIDANCE', 'description', 'If a hose or cable slides above the Detail Guardz, it is guided down the rounded tip and back onto the roller.'),
-      JSON_OBJECT('image', '/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/about section small1.jpg', 'alt', 'Universal Fit', 'label', 'UNIVERSAL FIT', 'description', 'Detail Guardz hose guides work with almost any tire size.'),
-      JSON_OBJECT('image', '/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/about section small2.jpg', 'alt', 'Made in Canada', 'label', 'MADE IN CANADA', 'description', 'Manufactured in Canada using industrial-grade plastic and metal.'),
-      JSON_OBJECT('image', '/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/about section snall.jpg', 'alt', 'Anti Jam', 'label', 'ANTI-JAM', 'description', 'Two independently spinning rollers prevent cable or hose jamming.')
+      JSON_OBJECT('image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/about section small.jpg', 'alt', 'Line Guidance', 'label', 'LINE GUIDANCE', 'description', 'If a hose or cable slides above the Detail Guardz, it is guided down the rounded tip and back onto the roller.'),
+      JSON_OBJECT('image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/about section small1.jpg', 'alt', 'Universal Fit', 'label', 'UNIVERSAL FIT', 'description', 'Detail Guardz hose guides work with almost any tire size.'),
+      JSON_OBJECT('image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/about section small2.jpg', 'alt', 'Made in Canada', 'label', 'MADE IN CANADA', 'description', 'Manufactured in Canada using industrial-grade plastic and metal.'),
+      JSON_OBJECT('image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/about section snall.jpg', 'alt', 'Anti Jam', 'label', 'ANTI-JAM', 'description', 'Two independently spinning rollers prevent cable or hose jamming.')
     )
   ),
   'Premium',
@@ -1363,11 +1363,11 @@ INSERT INTO products (
     'manufacturer', 'DETAIL GUARDZ Canada'
   ),
   JSON_ARRAY(
-    JSON_OBJECT('name', 'Black', 'value', 'black', 'sku', '1008-4-stickerless', 'asin', 'B07ND5F6N8', 'amazon_sku', '1008-4-stickerless', 'image', '/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Black/1. Hero Image.webp', 'price', 19.99),
-    JSON_OBJECT('name', 'Blue', 'value', 'blue', 'sku', 'Detail-Guardz-Hose-Guides-2.0-Blue', 'asin', 'B0FFBC4B67', 'amazon_sku', 'Detail Guardz Hose Guides 2.0 -Blue', 'image', '/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Blue/1. Hero Image.webp', 'price', 19.99),
-    JSON_OBJECT('name', 'Red', 'value', 'red', 'sku', 'Detail-Guardz-Hose-Guides-2.0-Red', 'asin', 'B0FHKV1PRW', 'amazon_sku', 'Detail Guardz Hose Guides 2.0_Red', 'image', '/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Red/1. Hero Image.webp', 'price', 19.99),
-    JSON_OBJECT('name', 'Yellow', 'value', 'yellow', 'sku', 'Detail-Guardz-Hose-Guides-2.0-Yellow', 'asin', 'B0FHKV4JZT', 'amazon_sku', 'Detail Guardz Hose Guides 2.0_Yellow', 'image', '/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Yellow/1. Hero Image.webp', 'price', 19.99),
-    JSON_OBJECT('name', 'Neon', 'value', 'neon', 'sku', 'Detail-Guardz-Hose-Guides-2.0-Neon', 'asin', 'B0FHJMVP5V', 'amazon_sku', 'Detail Guardz Hose Guides 2.0_Neon', 'image', '/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Neon/1. Hero Image.webp', 'price', 19.99)
+    JSON_OBJECT('name', 'Black', 'value', 'black', 'sku', '1008-4-stickerless', 'asin', 'B07ND5F6N8', 'amazon_sku', '1008-4-stickerless', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Black/1. Hero Image.webp', 'price', 19.99),
+    JSON_OBJECT('name', 'Blue', 'value', 'blue', 'sku', 'Detail-Guardz-Hose-Guides-2.0-Blue', 'asin', 'B0FFBC4B67', 'amazon_sku', 'Detail Guardz Hose Guides 2.0 -Blue', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Blue/1. Hero Image.webp', 'price', 19.99),
+    JSON_OBJECT('name', 'Red', 'value', 'red', 'sku', 'Detail-Guardz-Hose-Guides-2.0-Red', 'asin', 'B0FHKV1PRW', 'amazon_sku', 'Detail Guardz Hose Guides 2.0_Red', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Red/1. Hero Image.webp', 'price', 19.99),
+    JSON_OBJECT('name', 'Yellow', 'value', 'yellow', 'sku', 'Detail-Guardz-Hose-Guides-2.0-Yellow', 'asin', 'B0FHKV4JZT', 'amazon_sku', 'Detail Guardz Hose Guides 2.0_Yellow', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Yellow/1. Hero Image.webp', 'price', 19.99),
+    JSON_OBJECT('name', 'Neon', 'value', 'neon', 'sku', 'Detail-Guardz-Hose-Guides-2.0-Neon', 'asin', 'B0FHJMVP5V', 'amazon_sku', 'Detail Guardz Hose Guides 2.0_Neon', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Neon/1. Hero Image.webp', 'price', 19.99)
   ),
   JSON_OBJECT(
     'main', JSON_OBJECT('url', 'https://www.youtube.com/embed/W37xy__Vou4', 'title', 'DETAIL GUARDZ Hose Guide', 'description', 'Stop fighting your hose! See how the Detail Guardz Hose Guide keeps your wash flowing smoothly with its anti-jam roller system.'),
@@ -1405,32 +1405,32 @@ INSERT INTO products (
   'The Detail Guardz Dirt Lock pad washer system is an extremely effective way to clean all your polishing pads gently, quickly and thoroughly within seconds. This complete kit includes everything you need to maintain your pads and keep your wash water clean. Works with ALL polishing pads and is extremely safe and gentle to prolong the life of the pad! Proudly Made In Canada.',
   49.99, NULL,
   'Detailing-Accessories', 'DETAIL GUARDZ',
-  '/assets/Amazon Listing Images/Pad Washer Images/black.webp',
+  'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Pad Washer Images/black.webp',
   JSON_ARRAY(
-    '/assets/Amazon Listing Images/Pad Washer Images/white.webp',
-    '/assets/Amazon Listing Images/Pad Washer Images/black.webp',
-    '/assets/Amazon Listing Images/Pad Washer Images/1.webp',
-    '/assets/Amazon Listing Images/Pad Washer Images/2.webp',
-    '/assets/Amazon Listing Images/Pad Washer Images/3.webp',
-    '/assets/Amazon Listing Images/Pad Washer Images/4.webp',
-    '/assets/Amazon Listing Images/Pad Washer Images/5.webp'
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Pad Washer Images/white.webp',
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Pad Washer Images/black.webp',
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Pad Washer Images/1.webp',
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Pad Washer Images/2.webp',
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Pad Washer Images/3.webp',
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Pad Washer Images/4.webp',
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Pad Washer Images/5.webp'
   ),
   JSON_OBJECT(
     'white', JSON_ARRAY(
-      '/assets/Amazon Listing Images/Pad Washer Images/white.webp',
-      '/assets/Amazon Listing Images/Pad Washer Images/1.webp',
-      '/assets/Amazon Listing Images/Pad Washer Images/2.webp',
-      '/assets/Amazon Listing Images/Pad Washer Images/3.webp',
-      '/assets/Amazon Listing Images/Pad Washer Images/4.webp',
-      '/assets/Amazon Listing Images/Pad Washer Images/5.webp'
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Pad Washer Images/white.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Pad Washer Images/1.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Pad Washer Images/2.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Pad Washer Images/3.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Pad Washer Images/4.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Pad Washer Images/5.webp'
     ),
     'black', JSON_ARRAY(
-      '/assets/Amazon Listing Images/Pad Washer Images/black.webp',
-      '/assets/Amazon Listing Images/Pad Washer Images/1.webp',
-      '/assets/Amazon Listing Images/Pad Washer Images/2.webp',
-      '/assets/Amazon Listing Images/Pad Washer Images/3.webp',
-      '/assets/Amazon Listing Images/Pad Washer Images/4.webp',
-      '/assets/Amazon Listing Images/Pad Washer Images/5.webp'
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Pad Washer Images/black.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Pad Washer Images/1.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Pad Washer Images/2.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Pad Washer Images/3.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Pad Washer Images/4.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Pad Washer Images/5.webp'
     )
   ),
   JSON_ARRAY(
@@ -1444,15 +1444,15 @@ INSERT INTO products (
   JSON_ARRAY('3-8 Gallon Round Pails'),
   4.8, 51, 1,
   JSON_OBJECT(
-    'heroImage', '/assets/Amazon Listing Images/Pad Washer Images/about section large.jpg',
+    'heroImage', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Pad Washer Images/about section large.jpg',
     'heroImageAlt', 'Dirt Lock Pad Washer System',
     'description', 'The Dirt Lock pad washer attachment clicks into your Dirt Lock bucket filter to clean any polishing pads safely and gently within seconds! Clean your foam, wool, microfiber, buffing bonnets and more within the blink of an eye. HOW TO USE: Simply insert the pad washer attachment into your Dirt Lock bucket filter and place into a bucket with clean water. Attach your dirty pads onto the supplied hook and loop handle and pump up and down on the attachment for about 15-20 seconds. Clean water will blast inside the pad and flush our any unwanted chemicals to create a perfectly clean polishing pad! The Dirt Lock pad washer attachment is made from industrial grade plastic and metal for extreme durability. The Detail Guardz Dirt Lock pad washer system is an extremely effective way to clean all your polishing pads gently, quickly and thoroughly within seconds. Works with ALL polishing pads and is extremely safe and gentle to prolong the life of the pad! Proudly Made In Canada.',
     'secondarySection', JSON_OBJECT(
       'title', 'ATTACH AND EXPAND YOUR DIRT LOCK SYSTEM',
       'items', JSON_ARRAY(
-        JSON_OBJECT('image', '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/ATTACH AND EXPAND SECTION 1.jpg', 'title', 'DIRT LOCK PAD WASHER SYSTEM ATTACHMENT', 'description', 'Clean your polishing pads safely and gently within seconds! Simply attach the pad washer attachment into your Dirt Lock bucket filter, place your dirty pads onto the supplied hook and loop handle, spray with our pad cleaner to break down polish and wax, pump pads on the attachment and your done within seconds!'),
-        JSON_OBJECT('image', '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/ATTACH AND EXPAND SECTION 2.jpg', 'title', 'DIRT LOCK SCRUB AND PUMP SYSTEM ATTACHMENT', 'description', 'Use the Scrub And Pump attachment for added cleaning power with your Dirt Lock bucket filter. Simply push the attachment into place and use it to scrub wash mitts, brushes, hand applicator pads and more! The Dirt Lock scrub and pump attachment works on a spring loaded system to pump cleaner water up and cycle dirty debris safely underneath the screen and out of harms way.'),
-        JSON_OBJECT('image', '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/ATTACH AND EXPAND SECTION 3.jpg', 'title', 'DIRT LOCK SCRUB WALL 180/360 SYSTEM ATTACHMENT', 'description', 'The Dirt Lock Scrub Wall attachment is a vertical extension of the Dirt Lock’s pressurized cleaning power. Simply snap the attachment into your Dirt Lock bucket filter to easily clean your wheel brushes, wash mitts and more without having to sacrifice hardly any bucket space. Simply scrub your wash media on the side of the Scrub Wall.')
+        JSON_OBJECT('image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/ATTACH AND EXPAND SECTION 1.jpg', 'title', 'DIRT LOCK PAD WASHER SYSTEM ATTACHMENT', 'description', 'Clean your polishing pads safely and gently within seconds! Simply attach the pad washer attachment into your Dirt Lock bucket filter, place your dirty pads onto the supplied hook and loop handle, spray with our pad cleaner to break down polish and wax, pump pads on the attachment and your done within seconds!'),
+        JSON_OBJECT('image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/ATTACH AND EXPAND SECTION 2.jpg', 'title', 'DIRT LOCK SCRUB AND PUMP SYSTEM ATTACHMENT', 'description', 'Use the Scrub And Pump attachment for added cleaning power with your Dirt Lock bucket filter. Simply push the attachment into place and use it to scrub wash mitts, brushes, hand applicator pads and more! The Dirt Lock scrub and pump attachment works on a spring loaded system to pump cleaner water up and cycle dirty debris safely underneath the screen and out of harms way.'),
+        JSON_OBJECT('image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/ATTACH AND EXPAND SECTION 3.jpg', 'title', 'DIRT LOCK SCRUB WALL 180/360 SYSTEM ATTACHMENT', 'description', 'The Dirt Lock Scrub Wall attachment is a vertical extension of the Dirt Lock’s pressurized cleaning power. Simply snap the attachment into your Dirt Lock bucket filter to easily clean your wheel brushes, wash mitts and more without having to sacrifice hardly any bucket space. Simply scrub your wash media on the side of the Scrub Wall.')
       )
     )
   ),
@@ -1466,8 +1466,8 @@ INSERT INTO products (
     'manufacturer', 'DETAIL GUARDZ Canada'
   ),
   JSON_ARRAY(
-    JSON_OBJECT('name', 'Black', 'value', 'black', 'sku', 'DIRT LOCK-PWS-BLACK', 'asin', 'B07XL4CL1T', 'amazon_sku', 'DIRT LOCK-PWS-BLACK', 'image', '/assets/Amazon Listing Images/Pad Washer Images/black.webp', 'price', 49.99, 'title', 'The Detail Guardz - Dirt Lock Pad Washer System Attachment (Black)', 'url', 'https://www.amazon.com/Detail-Guardz-Attachment-Without-Cleaner/dp/B07XL4CL1T/ref=pd_cer_fm_1/135-9153945-0013018?pd_rd_r=457f8f31-4d35-4d41-86e7-f8ad048dcd17&pd_rd_wg=vU41E&pd_rd_w=ynUdM&pd_rd_i=B07XL4CL1T&th=1'),
-    JSON_OBJECT('name', 'White', 'value', 'white', 'sku', 'DIRT LOCK-PWS-WHITE-1', 'asin', 'B08KTVWVMJ', 'amazon_sku', 'DIRT LOCK-PWS-WHITE-1', 'image', '/assets/Amazon Listing Images/Pad Washer Images/white.webp', 'price', 49.99, 'title', 'DETAIL GUARDZ The Dirt Lock Pad Washer System Attachment (White)', 'url', 'https://www.amazon.com/Detail-Guardz-Attachment-Without-Cleaner/dp/B08KTVWVMJ/ref=pd_cer_fm_1/135-9153945-0013018?pd_rd_r=457f8f31-4d35-4d41-86e7-f8ad048dcd17&pd_rd_wg=vU41E&pd_rd_w=ynUdM&pd_rd_i=B07XL4CL1T&th=1')
+    JSON_OBJECT('name', 'Black', 'value', 'black', 'sku', 'DIRT LOCK-PWS-BLACK', 'asin', 'B07XL4CL1T', 'amazon_sku', 'DIRT LOCK-PWS-BLACK', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Pad Washer Images/black.webp', 'price', 49.99, 'title', 'The Detail Guardz - Dirt Lock Pad Washer System Attachment (Black)', 'url', 'https://www.amazon.com/Detail-Guardz-Attachment-Without-Cleaner/dp/B07XL4CL1T/ref=pd_cer_fm_1/135-9153945-0013018?pd_rd_r=457f8f31-4d35-4d41-86e7-f8ad048dcd17&pd_rd_wg=vU41E&pd_rd_w=ynUdM&pd_rd_i=B07XL4CL1T&th=1'),
+    JSON_OBJECT('name', 'White', 'value', 'white', 'sku', 'DIRT LOCK-PWS-WHITE-1', 'asin', 'B08KTVWVMJ', 'amazon_sku', 'DIRT LOCK-PWS-WHITE-1', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Pad Washer Images/white.webp', 'price', 49.99, 'title', 'DETAIL GUARDZ The Dirt Lock Pad Washer System Attachment (White)', 'url', 'https://www.amazon.com/Detail-Guardz-Attachment-Without-Cleaner/dp/B08KTVWVMJ/ref=pd_cer_fm_1/135-9153945-0013018?pd_rd_r=457f8f31-4d35-4d41-86e7-f8ad048dcd17&pd_rd_wg=vU41E&pd_rd_w=ynUdM&pd_rd_i=B07XL4CL1T&th=1')
   ),
   JSON_OBJECT(
     'main', JSON_OBJECT('url', 'https://www.youtube.com/embed/_ZHI-xV6XLg', 'title', 'DETAIL GUARDZ Dirt Lock Pad Washer System', 'description', 'The complete guide to using the Pad Washer system with the Dirt Lock filter.'),
@@ -1509,12 +1509,12 @@ INSERT INTO products (
   'Our 5 Gallon detailing bucket is molded of heavy duty plastic and a metal handle to withstand years of repeated use. This bucket is the perfect fitment for your Dirt Lock bucket filter and all the accessories that go along with it. Made In Canada.',
   12.99, NULL,
   'Detailing-Accessories', 'DETAIL GUARDZ',
-  '/assets/Canada Products/DETAIL GUARDZ 5 GALLON DETAILING BUCKET/DETAIL GUARDZ 5 GALLON DETAILING BUCKET.webp',
+  'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DETAIL GUARDZ 5 GALLON DETAILING BUCKET/DETAIL GUARDZ 5 GALLON DETAILING BUCKET.webp',
   JSON_ARRAY(
-    '/assets/Canada Products/DETAIL GUARDZ 5 GALLON DETAILING BUCKET/DETAIL GUARDZ 5 GALLON DETAILING BUCKET.webp',
-    '/assets/Canada Products/DETAIL GUARDZ 5 GALLON DETAILING BUCKET/DETAIL GUARDZ 5 GALLON DETAILING BUCKET1.webp',
-    '/assets/Canada Products/DETAIL GUARDZ 5 GALLON DETAILING BUCKET/DETAIL GUARDZ 5 GALLON DETAILING BUCKET2.webp',
-    '/assets/Canada Products/DETAIL GUARDZ 5 GALLON DETAILING BUCKET/DETAIL GUARDZ 5 GALLON DETAILING BUCKET3.webp'
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DETAIL GUARDZ 5 GALLON DETAILING BUCKET/DETAIL GUARDZ 5 GALLON DETAILING BUCKET.webp',
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DETAIL GUARDZ 5 GALLON DETAILING BUCKET/DETAIL GUARDZ 5 GALLON DETAILING BUCKET1.webp',
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DETAIL GUARDZ 5 GALLON DETAILING BUCKET/DETAIL GUARDZ 5 GALLON DETAILING BUCKET2.webp',
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DETAIL GUARDZ 5 GALLON DETAILING BUCKET/DETAIL GUARDZ 5 GALLON DETAILING BUCKET3.webp'
   ),
   NULL,
   JSON_ARRAY('Heavy duty plastic construction', 'Metal handle for durability', 'Perfect fit for Dirt Lock filters', 'Made In Canada'),
@@ -1560,49 +1560,49 @@ INSERT INTO products (
   'Our patented design utilizes the motion of your hand to pump and trap debris underneath the screen. Every time you pump your hand in the bucket you are cycling the dirt underneath the screen and replenishing clean water above to help prevent swirl-marks and scratches on the painted surface. Made In Canada.',
   32.99, NULL,
   'Detailing-Accessories', 'DETAIL GUARDZ',
-  '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (black) B07CKC4M9D/1. Hero Image.webp',
+  'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (black) B07CKC4M9D/1. Hero Image.webp',
   JSON_ARRAY(
-    '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (blue) B07CKLPJZR/1. Hero Image.webp',
-    '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (blue) B07CKLPJZR/2. Product Features.webp',
-    '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (blue) B07CKLPJZR/3. How it works.webp',
-    '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (blue) B07CKLPJZR/4. Product Fitting & Dimensions.webp',
-    '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (blue) B07CKLPJZR/5. Product Uses.webp'
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (blue) B07CKLPJZR/1. Hero Image.webp',
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (blue) B07CKLPJZR/2. Product Features.webp',
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (blue) B07CKLPJZR/3. How it works.webp',
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (blue) B07CKLPJZR/4. Product Fitting & Dimensions.webp',
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (blue) B07CKLPJZR/5. Product Uses.webp'
   ),
   JSON_OBJECT(
     'blue', JSON_ARRAY(
-      '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (blue) B07CKLPJZR/1. Hero Image.webp',
-      '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (blue) B07CKLPJZR/2. Product Features.webp',
-      '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (blue) B07CKLPJZR/3. How it works.webp',
-      '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (blue) B07CKLPJZR/4. Product Fitting & Dimensions.webp',
-      '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (blue) B07CKLPJZR/5. Product Uses.webp'
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (blue) B07CKLPJZR/1. Hero Image.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (blue) B07CKLPJZR/2. Product Features.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (blue) B07CKLPJZR/3. How it works.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (blue) B07CKLPJZR/4. Product Fitting & Dimensions.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (blue) B07CKLPJZR/5. Product Uses.webp'
     ),
     'black', JSON_ARRAY(
-      '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (black) B07CKC4M9D/1. Hero Image.webp',
-      '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (black) B07CKC4M9D/2. Product Features_V2_Option 2 (1).webp',
-      '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (black) B07CKC4M9D/3. How it works.webp',
-      '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (black) B07CKC4M9D/4. Product Fitting & Dimensions.webp',
-      '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (black) B07CKC4M9D/5. Product Uses.webp'
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (black) B07CKC4M9D/1. Hero Image.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (black) B07CKC4M9D/2. Product Features_V2_Option 2 (1).webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (black) B07CKC4M9D/3. How it works.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (black) B07CKC4M9D/4. Product Fitting & Dimensions.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (black) B07CKC4M9D/5. Product Uses.webp'
     ),
     'red', JSON_ARRAY(
-      '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (red) B07CKG1VCH/1. Hero Image.webp',
-      '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (red) B07CKG1VCH/2. Product Features.webp',
-      '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (red) B07CKG1VCH/3. How it works.webp',
-      '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (red) B07CKG1VCH/4. Product Fitting & Dimensions.webp',
-      '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (red) B07CKG1VCH/5. Product Uses.webp'
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (red) B07CKG1VCH/1. Hero Image.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (red) B07CKG1VCH/2. Product Features.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (red) B07CKG1VCH/3. How it works.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (red) B07CKG1VCH/4. Product Fitting & Dimensions.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (red) B07CKG1VCH/5. Product Uses.webp'
     ),
     'white', JSON_ARRAY(
-      '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (white) B088PZXQY1/1. Hero Image.webp',
-      '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (white) B088PZXQY1/2. Product Features.webp',
-      '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (white) B088PZXQY1/3. How it works.webp',
-      '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (white) B088PZXQY1/4. Product Fitting & Dimensions.webp',
-      '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (white) B088PZXQY1/5. Product Uses.webp'
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (white) B088PZXQY1/1. Hero Image.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (white) B088PZXQY1/2. Product Features.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (white) B088PZXQY1/3. How it works.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (white) B088PZXQY1/4. Product Fitting & Dimensions.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (white) B088PZXQY1/5. Product Uses.webp'
     ),
     'yellow', JSON_ARRAY(
-      '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (yellow) B07P9CWKLJ/1. Hero Image.webp',
-      '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (yellow) B07P9CWKLJ/2. Product Features.webp',
-      '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (yellow) B07P9CWKLJ/3. How it works.webp',
-      '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (yellow) B07P9CWKLJ/4. Product Fitting & Dimensions.webp',
-      '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (yellow) B07P9CWKLJ/5. Product Uses.webp'
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (yellow) B07P9CWKLJ/1. Hero Image.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (yellow) B07P9CWKLJ/2. Product Features.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (yellow) B07P9CWKLJ/3. How it works.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (yellow) B07P9CWKLJ/4. Product Fitting & Dimensions.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (yellow) B07P9CWKLJ/5. Product Uses.webp'
     )
   ),
   JSON_ARRAY(
@@ -1615,20 +1615,20 @@ INSERT INTO products (
   JSON_ARRAY('3-8 Gallon Round Pails'),
   4.9, 156, 1,
   JSON_OBJECT(
-    'heroImage', '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/about section large.jpg',
+    'heroImage', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/about section large.jpg',
     'heroImageAlt', 'Dirt Lock Bucket Filter Insert',
     'description', 'Our patented design utilizes the motion of your hand to pump and trap debris underneath the screen. The Dirt Lock has a complex Venturi filtering system that manipulates the flow of water in a downward direction. This allows dirt particles to collect underneath the screen without a way for it to re-enter into the clean water. In short, every time you pump your hand in the bucket you are cycling the dirt underneath the screen and replenishing clean water above to help prevent swirl-marks and scratches on the painted surface.\n\nONE Dirt Lock will filter your wash water like you have never seen before. Protect your car and eliminate the main cause of swirl marks on your paintwork! Proudly Made In Canada.\n\nFit''s inside nearly any 3,4,5,6,7 or 8 gallon standard round wash pail with it''s flexible, self-adjusting, rubber locking grips.',
     'features', JSON_ARRAY(
-      JSON_OBJECT('image', '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/about section small.jpg', 'alt', 'Venturi Effect', 'label', 'VENTURI EFFECT', 'description', 'The Dirt Lock manipulates the flow of water by creating a high pressure underneath the filter and a low pressure above. This results in a tunneling effect and pushes the debris safely underneath the screen and provides much cleaner water above to reuse on your vehicles paintwork!'),
-      JSON_OBJECT('image', '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/about section small1.jpg', 'alt', 'Automatic Self-Locking', 'label', 'AUTOMATIC SELF-LOCKING', 'description', 'The Dirt Lock comes equipped with rubber grips and also a self-locking feature. Simply push the dirt lock inside almost any 3,4,5,6,7 or 8 gallon round wash bucket and it will automatically adjust itself for the perfect fit. The Dirt Lock is molded from a special plastic resin that sinks like an anchor in the bucket!'),
-      JSON_OBJECT('image', '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/about section small2.jpg', 'alt', 'Ultimate Scratch Protection', 'label', 'THE ULTIMATE SCRATCH-PROTECTION', 'description', 'The Dirt Lock is the ultimate bucket filter to ensure your vehicle is as safe as possible from swirl-marks and scratches. It''s locked and loaded with every detail possible to ensure your vehicles finish is maintained to the highest standards. Feel confident knowing you have a proven bucket filter to keep your investment safe.')
+      JSON_OBJECT('image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/about section small.jpg', 'alt', 'Venturi Effect', 'label', 'VENTURI EFFECT', 'description', 'The Dirt Lock manipulates the flow of water by creating a high pressure underneath the filter and a low pressure above. This results in a tunneling effect and pushes the debris safely underneath the screen and provides much cleaner water above to reuse on your vehicles paintwork!'),
+      JSON_OBJECT('image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/about section small1.jpg', 'alt', 'Automatic Self-Locking', 'label', 'AUTOMATIC SELF-LOCKING', 'description', 'The Dirt Lock comes equipped with rubber grips and also a self-locking feature. Simply push the dirt lock inside almost any 3,4,5,6,7 or 8 gallon round wash bucket and it will automatically adjust itself for the perfect fit. The Dirt Lock is molded from a special plastic resin that sinks like an anchor in the bucket!'),
+      JSON_OBJECT('image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/about section small2.jpg', 'alt', 'Ultimate Scratch Protection', 'label', 'THE ULTIMATE SCRATCH-PROTECTION', 'description', 'The Dirt Lock is the ultimate bucket filter to ensure your vehicle is as safe as possible from swirl-marks and scratches. It''s locked and loaded with every detail possible to ensure your vehicles finish is maintained to the highest standards. Feel confident knowing you have a proven bucket filter to keep your investment safe.')
     ),
     'secondarySection', JSON_OBJECT(
       'title', 'ATTACH AND EXPAND YOUR DIRT LOCK SYSTEM',
       'items', JSON_ARRAY(
-        JSON_OBJECT('image', '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/ATTACH AND EXPAND SECTION 1.jpg', 'title', 'DIRT LOCK PAD WASHER SYSTEM ATTACHMENT', 'description', 'Clean your polishing pads safely and gently within seconds! Simply attach the pad washer attachment into your Dirt Lock bucket filter, place your dirty pads onto the supplied hook and loop handle, spray with our pad cleaner to break down polish and wax, pump pads on the attachment and your done within seconds!'),
-        JSON_OBJECT('image', '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/ATTACH AND EXPAND SECTION 2.jpg', 'title', 'DIRT LOCK SCRUB AND PUMP SYSTEM ATTACHMENT', 'description', 'Use the Scrub And Pump attachment for added cleaning power with your Dirt Lock bucket filter. Simply push the attachment into place and use it to scrub wash mitts, brushes, hand applicator pads and more! The Dirt Lock scrub and pump attachment works on a spring loaded system to pump cleaner water up and cycle dirty debris safely underneath the screen and out of harms way.'),
-        JSON_OBJECT('image', '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/ATTACH AND EXPAND SECTION 3.jpg', 'title', 'DIRT LOCK SCRUB WALL 180/360 SYSTEM ATTACHMENT', 'description', 'The Dirt Lock Scrub Wall attachment is a vertical extension of the Dirt Lock''s pressurized cleaning power. Simply snap the attachment into your Dirt Lock bucket filter to easily clean your wheel brushes, wash mitts and more without having to sacrifice hardly any bucket space. Simply scrub your wash media on the side of the Scrub Wall.')
+        JSON_OBJECT('image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/ATTACH AND EXPAND SECTION 1.jpg', 'title', 'DIRT LOCK PAD WASHER SYSTEM ATTACHMENT', 'description', 'Clean your polishing pads safely and gently within seconds! Simply attach the pad washer attachment into your Dirt Lock bucket filter, place your dirty pads onto the supplied hook and loop handle, spray with our pad cleaner to break down polish and wax, pump pads on the attachment and your done within seconds!'),
+        JSON_OBJECT('image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/ATTACH AND EXPAND SECTION 2.jpg', 'title', 'DIRT LOCK SCRUB AND PUMP SYSTEM ATTACHMENT', 'description', 'Use the Scrub And Pump attachment for added cleaning power with your Dirt Lock bucket filter. Simply push the attachment into place and use it to scrub wash mitts, brushes, hand applicator pads and more! The Dirt Lock scrub and pump attachment works on a spring loaded system to pump cleaner water up and cycle dirty debris safely underneath the screen and out of harms way.'),
+        JSON_OBJECT('image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/ATTACH AND EXPAND SECTION 3.jpg', 'title', 'DIRT LOCK SCRUB WALL 180/360 SYSTEM ATTACHMENT', 'description', 'The Dirt Lock Scrub Wall attachment is a vertical extension of the Dirt Lock''s pressurized cleaning power. Simply snap the attachment into your Dirt Lock bucket filter to easily clean your wheel brushes, wash mitts and more without having to sacrifice hardly any bucket space. Simply scrub your wash media on the side of the Scrub Wall.')
       )
     )
   ),
@@ -1644,11 +1644,11 @@ INSERT INTO products (
     'manufacturer', 'DETAIL GUARDZ Canada'
   ),
   JSON_ARRAY(
-    JSON_OBJECT('name', 'Blue', 'value', 'blue', 'image', '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (blue) B07CKLPJZR/1. Hero Image.webp', 'price', 32.99),
-    JSON_OBJECT('name', 'Black', 'value', 'black', 'image', '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (black) B07CKC4M9D/1. Hero Image.webp', 'price', 32.99),
-    JSON_OBJECT('name', 'Red', 'value', 'red', 'image', '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (red) B07CKG1VCH/1. Hero Image.webp', 'price', 32.99),
-    JSON_OBJECT('name', 'White', 'value', 'white', 'image', '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (white) B088PZXQY1/1. Hero Image.webp', 'price', 32.99),
-    JSON_OBJECT('name', 'Yellow', 'value', 'yellow', 'image', '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (yellow) B07P9CWKLJ/1. Hero Image.webp', 'price', 32.99)
+    JSON_OBJECT('name', 'Blue', 'value', 'blue', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (blue) B07CKLPJZR/1. Hero Image.webp', 'price', 32.99),
+    JSON_OBJECT('name', 'Black', 'value', 'black', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (black) B07CKC4M9D/1. Hero Image.webp', 'price', 32.99),
+    JSON_OBJECT('name', 'Red', 'value', 'red', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (red) B07CKG1VCH/1. Hero Image.webp', 'price', 32.99),
+    JSON_OBJECT('name', 'White', 'value', 'white', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (white) B088PZXQY1/1. Hero Image.webp', 'price', 32.99),
+    JSON_OBJECT('name', 'Yellow', 'value', 'yellow', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (yellow) B07P9CWKLJ/1. Hero Image.webp', 'price', 32.99)
   ),
   JSON_OBJECT(
     'main', JSON_OBJECT('url', 'https://www.youtube.com/embed/2LndE9cD63A', 'title', 'DETAIL GUARDZ Dirt Lock Car Wash Insert', 'description', 'Our patented design utilizes the motion of your hand to pump and trap debris underneath the screen. Every time you pump your hand in the bucket you are cycling the dirt underneath the screen.'),
@@ -1686,47 +1686,47 @@ INSERT INTO products (
   'Save $10.00 by purchasing this bundle! The ultimate pad washing kit! Clean your polishing pads quickly and gently with our complete system. The Dirt Lock doubles as a bucket filtering system. Simply insert into a wash bucket and it will filter out harmful particles in the water to prevent swirl-marks and scratches on your paintwork! Made In Canada.',
   79.99, NULL,
   'Kit-Bundle', 'DETAIL GUARDZ',
-  '/assets/Canada Products/DIRTLOCK-PWSPadWasherBundle-White_main_720x/DIRTLOCK-PWSPadWasherBundle-White_main_720x.webp',
+  'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DIRTLOCK-PWSPadWasherBundle-White_main_720x/DIRTLOCK-PWSPadWasherBundle-White_main_720x.webp',
   JSON_ARRAY(
-    '/assets/Canada Products/DIRTLOCK-PWSPadWasherBundle-White_main_720x/DIRTLOCK-PWSPadWasherBundle-White_main_720x.webp',
-    '/assets/Canada Products/DIRTLOCK-PWSPadWasherBundle-White_main_720x/DIRTLOCK-PWSPadWasherBundle_Main_Black_720x.webp',
-    '/assets/Amazon Listing Images/Pad Washer Images/1.webp',
-    '/assets/Amazon Listing Images/Pad Washer Images/2.webp',
-    '/assets/Amazon Listing Images/Pad Washer Images/3.webp',
-    '/assets/Amazon Listing Images/Pad Washer Images/4.webp',
-    '/assets/Amazon Listing Images/Pad Washer Images/5.webp'
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DIRTLOCK-PWSPadWasherBundle-White_main_720x/DIRTLOCK-PWSPadWasherBundle-White_main_720x.webp',
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DIRTLOCK-PWSPadWasherBundle-White_main_720x/DIRTLOCK-PWSPadWasherBundle_Main_Black_720x.webp',
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Pad Washer Images/1.webp',
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Pad Washer Images/2.webp',
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Pad Washer Images/3.webp',
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Pad Washer Images/4.webp',
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Pad Washer Images/5.webp'
   ),
   JSON_OBJECT(
     'white', JSON_ARRAY(
-      '/assets/Canada Products/DIRTLOCK-PWSPadWasherBundle-White_main_720x/DIRTLOCK-PWSPadWasherBundle-White_main_720x.webp',
-      '/assets/Amazon Listing Images/Pad Washer Images/1.webp',
-      '/assets/Amazon Listing Images/Pad Washer Images/2.webp',
-      '/assets/Amazon Listing Images/Pad Washer Images/3.webp',
-      '/assets/Amazon Listing Images/Pad Washer Images/4.webp',
-      '/assets/Amazon Listing Images/Pad Washer Images/5.webp'
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DIRTLOCK-PWSPadWasherBundle-White_main_720x/DIRTLOCK-PWSPadWasherBundle-White_main_720x.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Pad Washer Images/1.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Pad Washer Images/2.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Pad Washer Images/3.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Pad Washer Images/4.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Pad Washer Images/5.webp'
     ),
     'black', JSON_ARRAY(
-      '/assets/Canada Products/DIRTLOCK-PWSPadWasherBundle-White_main_720x/DIRTLOCK-PWSPadWasherBundle_Main_Black_720x.webp',
-      '/assets/Amazon Listing Images/Pad Washer Images/1.webp',
-      '/assets/Amazon Listing Images/Pad Washer Images/2.webp',
-      '/assets/Amazon Listing Images/Pad Washer Images/3.webp',
-      '/assets/Amazon Listing Images/Pad Washer Images/4.webp',
-      '/assets/Amazon Listing Images/Pad Washer Images/5.webp'
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DIRTLOCK-PWSPadWasherBundle-White_main_720x/DIRTLOCK-PWSPadWasherBundle_Main_Black_720x.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Pad Washer Images/1.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Pad Washer Images/2.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Pad Washer Images/3.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Pad Washer Images/4.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Pad Washer Images/5.webp'
     )
   ),
   JSON_ARRAY(' Dirt Lock bucket filter', 'Pad washer attachment', 'Hook and loop handle', 'Storage bracket'),
   JSON_ARRAY('All polishing pads 1-10 inches'),
   4.7, 42, 1,
   JSON_OBJECT(
-    'heroImage', '/assets/Amazon Listing Images/Pad Washer Images/about section large.jpg',
+    'heroImage', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Pad Washer Images/about section large.jpg',
     'heroImageAlt', 'Dirt Lock Pad Washer System',
     'description', 'The Dirt Lock pad washer attachment clicks into your Dirt Lock bucket filter to clean any polishing pads safely and gently within seconds! Clean your foam, wool, microfiber, buffing bonnets and more within the blink of an eye. HOW TO USE: Simply insert the pad washer attachment into your Dirt Lock bucket filter and place into a bucket with clean water. Attach your dirty pads onto the supplied hook and loop handle and pump up and down on the attachment for about 15-20 seconds. Clean water will blast inside the pad and flush our any unwanted chemicals to create a perfectly clean polishing pad! Proudly Made In Canada.',
     'secondarySection', JSON_OBJECT(
       'title', 'ATTACH AND EXPAND YOUR DIRT LOCK SYSTEM',
       'items', JSON_ARRAY(
-        JSON_OBJECT('image', '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/ATTACH AND EXPAND SECTION 1.jpg', 'title', 'DIRT LOCK PAD WASHER SYSTEM ATTACHMENT', 'description', 'Clean your polishing pads safely and gently within seconds! Simply attach the pad washer attachment into your Dirt Lock bucket filter, place your dirty pads onto the supplied hook and loop handle, spray with our pad cleaner to break down polish and wax, pump pads on the attachment and your done within seconds!'),
-        JSON_OBJECT('image', '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/ATTACH AND EXPAND SECTION 2.jpg', 'title', 'DIRT LOCK SCRUB AND PUMP SYSTEM ATTACHMENT', 'description', 'Use the Scrub And Pump attachment for added cleaning power with your Dirt Lock bucket filter. Simply push the attachment into place and use it to scrub wash mitts, brushes, hand applicator pads and more!'),
-        JSON_OBJECT('image', '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/ATTACH AND EXPAND SECTION 3.jpg', 'title', 'DIRT LOCK SCRUB WALL 180/360 SYSTEM ATTACHMENT', 'description', 'The Dirt Lock Scrub Wall attachment is a vertical extension of the Dirt Lock''s pressurized cleaning power. Simply snap the attachment into your Dirt Lock bucket filter to easily clean your wheel brushes, wash mitts and more.')
+        JSON_OBJECT('image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/ATTACH AND EXPAND SECTION 1.jpg', 'title', 'DIRT LOCK PAD WASHER SYSTEM ATTACHMENT', 'description', 'Clean your polishing pads safely and gently within seconds! Simply attach the pad washer attachment into your Dirt Lock bucket filter, place your dirty pads onto the supplied hook and loop handle, spray with our pad cleaner to break down polish and wax, pump pads on the attachment and your done within seconds!'),
+        JSON_OBJECT('image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/ATTACH AND EXPAND SECTION 2.jpg', 'title', 'DIRT LOCK SCRUB AND PUMP SYSTEM ATTACHMENT', 'description', 'Use the Scrub And Pump attachment for added cleaning power with your Dirt Lock bucket filter. Simply push the attachment into place and use it to scrub wash mitts, brushes, hand applicator pads and more!'),
+        JSON_OBJECT('image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/ATTACH AND EXPAND SECTION 3.jpg', 'title', 'DIRT LOCK SCRUB WALL 180/360 SYSTEM ATTACHMENT', 'description', 'The Dirt Lock Scrub Wall attachment is a vertical extension of the Dirt Lock''s pressurized cleaning power. Simply snap the attachment into your Dirt Lock bucket filter to easily clean your wheel brushes, wash mitts and more.')
       )
     )
   ),
@@ -1740,8 +1740,8 @@ INSERT INTO products (
     'manufacturer', 'DETAIL GUARDZ Canada'
   ),
   JSON_ARRAY(
-    JSON_OBJECT('name', 'White', 'value', 'white', 'image', '/assets/Canada Products/DIRTLOCK-PWSPadWasherBundle-White_main_720x/DIRTLOCK-PWSPadWasherBundle-White_main_720x.webp', 'price', 79.99),
-    JSON_OBJECT('name', 'Black', 'value', 'black', 'image', '/assets/Canada Products/DIRTLOCK-PWSPadWasherBundle-White_main_720x/DIRTLOCK-PWSPadWasherBundle_Main_Black_720x.webp', 'price', 79.99)
+    JSON_OBJECT('name', 'White', 'value', 'white', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DIRTLOCK-PWSPadWasherBundle-White_main_720x/DIRTLOCK-PWSPadWasherBundle-White_main_720x.webp', 'price', 79.99),
+    JSON_OBJECT('name', 'Black', 'value', 'black', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DIRTLOCK-PWSPadWasherBundle-White_main_720x/DIRTLOCK-PWSPadWasherBundle_Main_Black_720x.webp', 'price', 79.99)
   ),
   JSON_OBJECT(
     'main', JSON_OBJECT('url', 'https://www.youtube.com/embed/_ZHI-xV6XLg', 'title', 'DETAIL GUARDZ Dirt Lock Pad Washer System', 'description', 'The ultimate pad washing kit! Clean your polishing pads quickly and gently with our complete system.'),
@@ -1779,44 +1779,44 @@ INSERT INTO products (
   'Save $10.00 by purchasing this bundle! The ultimate pad washing kit! Clean your polishing pads quickly and gently with our complete system. Includes 5 pieces including pad spray cleaner. Made In Canada.',
   89.99, NULL,
   'Kit-Bundle', 'DETAIL GUARDZ',
-  '/assets/Canada Products/DIRT LOCK - COMPLETE PAD WASHER KIT WITH CLEANER/DIRTLOCK-PWSWSCPadWasherBundle-White_main_-WithCleaner_720x.webp',
+  'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DIRT LOCK - COMPLETE PAD WASHER KIT WITH CLEANER/DIRTLOCK-PWSWSCPadWasherBundle-White_main_-WithCleaner_720x.webp',
   JSON_ARRAY(
-    '/assets/Canada Products/DIRT LOCK - COMPLETE PAD WASHER KIT WITH CLEANER/DIRTLOCK-PWSWSCPadWasherBundle-White_main_-WithCleaner_720x.webp',
-    '/assets/Canada Products/DIRT LOCK - COMPLETE PAD WASHER KIT WITH CLEANER/DIRTLOCK-PWSWSCPadWasherBundle_Main_-WithCleaner-BLACK_720x.webp',
-    '/assets/Amazon Listing Images/Pad Washer Images/1.webp',
-    '/assets/Amazon Listing Images/Pad Washer Images/2.webp',
-    '/assets/Amazon Listing Images/Pad Washer Images/3.webp',
-    '/assets/Amazon Listing Images/Pad Washer Images/4.webp'
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DIRT LOCK - COMPLETE PAD WASHER KIT WITH CLEANER/DIRTLOCK-PWSWSCPadWasherBundle-White_main_-WithCleaner_720x.webp',
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DIRT LOCK - COMPLETE PAD WASHER KIT WITH CLEANER/DIRTLOCK-PWSWSCPadWasherBundle_Main_-WithCleaner-BLACK_720x.webp',
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Pad Washer Images/1.webp',
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Pad Washer Images/2.webp',
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Pad Washer Images/3.webp',
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Pad Washer Images/4.webp'
   ),
   JSON_OBJECT(
     'white', JSON_ARRAY(
-      '/assets/Canada Products/DIRT LOCK - COMPLETE PAD WASHER KIT WITH CLEANER/DIRTLOCK-PWSWSCPadWasherBundle-White_main_-WithCleaner_720x.webp',
-      '/assets/Amazon Listing Images/Pad Washer Images/1.webp',
-      '/assets/Amazon Listing Images/Pad Washer Images/2.webp',
-      '/assets/Amazon Listing Images/Pad Washer Images/3.webp',
-      '/assets/Amazon Listing Images/Pad Washer Images/4.webp'
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DIRT LOCK - COMPLETE PAD WASHER KIT WITH CLEANER/DIRTLOCK-PWSWSCPadWasherBundle-White_main_-WithCleaner_720x.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Pad Washer Images/1.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Pad Washer Images/2.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Pad Washer Images/3.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Pad Washer Images/4.webp'
     ),
     'black', JSON_ARRAY(
-      '/assets/Canada Products/DIRT LOCK - COMPLETE PAD WASHER KIT WITH CLEANER/DIRTLOCK-PWSWSCPadWasherBundle_Main_-WithCleaner-BLACK_720x.webp',
-      '/assets/Amazon Listing Images/Pad Washer Images/1.webp',
-      '/assets/Amazon Listing Images/Pad Washer Images/2.webp',
-      '/assets/Amazon Listing Images/Pad Washer Images/3.webp',
-      '/assets/Amazon Listing Images/Pad Washer Images/4.webp'
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DIRT LOCK - COMPLETE PAD WASHER KIT WITH CLEANER/DIRTLOCK-PWSWSCPadWasherBundle_Main_-WithCleaner-BLACK_720x.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Pad Washer Images/1.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Pad Washer Images/2.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Pad Washer Images/3.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Pad Washer Images/4.webp'
     )
   ),
   JSON_ARRAY('Dirt Lock bucket filter', 'Pad washer attachment', 'Hook and loop handle', 'Storage bracket', 'Pad spray cleaner 650ML'),
   JSON_ARRAY('All polishing pads 1-10 inches'),
   4.9, 28, 1,
   JSON_OBJECT(
-    'heroImage', '/assets/Amazon Listing Images/Pad Washer Images/about section large.jpg',
+    'heroImage', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Pad Washer Images/about section large.jpg',
     'heroImageAlt', 'Dirt Lock Pad Washer System With Cleaner',
     'description', 'The Dirt Lock pad washer attachment clicks into your Dirt Lock bucket filter to clean any polishing pads safely and gently within seconds! Clean your foam, wool, microfiber, buffing bonnets and more within the blink of an eye. Includes 650ML pad spray cleaner for best results. Proudly Made In Canada.',
     'secondarySection', JSON_OBJECT(
       'title', 'ATTACH AND EXPAND YOUR DIRT LOCK SYSTEM',
       'items', JSON_ARRAY(
-        JSON_OBJECT('image', '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/ATTACH AND EXPAND SECTION 1.jpg', 'title', 'DIRT LOCK PAD WASHER SYSTEM ATTACHMENT', 'description', 'Clean your polishing pads safely and gently within seconds! Simply attach the pad washer attachment into your Dirt Lock bucket filter, place your dirty pads onto the supplied hook and loop handle, spray with our pad cleaner to break down polish and wax, pump pads on the attachment and your done within seconds!'),
-        JSON_OBJECT('image', '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/ATTACH AND EXPAND SECTION 2.jpg', 'title', 'DIRT LOCK SCRUB AND PUMP SYSTEM ATTACHMENT', 'description', 'Use the Scrub And Pump attachment for added cleaning power with your Dirt Lock bucket filter. Simply push the attachment into place and use it to scrub wash mitts, brushes, hand applicator pads and more!'),
-        JSON_OBJECT('image', '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/ATTACH AND EXPAND SECTION 3.jpg', 'title', 'DIRT LOCK SCRUB WALL 180/360 SYSTEM ATTACHMENT', 'description', 'The Dirt Lock Scrub Wall attachment is a vertical extension of the Dirt Lock''s pressurized cleaning power. Simply snap the attachment into your Dirt Lock bucket filter to easily clean your wheel brushes, wash mitts and more.')
+        JSON_OBJECT('image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/ATTACH AND EXPAND SECTION 1.jpg', 'title', 'DIRT LOCK PAD WASHER SYSTEM ATTACHMENT', 'description', 'Clean your polishing pads safely and gently within seconds! Simply attach the pad washer attachment into your Dirt Lock bucket filter, place your dirty pads onto the supplied hook and loop handle, spray with our pad cleaner to break down polish and wax, pump pads on the attachment and your done within seconds!'),
+        JSON_OBJECT('image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/ATTACH AND EXPAND SECTION 2.jpg', 'title', 'DIRT LOCK SCRUB AND PUMP SYSTEM ATTACHMENT', 'description', 'Use the Scrub And Pump attachment for added cleaning power with your Dirt Lock bucket filter. Simply push the attachment into place and use it to scrub wash mitts, brushes, hand applicator pads and more!'),
+        JSON_OBJECT('image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/ATTACH AND EXPAND SECTION 3.jpg', 'title', 'DIRT LOCK SCRUB WALL 180/360 SYSTEM ATTACHMENT', 'description', 'The Dirt Lock Scrub Wall attachment is a vertical extension of the Dirt Lock''s pressurized cleaning power. Simply snap the attachment into your Dirt Lock bucket filter to easily clean your wheel brushes, wash mitts and more.')
       )
     )
   ),
@@ -1830,8 +1830,8 @@ INSERT INTO products (
     'manufacturer', 'DETAIL GUARDZ Canada'
   ),
   JSON_ARRAY(
-    JSON_OBJECT('name', 'White', 'value', 'white', 'image', '/assets/Canada Products/DIRT LOCK - COMPLETE PAD WASHER KIT WITH CLEANER/DIRTLOCK-PWSWSCPadWasherBundle-White_main_-WithCleaner_720x.webp', 'price', 89.99),
-    JSON_OBJECT('name', 'Black', 'value', 'black', 'image', '/assets/Canada Products/DIRT LOCK - COMPLETE PAD WASHER KIT WITH CLEANER/DIRTLOCK-PWSWSCPadWasherBundle_Main_-WithCleaner-BLACK_720x.webp', 'price', 89.99)
+    JSON_OBJECT('name', 'White', 'value', 'white', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DIRT LOCK - COMPLETE PAD WASHER KIT WITH CLEANER/DIRTLOCK-PWSWSCPadWasherBundle-White_main_-WithCleaner_720x.webp', 'price', 89.99),
+    JSON_OBJECT('name', 'Black', 'value', 'black', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DIRT LOCK - COMPLETE PAD WASHER KIT WITH CLEANER/DIRTLOCK-PWSWSCPadWasherBundle_Main_-WithCleaner-BLACK_720x.webp', 'price', 89.99)
   ),
   JSON_OBJECT(
     'main', JSON_OBJECT('url', 'https://www.youtube.com/embed/_ZHI-xV6XLg', 'title', 'DETAIL GUARDZ Dirt Lock Pad Washer System With Cleaner', 'description', 'The ultimate pad washing kit including 650ML pad spray cleaner. Clean your polishing pads quickly and gently with our complete system.'),
@@ -1869,45 +1869,45 @@ INSERT INTO products (
   'The Dirt Lock Scrub Wall attachment is a vertical extension of the Dirt Lock’s pressurized cleaning power. Simply snap the attachment into your Dirt Lock bucket filter to easily clean your wheel brushes, wash mitts and more. Made In Canada.',
   59.99, NULL,
   'Kit-Bundle', 'DETAIL GUARDZ',
-  '/assets/Canada Products/DIRT LOCK - COMPLETE SCRUB WALL KIT/DIRTLOCK-SW180-Black_MainImage_ae9fb235-7709-48d4-a81a-03b3cf45c222_720x.webp',
+  'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DIRT LOCK - COMPLETE SCRUB WALL KIT/DIRTLOCK-SW180-Black_MainImage_ae9fb235-7709-48d4-a81a-03b3cf45c222_720x.webp',
   JSON_ARRAY(
-    '/assets/Canada Products/DIRT LOCK - COMPLETE SCRUB WALL KIT/DIRTLOCK-SW180-Black_MainImage_ae9fb235-7709-48d4-a81a-03b3cf45c222_720x.webp',
-    '/assets/Canada Products/DIRT LOCK - COMPLETE SCRUB WALL KIT/DIRTLOCK-SW180-BLACK-BLACK_720x.webp',
-    '/assets/Canada Products/DIRT LOCK - COMPLETE SCRUB WALL KIT/DIRTLOCK-SW180-BLACK_720x.webp',
-    '/assets/Canada Products/DIRT LOCK - COMPLETE SCRUB WALL KIT/DIRTLOCK-SW180-BlackCloseUp_4f137138-8e7d-4738-be0f-3a2ba3646f67_720x.webp',
-    '/assets/Canada Products/DIRT LOCK - COMPLETE SCRUB WALL KIT/DIRTLOCK-SW180_WHITE_-MainImage_720x.webp',
-    '/assets/Canada Products/DIRT LOCK - COMPLETE SCRUB WALL KIT/DIRTLOCK-SW360_WHITE_-MainImage-WithDirtLock_720x.webp'
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DIRT LOCK - COMPLETE SCRUB WALL KIT/DIRTLOCK-SW180-Black_MainImage_ae9fb235-7709-48d4-a81a-03b3cf45c222_720x.webp',
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DIRT LOCK - COMPLETE SCRUB WALL KIT/DIRTLOCK-SW180-BLACK-BLACK_720x.webp',
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DIRT LOCK - COMPLETE SCRUB WALL KIT/DIRTLOCK-SW180-BLACK_720x.webp',
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DIRT LOCK - COMPLETE SCRUB WALL KIT/DIRTLOCK-SW180-BlackCloseUp_4f137138-8e7d-4738-be0f-3a2ba3646f67_720x.webp',
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DIRT LOCK - COMPLETE SCRUB WALL KIT/DIRTLOCK-SW180_WHITE_-MainImage_720x.webp',
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DIRT LOCK - COMPLETE SCRUB WALL KIT/DIRTLOCK-SW360_WHITE_-MainImage-WithDirtLock_720x.webp'
   ),
   JSON_OBJECT(
     'black', JSON_ARRAY(
-      '/assets/Canada Products/DIRT LOCK - COMPLETE SCRUB WALL KIT/DIRTLOCK-SW180-Black_MainImage_ae9fb235-7709-48d4-a81a-03b3cf45c222_720x.webp',
-      '/assets/Canada Products/DIRT LOCK - COMPLETE SCRUB WALL KIT/DIRTLOCK-SW180-BLACK-BLACK_720x.webp',
-      '/assets/Canada Products/DIRT LOCK - COMPLETE SCRUB WALL KIT/DIRTLOCK-SW180-BLACK_720x.webp',
-      '/assets/Canada Products/DIRT LOCK - COMPLETE SCRUB WALL KIT/DIRTLOCK-SW180-BlackCloseUp_4f137138-8e7d-4738-be0f-3a2ba3646f67_720x.webp'
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DIRT LOCK - COMPLETE SCRUB WALL KIT/DIRTLOCK-SW180-Black_MainImage_ae9fb235-7709-48d4-a81a-03b3cf45c222_720x.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DIRT LOCK - COMPLETE SCRUB WALL KIT/DIRTLOCK-SW180-BLACK-BLACK_720x.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DIRT LOCK - COMPLETE SCRUB WALL KIT/DIRTLOCK-SW180-BLACK_720x.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DIRT LOCK - COMPLETE SCRUB WALL KIT/DIRTLOCK-SW180-BlackCloseUp_4f137138-8e7d-4738-be0f-3a2ba3646f67_720x.webp'
     ),
     'white', JSON_ARRAY(
-      '/assets/Canada Products/DIRT LOCK - COMPLETE SCRUB WALL KIT/DIRTLOCK-SW180_WHITE_-MainImage_720x.webp',
-      '/assets/Canada Products/DIRT LOCK - COMPLETE SCRUB WALL KIT/DIRTLOCK-SW360_WHITE_-MainImage-WithDirtLock_720x.webp'
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DIRT LOCK - COMPLETE SCRUB WALL KIT/DIRTLOCK-SW180_WHITE_-MainImage_720x.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DIRT LOCK - COMPLETE SCRUB WALL KIT/DIRTLOCK-SW360_WHITE_-MainImage-WithDirtLock_720x.webp'
     )
   ),
   JSON_ARRAY('180° Coverage (expandable to 360°)', 'Vertical cleaning surface', 'Snaps into Dirt Lock filter'),
   JSON_ARRAY('Dirt Lock Bucket Filter', '3-8 Gallon Pails'),
   4.6, 34, 1,
   JSON_OBJECT(
-    'heroImage', '/assets/Amazon Listing Images/Scrub Wall-20260122T171828Z-1-001/ABOUT SECTION LARGE.jpg',
+    'heroImage', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Scrub Wall-20260122T171828Z-1-001/ABOUT SECTION LARGE.jpg',
     'heroImageAlt', 'Dirt Lock Scrub Wall System',
     'description', 'The Dirt Lock Scrub Wall attachment is a vertical extension of the Dirt Lock''s pressurized cleaning power. Simply snap the attachment into your Dirt Lock bucket filter to easily clean your wheel brushes, wash mitts and more without having to sacrifice hardly any bucket space. Simply scrub your wash media on the side of the Scrub Wall. The debris is now behind the scrub wall screen and is pumped and trapped below the filter to provide cleaner, filtered water for reuse.',
     'features', JSON_ARRAY(
-      JSON_OBJECT('image', '/assets/Amazon Listing Images/Scrub Wall-20260122T171828Z-1-001/ABOUT SECTION SMALL.jpg', 'alt', 'Vertical Cleaning Power', 'label', 'VERTICAL EXTENSION OF THE DIRT LOCK''S PRESSURIZED CLEANING POWER', 'description', 'The Dirt Lock Scrub Wall attachment is a vertical extension of the Dirt Lock''s pressurized cleaning power. Simply snap the attachment into your Dirt Lock bucket filter to easily clean your wheel brushes, wash mitts and more without having to sacrifice hardly any bucket space.'),
-      JSON_OBJECT('image', '/assets/Amazon Listing Images/Scrub Wall-20260122T171828Z-1-001/ABOUT SECTION SMALL 1.jpg', 'alt', 'Attaches Into Filter', 'label', 'ATTACHES INTO DIRT LOCK BUCKET FILTER', 'description', 'The Dirt Lock bucket filter allows you to attach the Scrub Wall 180/360 or any of our other detailing tools when needed. When your finished, simply detach it!\n\nEach Scrub Wall kit contains 180 degrees of coverage, simply connect two 180 kits together for full 360 degree bucket coverage.'),
-      JSON_OBJECT('image', '/assets/Amazon Listing Images/Scrub Wall-20260122T171828Z-1-001/ABOUT SECTION SMALL 2.jpg', 'alt', 'Advanced Filtering', 'label', 'OUR MOST ADVANCED BUCKET FILTERING SYSTEM', 'description', 'The Dirt Lock bucket filter is extremely powerful on it''s own. With the addition of our scrub wall 180/360 attachment, it takes the product to another level by flushing out your wash mitt and tools more thoroughly, resulting in even cleaner wash media and the ability to cycle the debris even quicker underneath the screen.')
+      JSON_OBJECT('image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Scrub Wall-20260122T171828Z-1-001/ABOUT SECTION SMALL.jpg', 'alt', 'Vertical Cleaning Power', 'label', 'VERTICAL EXTENSION OF THE DIRT LOCK''S PRESSURIZED CLEANING POWER', 'description', 'The Dirt Lock Scrub Wall attachment is a vertical extension of the Dirt Lock''s pressurized cleaning power. Simply snap the attachment into your Dirt Lock bucket filter to easily clean your wheel brushes, wash mitts and more without having to sacrifice hardly any bucket space.'),
+      JSON_OBJECT('image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Scrub Wall-20260122T171828Z-1-001/ABOUT SECTION SMALL 1.jpg', 'alt', 'Attaches Into Filter', 'label', 'ATTACHES INTO DIRT LOCK BUCKET FILTER', 'description', 'The Dirt Lock bucket filter allows you to attach the Scrub Wall 180/360 or any of our other detailing tools when needed. When your finished, simply detach it!\n\nEach Scrub Wall kit contains 180 degrees of coverage, simply connect two 180 kits together for full 360 degree bucket coverage.'),
+      JSON_OBJECT('image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Scrub Wall-20260122T171828Z-1-001/ABOUT SECTION SMALL 2.jpg', 'alt', 'Advanced Filtering', 'label', 'OUR MOST ADVANCED BUCKET FILTERING SYSTEM', 'description', 'The Dirt Lock bucket filter is extremely powerful on it''s own. With the addition of our scrub wall 180/360 attachment, it takes the product to another level by flushing out your wash mitt and tools more thoroughly, resulting in even cleaner wash media and the ability to cycle the debris even quicker underneath the screen.')
     ),
     'secondarySection', JSON_OBJECT(
       'title', 'ADDITIONAL ATTACHMENTS',
       'items', JSON_ARRAY(
-        JSON_OBJECT('image', '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/ATTACH AND EXPAND SECTION 1.jpg', 'title', 'DIRT LOCK PAD WASHER SYSTEM ATTACHMENT', 'description', 'Clean your polishing pads safely and gently within seconds! Simply attach the pad washer attachment into your Dirt Lock bucket filter, place your dirty pads onto the supplied hook and loop handle, spray with our pad cleaner to break down polish and wax, pump pads on the attachment and your done within seconds!'),
-        JSON_OBJECT('image', '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/ATTACH AND EXPAND SECTION 2.jpg', 'title', 'DIRT LOCK SCRUB AND PUMP SYSTEM ATTACHMENT', 'description', 'Use the Scrub And Pump attachment for added cleaning power with your Dirt Lock bucket filter. Simply push the attachment into place and use it to scrub wash mitts, brushes, hand applicator pads and more! The Dirt Lock scrub and pump attachment works on a spring loaded system to pump cleaner water up and cycle dirty debris safely underneath the screen and out of harms way.'),
-        JSON_OBJECT('image', '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/ATTACH AND EXPAND SECTION 3.jpg', 'title', 'DIRT LOCK SCRUB WALL 180/360 SYSTEM ATTACHMENT', 'description', 'The Dirt Lock Scrub Wall attachment is a vertical extension of the Dirt Lock''s pressurized cleaning power. Simply snap the attachment into your Dirt Lock bucket filter to easily clean your wheel brushes, wash mitts and more without having to sacrifice hardly any bucket space. Simply scrub your wash media on the side of the Scrub Wall.')
+        JSON_OBJECT('image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/ATTACH AND EXPAND SECTION 1.jpg', 'title', 'DIRT LOCK PAD WASHER SYSTEM ATTACHMENT', 'description', 'Clean your polishing pads safely and gently within seconds! Simply attach the pad washer attachment into your Dirt Lock bucket filter, place your dirty pads onto the supplied hook and loop handle, spray with our pad cleaner to break down polish and wax, pump pads on the attachment and your done within seconds!'),
+        JSON_OBJECT('image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/ATTACH AND EXPAND SECTION 2.jpg', 'title', 'DIRT LOCK SCRUB AND PUMP SYSTEM ATTACHMENT', 'description', 'Use the Scrub And Pump attachment for added cleaning power with your Dirt Lock bucket filter. Simply push the attachment into place and use it to scrub wash mitts, brushes, hand applicator pads and more! The Dirt Lock scrub and pump attachment works on a spring loaded system to pump cleaner water up and cycle dirty debris safely underneath the screen and out of harms way.'),
+        JSON_OBJECT('image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/ATTACH AND EXPAND SECTION 3.jpg', 'title', 'DIRT LOCK SCRUB WALL 180/360 SYSTEM ATTACHMENT', 'description', 'The Dirt Lock Scrub Wall attachment is a vertical extension of the Dirt Lock''s pressurized cleaning power. Simply snap the attachment into your Dirt Lock bucket filter to easily clean your wheel brushes, wash mitts and more without having to sacrifice hardly any bucket space. Simply scrub your wash media on the side of the Scrub Wall.')
       )
     )
   ),
@@ -1921,8 +1921,8 @@ INSERT INTO products (
     'manufacturer', 'DETAIL GUARDZ Canada'
   ),
   JSON_ARRAY(
-    JSON_OBJECT('name', 'Black', 'value', 'black', 'image', '/assets/Canada Products/DIRT LOCK - COMPLETE SCRUB WALL KIT/DIRTLOCK-SW180-Black_MainImage_ae9fb235-7709-48d4-a81a-03b3cf45c222_720x.webp', 'price', 59.99),
-    JSON_OBJECT('name', 'White', 'value', 'white', 'image', '/assets/Canada Products/DIRT LOCK - COMPLETE SCRUB WALL KIT/DIRTLOCK-SW180_WHITE_-MainImage_720x.webp', 'price', 59.99)
+    JSON_OBJECT('name', 'Black', 'value', 'black', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DIRT LOCK - COMPLETE SCRUB WALL KIT/DIRTLOCK-SW180-Black_MainImage_ae9fb235-7709-48d4-a81a-03b3cf45c222_720x.webp', 'price', 59.99),
+    JSON_OBJECT('name', 'White', 'value', 'white', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DIRT LOCK - COMPLETE SCRUB WALL KIT/DIRTLOCK-SW180_WHITE_-MainImage_720x.webp', 'price', 59.99)
   ),
   JSON_OBJECT(
     'main', JSON_OBJECT('url', 'https://www.youtube.com/embed/wgR1NE6h6Zk', 'title', 'DETAIL GUARDZ Dirt Lock Scrub Wall 180/360', 'description', 'The Dirt Lock Scrub Wall attachment is a vertical extension of the Dirt Lock''s pressurized cleaning power.'),
@@ -1961,55 +1961,55 @@ INSERT INTO products (
   '(1) Package contains a set of (4) pieces for a complete car setup. Fits all cars, motorcycles and truck tires. Made In Canada.',
   32.99, NULL,
   'Detailing-Accessories', 'DETAIL GUARDZ',
-  '/assets/Canada Products/DETAIL GUARDZ - HOSE GUIDE (4PK)/Detail_Guardz_Car_Hose_Guides_-_4_Pack_Black_720x.webp',
+  'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DETAIL GUARDZ - HOSE GUIDE (4PK)/Detail_Guardz_Car_Hose_Guides_-_4_Pack_Black_720x.webp',
   JSON_ARRAY(
-    '/assets/Canada Products/DETAIL GUARDZ - HOSE GUIDE (4PK)/Detail_Guardz_Car_Hose_Guides_-_4_Pack_Blue_d6ccc2fc-4146-4699-bd6f-625d5a7fad15_720x.webp',
-    '/assets/Canada Products/DETAIL GUARDZ - HOSE GUIDE (4PK)/Detail_Guardz_-_Blue-_Action_Shot_3_720x.webp',
-    '/assets/Canada Products/DETAIL GUARDZ - HOSE GUIDE (4PK)/Detail_Guardz_-_Blue_-_Action_Shot_1_720x.webp',
-    '/assets/Canada Products/DETAIL GUARDZ - HOSE GUIDE (4PK)/Detail_Guardz_Car_Hose_Guides_-_4_Pack_Black_720x.webp',
-    '/assets/Canada Products/DETAIL GUARDZ - HOSE GUIDE (4PK)/Detail_Guardz_Car_Hose_Guides_-_4_Pack_Neon-Green_720x.webp',
-    '/assets/Canada Products/DETAIL GUARDZ - HOSE GUIDE (4PK)/Detail_Guardz_Car_Hose_Guides_-_4_Pack_Red_720x.webp',
-    '/assets/Canada Products/DETAIL GUARDZ - HOSE GUIDE (4PK)/Detail_Guardz_Car_Hose_Guides_-_4_Pack_Yellow_720x.webp'
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DETAIL GUARDZ - HOSE GUIDE (4PK)/Detail_Guardz_Car_Hose_Guides_-_4_Pack_Blue_d6ccc2fc-4146-4699-bd6f-625d5a7fad15_720x.webp',
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DETAIL GUARDZ - HOSE GUIDE (4PK)/Detail_Guardz_-_Blue-_Action_Shot_3_720x.webp',
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DETAIL GUARDZ - HOSE GUIDE (4PK)/Detail_Guardz_-_Blue_-_Action_Shot_1_720x.webp',
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DETAIL GUARDZ - HOSE GUIDE (4PK)/Detail_Guardz_Car_Hose_Guides_-_4_Pack_Black_720x.webp',
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DETAIL GUARDZ - HOSE GUIDE (4PK)/Detail_Guardz_Car_Hose_Guides_-_4_Pack_Neon-Green_720x.webp',
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DETAIL GUARDZ - HOSE GUIDE (4PK)/Detail_Guardz_Car_Hose_Guides_-_4_Pack_Red_720x.webp',
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DETAIL GUARDZ - HOSE GUIDE (4PK)/Detail_Guardz_Car_Hose_Guides_-_4_Pack_Yellow_720x.webp'
   ),
   JSON_OBJECT(
     'blue', JSON_ARRAY(
-      '/assets/Canada Products/DETAIL GUARDZ - HOSE GUIDE (4PK)/Detail_Guardz_Car_Hose_Guides_-_4_Pack_Blue_d6ccc2fc-4146-4699-bd6f-625d5a7fad15_720x.webp',
-      '/assets/Canada Products/DETAIL GUARDZ - HOSE GUIDE (4PK)/Detail_Guardz_-_Blue-_Action_Shot_3_720x.webp',
-      '/assets/Canada Products/DETAIL GUARDZ - HOSE GUIDE (4PK)/Detail_Guardz_-_Blue_-_Action_Shot_1_720x.webp'
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DETAIL GUARDZ - HOSE GUIDE (4PK)/Detail_Guardz_Car_Hose_Guides_-_4_Pack_Blue_d6ccc2fc-4146-4699-bd6f-625d5a7fad15_720x.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DETAIL GUARDZ - HOSE GUIDE (4PK)/Detail_Guardz_-_Blue-_Action_Shot_3_720x.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DETAIL GUARDZ - HOSE GUIDE (4PK)/Detail_Guardz_-_Blue_-_Action_Shot_1_720x.webp'
     ),
     'black', JSON_ARRAY(
-      '/assets/Canada Products/DETAIL GUARDZ - HOSE GUIDE (4PK)/Detail_Guardz_Car_Hose_Guides_-_4_Pack_Black_720x.webp',
-      '/assets/Canada Products/DETAIL GUARDZ - HOSE GUIDE (4PK)/Detail_Guardz_-_Blue-_Action_Shot_3_720x.webp',
-      '/assets/Canada Products/DETAIL GUARDZ - HOSE GUIDE (4PK)/Detail_Guardz_-_Blue_-_Action_Shot_1_720x.webp'
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DETAIL GUARDZ - HOSE GUIDE (4PK)/Detail_Guardz_Car_Hose_Guides_-_4_Pack_Black_720x.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DETAIL GUARDZ - HOSE GUIDE (4PK)/Detail_Guardz_-_Blue-_Action_Shot_3_720x.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DETAIL GUARDZ - HOSE GUIDE (4PK)/Detail_Guardz_-_Blue_-_Action_Shot_1_720x.webp'
     ),
     'neon-green', JSON_ARRAY(
-      '/assets/Canada Products/DETAIL GUARDZ - HOSE GUIDE (4PK)/Detail_Guardz_Car_Hose_Guides_-_4_Pack_Neon-Green_720x.webp',
-      '/assets/Canada Products/DETAIL GUARDZ - HOSE GUIDE (4PK)/Detail_Guardz_-_Blue-_Action_Shot_3_720x.webp',
-      '/assets/Canada Products/DETAIL GUARDZ - HOSE GUIDE (4PK)/Detail_Guardz_-_Blue_-_Action_Shot_1_720x.webp'
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DETAIL GUARDZ - HOSE GUIDE (4PK)/Detail_Guardz_Car_Hose_Guides_-_4_Pack_Neon-Green_720x.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DETAIL GUARDZ - HOSE GUIDE (4PK)/Detail_Guardz_-_Blue-_Action_Shot_3_720x.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DETAIL GUARDZ - HOSE GUIDE (4PK)/Detail_Guardz_-_Blue_-_Action_Shot_1_720x.webp'
     ),
     'red', JSON_ARRAY(
-      '/assets/Canada Products/DETAIL GUARDZ - HOSE GUIDE (4PK)/Detail_Guardz_Car_Hose_Guides_-_4_Pack_Red_720x.webp',
-      '/assets/Canada Products/DETAIL GUARDZ - HOSE GUIDE (4PK)/Detail_Guardz_-_Blue-_Action_Shot_3_720x.webp',
-      '/assets/Canada Products/DETAIL GUARDZ - HOSE GUIDE (4PK)/Detail_Guardz_-_Blue_-_Action_Shot_1_720x.webp'
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DETAIL GUARDZ - HOSE GUIDE (4PK)/Detail_Guardz_Car_Hose_Guides_-_4_Pack_Red_720x.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DETAIL GUARDZ - HOSE GUIDE (4PK)/Detail_Guardz_-_Blue-_Action_Shot_3_720x.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DETAIL GUARDZ - HOSE GUIDE (4PK)/Detail_Guardz_-_Blue_-_Action_Shot_1_720x.webp'
     ),
     'yellow', JSON_ARRAY(
-      '/assets/Canada Products/DETAIL GUARDZ - HOSE GUIDE (4PK)/Detail_Guardz_Car_Hose_Guides_-_4_Pack_Yellow_720x.webp',
-      '/assets/Canada Products/DETAIL GUARDZ - HOSE GUIDE (4PK)/Detail_Guardz_-_Blue-_Action_Shot_3_720x.webp',
-      '/assets/Canada Products/DETAIL GUARDZ - HOSE GUIDE (4PK)/Detail_Guardz_-_Blue_-_Action_Shot_1_720x.webp'
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DETAIL GUARDZ - HOSE GUIDE (4PK)/Detail_Guardz_Car_Hose_Guides_-_4_Pack_Yellow_720x.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DETAIL GUARDZ - HOSE GUIDE (4PK)/Detail_Guardz_-_Blue-_Action_Shot_3_720x.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DETAIL GUARDZ - HOSE GUIDE (4PK)/Detail_Guardz_-_Blue_-_Action_Shot_1_720x.webp'
     )
   ),
   JSON_ARRAY('Full car setup (4 pieces)', 'Eliminates hose snags', 'Durable industrial plastic'),
   JSON_ARRAY('All tires'),
   4.9, 145, 1,
   JSON_OBJECT(
-    'heroImage', '/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/about section large.jpg',
+    'heroImage', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/about section large.jpg',
     'heroImageAlt', 'Detail Guardz Hose Guide 4-Pack under tire',
     'description', 'Using a set of Detail Guardz is the most efficient way to work around your vehicle without being interrupted by stubborn hose and cord jams. This 4-pack gives you complete coverage for all four wheels. The roller system allows smooth movement without tugging your hose or cable.',
     'features', JSON_ARRAY(
-      JSON_OBJECT('image', '/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/about section small.jpg', 'alt', 'Line Guidance', 'label', 'LINE GUIDANCE', 'description', 'If a hose or cable slides above the Detail Guardz, it is guided down the rounded tip and back onto the roller. This ensures you are never interrupted!'),
-      JSON_OBJECT('image', '/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/about section small1.jpg', 'alt', 'Universal Fit', 'label', 'UNIVERSAL FIT', 'description', 'Detail Guardz hose guides work with almost any tire size — cars, trucks, and motorcycles.'),
-      JSON_OBJECT('image', '/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/about section small2.jpg', 'alt', 'Made in Canada', 'label', 'MADE IN CANADA', 'description', 'Manufactured in Canada using industrial-grade plastic and metal. Each unit is hand checked for the highest standards of quality!'),
-      JSON_OBJECT('image', '/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/about section snall.jpg', 'alt', 'Anti Jam', 'label', 'ANTI-JAM', 'description', 'Two independently spinning rollers prevent cable or hose jamming. Run multiple hoses and cords simultaneously without interruption!')
+      JSON_OBJECT('image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/about section small.jpg', 'alt', 'Line Guidance', 'label', 'LINE GUIDANCE', 'description', 'If a hose or cable slides above the Detail Guardz, it is guided down the rounded tip and back onto the roller. This ensures you are never interrupted!'),
+      JSON_OBJECT('image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/about section small1.jpg', 'alt', 'Universal Fit', 'label', 'UNIVERSAL FIT', 'description', 'Detail Guardz hose guides work with almost any tire size — cars, trucks, and motorcycles.'),
+      JSON_OBJECT('image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/about section small2.jpg', 'alt', 'Made in Canada', 'label', 'MADE IN CANADA', 'description', 'Manufactured in Canada using industrial-grade plastic and metal. Each unit is hand checked for the highest standards of quality!'),
+      JSON_OBJECT('image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/about section snall.jpg', 'alt', 'Anti Jam', 'label', 'ANTI-JAM', 'description', 'Two independently spinning rollers prevent cable or hose jamming. Run multiple hoses and cords simultaneously without interruption!')
     )
   ),
   NULL,
@@ -2022,11 +2022,11 @@ INSERT INTO products (
     'manufacturer', 'DETAIL GUARDZ Canada'
   ),
   JSON_ARRAY(
-    JSON_OBJECT('name', 'Blue', 'value', 'blue', 'image', '/assets/Canada Products/DETAIL GUARDZ - HOSE GUIDE (4PK)/Detail_Guardz_Car_Hose_Guides_-_4_Pack_Blue_d6ccc2fc-4146-4699-bd6f-625d5a7fad15_720x.webp', 'price', 32.99),
-    JSON_OBJECT('name', 'Black', 'value', 'black', 'image', '/assets/Canada Products/DETAIL GUARDZ - HOSE GUIDE (4PK)/Detail_Guardz_Car_Hose_Guides_-_4_Pack_Black_720x.webp', 'price', 32.99),
-    JSON_OBJECT('name', 'Neon Green', 'value', 'neon-green', 'image', '/assets/Canada Products/DETAIL GUARDZ - HOSE GUIDE (4PK)/Detail_Guardz_Car_Hose_Guides_-_4_Pack_Neon-Green_720x.webp', 'price', 32.99),
-    JSON_OBJECT('name', 'Red', 'value', 'red', 'image', '/assets/Canada Products/DETAIL GUARDZ - HOSE GUIDE (4PK)/Detail_Guardz_Car_Hose_Guides_-_4_Pack_Red_720x.webp', 'price', 32.99),
-    JSON_OBJECT('name', 'Yellow', 'value', 'yellow', 'image', '/assets/Canada Products/DETAIL GUARDZ - HOSE GUIDE (4PK)/Detail_Guardz_Car_Hose_Guides_-_4_Pack_Yellow_720x.webp', 'price', 32.99)
+    JSON_OBJECT('name', 'Blue', 'value', 'blue', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DETAIL GUARDZ - HOSE GUIDE (4PK)/Detail_Guardz_Car_Hose_Guides_-_4_Pack_Blue_d6ccc2fc-4146-4699-bd6f-625d5a7fad15_720x.webp', 'price', 32.99),
+    JSON_OBJECT('name', 'Black', 'value', 'black', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DETAIL GUARDZ - HOSE GUIDE (4PK)/Detail_Guardz_Car_Hose_Guides_-_4_Pack_Black_720x.webp', 'price', 32.99),
+    JSON_OBJECT('name', 'Neon Green', 'value', 'neon-green', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DETAIL GUARDZ - HOSE GUIDE (4PK)/Detail_Guardz_Car_Hose_Guides_-_4_Pack_Neon-Green_720x.webp', 'price', 32.99),
+    JSON_OBJECT('name', 'Red', 'value', 'red', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DETAIL GUARDZ - HOSE GUIDE (4PK)/Detail_Guardz_Car_Hose_Guides_-_4_Pack_Red_720x.webp', 'price', 32.99),
+    JSON_OBJECT('name', 'Yellow', 'value', 'yellow', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DETAIL GUARDZ - HOSE GUIDE (4PK)/Detail_Guardz_Car_Hose_Guides_-_4_Pack_Yellow_720x.webp', 'price', 32.99)
   ),
   JSON_OBJECT(
     'main', JSON_OBJECT('url', 'https://www.youtube.com/embed/W37xy__Vou4', 'title', 'DETAIL GUARDZ Hose Guide (4 Pack)', 'description', 'Complete 4-pack hose guide set for full vehicle coverage. Fits all cars, motorcycles and truck tires.'),
@@ -2064,10 +2064,10 @@ INSERT INTO products (
   'Clean all your polishing pads easily with this super concentrated pad cleaner! Simply spray onto a soiled pad, quickly work in by hand, a brush or our pad washer system. Made In Canada.',
   14.99, NULL,
   'Detailing-Accessories', 'DETAIL GUARDZ',
-  '/assets/Canada Products/DETAIL GUARDZ - POLISHING PAD SPRAY CLEANER 650ML/The_Detail_Guardz_-_Polishing_Pad_Cleaner_Spray_720x.webp',
+  'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DETAIL GUARDZ - POLISHING PAD SPRAY CLEANER 650ML/The_Detail_Guardz_-_Polishing_Pad_Cleaner_Spray_720x.webp',
   JSON_ARRAY(
-    '/assets/Canada Products/DETAIL GUARDZ - POLISHING PAD SPRAY CLEANER 650ML/The_Detail_Guardz_-_Polishing_Pad_Cleaner_Spray_720x.webp',
-    '/assets/Canada Products/DETAIL GUARDZ - POLISHING PAD SPRAY CLEANER 650ML/The_Detail_Guardz_Pad_Spray_Cleaner_-_MC_720x.webp'
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DETAIL GUARDZ - POLISHING PAD SPRAY CLEANER 650ML/The_Detail_Guardz_-_Polishing_Pad_Cleaner_Spray_720x.webp',
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DETAIL GUARDZ - POLISHING PAD SPRAY CLEANER 650ML/The_Detail_Guardz_Pad_Spray_Cleaner_-_MC_720x.webp'
   ),
   NULL,
   JSON_ARRAY('Quickly breaks down polish and wax', 'Easy to rinse', 'Concentrated formula'),
@@ -2113,55 +2113,55 @@ INSERT INTO products (
   'Save $5.00 CAD by purchasing this as a kit! Includes Scrub And Pump Attachment and Dirt Lock Bucket Filter. Patented venturi spring design pumps clean water into your wash mitt. Made In Canada.',
   39.99, NULL,
   'Kit-Bundle', 'DETAIL GUARDZ',
-  '/assets/Canada Products/DIRT LOCK - COMPLETE SCRUB AND PUMP KIT/DirtLockScrubAndPump-BlackBundled-Main_543e2957-4819-460a-ae25-e3bc69bdccf4_720x.webp',
+  'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DIRT LOCK - COMPLETE SCRUB AND PUMP KIT/DirtLockScrubAndPump-BlackBundled-Main_543e2957-4819-460a-ae25-e3bc69bdccf4_720x.webp',
   JSON_ARRAY(
-    '/assets/Canada Products/DIRT LOCK - COMPLETE SCRUB AND PUMP KIT/DirtLockScrubAndPump-BlackBundled-Main_543e2957-4819-460a-ae25-e3bc69bdccf4_720x.webp',
-    '/assets/Amazon Listing Images/Scrub & Pump Images-20260312T173939Z-1-001/Scrub & Pump Images/1.webp',
-    '/assets/Amazon Listing Images/Scrub & Pump Images-20260312T173939Z-1-001/Scrub & Pump Images/2.webp',
-    '/assets/Amazon Listing Images/Scrub & Pump Images-20260312T173939Z-1-001/Scrub & Pump Images/3.webp',
-    '/assets/Amazon Listing Images/Scrub & Pump Images-20260312T173939Z-1-001/Scrub & Pump Images/4.webp',
-    '/assets/Canada Products/DIRT LOCK - COMPLETE SCRUB AND PUMP KIT/DirtLockScrubAndPump-Black_Alone-Back_7c13038c-eaba-48ff-af83-ebc5aa6c4c6b_720x.webp',
-    '/assets/Canada Products/DIRT LOCK - COMPLETE SCRUB AND PUMP KIT/DirtLockScrubAndPump-Black_Alone-Side_fe482519-2e12-40f9-bb07-6efdb91368b8_720x.webp',
-    '/assets/Canada Products/DIRT LOCK - COMPLETE SCRUB AND PUMP KIT/DirtLockScrubAndPump-Black_Alone_925c3cf5-57d1-4602-b9a6-96d4d800d55d_720x.webp',
-    '/assets/Canada Products/DIRT LOCK - COMPLETE SCRUB AND PUMP KIT/DirtLockScrubAndPump-White_Alone-Back_3d8a61ab-b9da-4d02-96bf-ece84dc64ee3_720x.webp',
-    '/assets/Canada Products/DIRT LOCK - COMPLETE SCRUB AND PUMP KIT/DirtLockScrubAndPump-White_Alone-Side_c928d6c9-a925-4271-9c45-a9a67c26a59a_720x.webp',
-    '/assets/Canada Products/DIRT LOCK - COMPLETE SCRUB AND PUMP KIT/DirtLockScrubAndPump-White_Bundled-frontangle_2125f0ad-b237-4bd0-9f6d-c42c49ab4318_720x.webp',
-    '/assets/Canada Products/DIRT LOCK - COMPLETE SCRUB AND PUMP KIT/DirtLockScrubAndPump-White_Bundled_-Main_e8d67fa9-d7f6-48de-81a5-931af77c235f_720x.webp',
-    '/assets/Canada Products/DIRT LOCK - COMPLETE SCRUB AND PUMP KIT/Dirt_Lock_Scrub_And_Pump_-_White_Alone_720x.webp'
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DIRT LOCK - COMPLETE SCRUB AND PUMP KIT/DirtLockScrubAndPump-BlackBundled-Main_543e2957-4819-460a-ae25-e3bc69bdccf4_720x.webp',
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Scrub & Pump Images-20260312T173939Z-1-001/Scrub & Pump Images/1.webp',
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Scrub & Pump Images-20260312T173939Z-1-001/Scrub & Pump Images/2.webp',
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Scrub & Pump Images-20260312T173939Z-1-001/Scrub & Pump Images/3.webp',
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Scrub & Pump Images-20260312T173939Z-1-001/Scrub & Pump Images/4.webp',
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DIRT LOCK - COMPLETE SCRUB AND PUMP KIT/DirtLockScrubAndPump-Black_Alone-Back_7c13038c-eaba-48ff-af83-ebc5aa6c4c6b_720x.webp',
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DIRT LOCK - COMPLETE SCRUB AND PUMP KIT/DirtLockScrubAndPump-Black_Alone-Side_fe482519-2e12-40f9-bb07-6efdb91368b8_720x.webp',
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DIRT LOCK - COMPLETE SCRUB AND PUMP KIT/DirtLockScrubAndPump-Black_Alone_925c3cf5-57d1-4602-b9a6-96d4d800d55d_720x.webp',
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DIRT LOCK - COMPLETE SCRUB AND PUMP KIT/DirtLockScrubAndPump-White_Alone-Back_3d8a61ab-b9da-4d02-96bf-ece84dc64ee3_720x.webp',
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DIRT LOCK - COMPLETE SCRUB AND PUMP KIT/DirtLockScrubAndPump-White_Alone-Side_c928d6c9-a925-4271-9c45-a9a67c26a59a_720x.webp',
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DIRT LOCK - COMPLETE SCRUB AND PUMP KIT/DirtLockScrubAndPump-White_Bundled-frontangle_2125f0ad-b237-4bd0-9f6d-c42c49ab4318_720x.webp',
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DIRT LOCK - COMPLETE SCRUB AND PUMP KIT/DirtLockScrubAndPump-White_Bundled_-Main_e8d67fa9-d7f6-48de-81a5-931af77c235f_720x.webp',
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DIRT LOCK - COMPLETE SCRUB AND PUMP KIT/Dirt_Lock_Scrub_And_Pump_-_White_Alone_720x.webp'
   ),
   JSON_OBJECT(
     'black', JSON_ARRAY(
-      '/assets/Canada Products/DIRT LOCK - COMPLETE SCRUB AND PUMP KIT/DirtLockScrubAndPump-BlackBundled-Main_543e2957-4819-460a-ae25-e3bc69bdccf4_720x.webp',
-      '/assets/Canada Products/DIRT LOCK - COMPLETE SCRUB AND PUMP KIT/DirtLockScrubAndPump-Black_Alone-Back_7c13038c-eaba-48ff-af83-ebc5aa6c4c6b_720x.webp',
-      '/assets/Canada Products/DIRT LOCK - COMPLETE SCRUB AND PUMP KIT/DirtLockScrubAndPump-Black_Alone-Side_fe482519-2e12-40f9-bb07-6efdb91368b8_720x.webp',
-      '/assets/Canada Products/DIRT LOCK - COMPLETE SCRUB AND PUMP KIT/DirtLockScrubAndPump-Black_Alone_925c3cf5-57d1-4602-b9a6-96d4d800d55d_720x.webp'
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DIRT LOCK - COMPLETE SCRUB AND PUMP KIT/DirtLockScrubAndPump-BlackBundled-Main_543e2957-4819-460a-ae25-e3bc69bdccf4_720x.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DIRT LOCK - COMPLETE SCRUB AND PUMP KIT/DirtLockScrubAndPump-Black_Alone-Back_7c13038c-eaba-48ff-af83-ebc5aa6c4c6b_720x.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DIRT LOCK - COMPLETE SCRUB AND PUMP KIT/DirtLockScrubAndPump-Black_Alone-Side_fe482519-2e12-40f9-bb07-6efdb91368b8_720x.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DIRT LOCK - COMPLETE SCRUB AND PUMP KIT/DirtLockScrubAndPump-Black_Alone_925c3cf5-57d1-4602-b9a6-96d4d800d55d_720x.webp'
     ),
     'white', JSON_ARRAY(
-      '/assets/Canada Products/DIRT LOCK - COMPLETE SCRUB AND PUMP KIT/DirtLockScrubAndPump-White_Bundled_-Main_e8d67fa9-d7f6-48de-81a5-931af77c235f_720x.webp',
-      '/assets/Canada Products/DIRT LOCK - COMPLETE SCRUB AND PUMP KIT/DirtLockScrubAndPump-White_Bundled-frontangle_2125f0ad-b237-4bd0-9f6d-c42c49ab4318_720x.webp',
-      '/assets/Canada Products/DIRT LOCK - COMPLETE SCRUB AND PUMP KIT/DirtLockScrubAndPump-White_Alone-Back_3d8a61ab-b9da-4d02-96bf-ece84dc64ee3_720x.webp',
-      '/assets/Canada Products/DIRT LOCK - COMPLETE SCRUB AND PUMP KIT/DirtLockScrubAndPump-White_Alone-Side_c928d6c9-a925-4271-9c45-a9a67c26a59a_720x.webp',
-      '/assets/Canada Products/DIRT LOCK - COMPLETE SCRUB AND PUMP KIT/Dirt_Lock_Scrub_And_Pump_-_White_Alone_720x.webp'
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DIRT LOCK - COMPLETE SCRUB AND PUMP KIT/DirtLockScrubAndPump-White_Bundled_-Main_e8d67fa9-d7f6-48de-81a5-931af77c235f_720x.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DIRT LOCK - COMPLETE SCRUB AND PUMP KIT/DirtLockScrubAndPump-White_Bundled-frontangle_2125f0ad-b237-4bd0-9f6d-c42c49ab4318_720x.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DIRT LOCK - COMPLETE SCRUB AND PUMP KIT/DirtLockScrubAndPump-White_Alone-Back_3d8a61ab-b9da-4d02-96bf-ece84dc64ee3_720x.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DIRT LOCK - COMPLETE SCRUB AND PUMP KIT/DirtLockScrubAndPump-White_Alone-Side_c928d6c9-a925-4271-9c45-a9a67c26a59a_720x.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DIRT LOCK - COMPLETE SCRUB AND PUMP KIT/Dirt_Lock_Scrub_And_Pump_-_White_Alone_720x.webp'
     )
   ),
   JSON_ARRAY('Push activated pump', 'Soft rounded scrubbing ridges', 'Enhanced filtering action'),
   JSON_ARRAY('3-8 Gallon Pails'),
   4.7, 56, 1,
   JSON_OBJECT(
-    'heroImage', '/assets/Amazon Listing Images/Scrub & Pump Images-20260312T173939Z-1-001/ABOUT SECTION LARGE.jpg',
+    'heroImage', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Scrub & Pump Images-20260312T173939Z-1-001/ABOUT SECTION LARGE.jpg',
     'heroImageAlt', 'Dirt Lock Scrub and Pump System',
     'description', 'Use the Scrub And Pump attachment for added cleaning power with your Dirt Lock bucket filter. Simply push the attachment into place and use it to scrub wash mitts, brushes, hand applicator pads and more! The Dirt Lock scrub and pump attachment works on a spring loaded system to pump cleaner water up and cycle dirty debris safely underneath the screen and out of harms way. The soft rounded scrubbing ridges allow you to scrub and pump away dirt and grime safely under the screen. Proudly Made In Canada.',
     'features', JSON_ARRAY(
-      JSON_OBJECT('image', '/assets/Amazon Listing Images/Scrub & Pump Images-20260312T173939Z-1-001/ABOUT SECTION SMALL.jpg', 'alt', 'Push Activated Pump', 'label', 'PUSH ACTIVATED PUMP', 'description', 'Simply push down on the pump and a heavy stream of cleaner water will blast upward. This allows you to scrub and pump away the debris safely under the Dirt Lock bucket filter.'),
-      JSON_OBJECT('image', '/assets/Amazon Listing Images/Scrub & Pump Images-20260312T173939Z-1-001/ABOUT SECTION SMALL 1.jpg', 'alt', 'Attaches Into Filter', 'label', 'ATTACHES INTO DIRT LOCK BUCKET FILTER', 'description', 'The Dirt Lock bucket filter allows you to attach the scrub and pump or any of our other detailing tools when needed. When your finished, simply detach it!'),
-      JSON_OBJECT('image', '/assets/Amazon Listing Images/Scrub & Pump Images-20260312T173939Z-1-001/ABOUT SECTION SMALL 2.jpg', 'alt', 'Advanced Filtering', 'label', 'OUR MOST ADVANCED BUCKET FILTERING SYSTEM', 'description', 'The Dirt Lock bucket filter is extremely powerful on it''s own. With the addition of our scrub and pump attachment, it takes the product to another level by flushing out your wash mitt and tools more thoroughly, resulting in even cleaner wash media and the ability to cycle the debris even quicker underneath the screen with the added pump system.')
+      JSON_OBJECT('image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Scrub & Pump Images-20260312T173939Z-1-001/ABOUT SECTION SMALL.jpg', 'alt', 'Push Activated Pump', 'label', 'PUSH ACTIVATED PUMP', 'description', 'Simply push down on the pump and a heavy stream of cleaner water will blast upward. This allows you to scrub and pump away the debris safely under the Dirt Lock bucket filter.'),
+      JSON_OBJECT('image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Scrub & Pump Images-20260312T173939Z-1-001/ABOUT SECTION SMALL 1.jpg', 'alt', 'Attaches Into Filter', 'label', 'ATTACHES INTO DIRT LOCK BUCKET FILTER', 'description', 'The Dirt Lock bucket filter allows you to attach the scrub and pump or any of our other detailing tools when needed. When your finished, simply detach it!'),
+      JSON_OBJECT('image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Scrub & Pump Images-20260312T173939Z-1-001/ABOUT SECTION SMALL 2.jpg', 'alt', 'Advanced Filtering', 'label', 'OUR MOST ADVANCED BUCKET FILTERING SYSTEM', 'description', 'The Dirt Lock bucket filter is extremely powerful on it''s own. With the addition of our scrub and pump attachment, it takes the product to another level by flushing out your wash mitt and tools more thoroughly, resulting in even cleaner wash media and the ability to cycle the debris even quicker underneath the screen with the added pump system.')
     ),
     'secondarySection', JSON_OBJECT(
       'title', 'ADDITIONAL ATTACHMENTS',
       'items', JSON_ARRAY(
-        JSON_OBJECT('image', '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/ATTACH AND EXPAND SECTION 1.jpg', 'title', 'DIRT LOCK PAD WASHER SYSTEM ATTACHMENT', 'description', 'Clean your polishing pads safely and gently within seconds! Simply attach the pad washer attachment into your Dirt Lock bucket filter, place your dirty pads onto the supplied hook and loop handle, spray with our pad cleaner to break down polish and wax, pump pads on the attachment and your done within seconds!'),
-        JSON_OBJECT('image', '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/ATTACH AND EXPAND SECTION 2.jpg', 'title', 'DIRT LOCK SCRUB AND PUMP SYSTEM ATTACHMENT', 'description', 'Use the Scrub And Pump attachment for added cleaning power with your Dirt Lock bucket filter. Simply push the attachment into place and use it to scrub wash mitts, brushes, hand applicator pads and more! The Dirt Lock scrub and pump attachment works on a spring loaded system to pump cleaner water up and cycle dirty debris safely underneath the screen and out of harms way.'),
-        JSON_OBJECT('image', '/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/ATTACH AND EXPAND SECTION 3.jpg', 'title', 'DIRT LOCK SCRUB WALL 180/360 SYSTEM ATTACHMENT', 'description', 'The Dirt Lock Scrub Wall attachment is a vertical extension of the Dirt Lock''s pressurized cleaning power. Simply snap the attachment into your Dirt Lock bucket filter to easily clean your wheel brushes, wash mitts and more without having to sacrifice hardly any bucket space. Simply scrub your wash media on the side of the Scrub Wall.')
+        JSON_OBJECT('image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/ATTACH AND EXPAND SECTION 1.jpg', 'title', 'DIRT LOCK PAD WASHER SYSTEM ATTACHMENT', 'description', 'Clean your polishing pads safely and gently within seconds! Simply attach the pad washer attachment into your Dirt Lock bucket filter, place your dirty pads onto the supplied hook and loop handle, spray with our pad cleaner to break down polish and wax, pump pads on the attachment and your done within seconds!'),
+        JSON_OBJECT('image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/ATTACH AND EXPAND SECTION 2.jpg', 'title', 'DIRT LOCK SCRUB AND PUMP SYSTEM ATTACHMENT', 'description', 'Use the Scrub And Pump attachment for added cleaning power with your Dirt Lock bucket filter. Simply push the attachment into place and use it to scrub wash mitts, brushes, hand applicator pads and more! The Dirt Lock scrub and pump attachment works on a spring loaded system to pump cleaner water up and cycle dirty debris safely underneath the screen and out of harms way.'),
+        JSON_OBJECT('image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/ATTACH AND EXPAND SECTION 3.jpg', 'title', 'DIRT LOCK SCRUB WALL 180/360 SYSTEM ATTACHMENT', 'description', 'The Dirt Lock Scrub Wall attachment is a vertical extension of the Dirt Lock''s pressurized cleaning power. Simply snap the attachment into your Dirt Lock bucket filter to easily clean your wheel brushes, wash mitts and more without having to sacrifice hardly any bucket space. Simply scrub your wash media on the side of the Scrub Wall.')
       )
     )
   ),
@@ -2175,8 +2175,8 @@ INSERT INTO products (
     'manufacturer', 'DETAIL GUARDZ Canada'
   ),
   JSON_ARRAY(
-    JSON_OBJECT('name', 'Black', 'value', 'black', 'image', '/assets/Canada Products/DIRT LOCK - COMPLETE SCRUB AND PUMP KIT/DirtLockScrubAndPump-BlackBundled-Main_543e2957-4819-460a-ae25-e3bc69bdccf4_720x.webp', 'price', 39.99),
-    JSON_OBJECT('name', 'White', 'value', 'white', 'image', '/assets/Canada Products/DIRT LOCK - COMPLETE SCRUB AND PUMP KIT/DirtLockScrubAndPump-White_Bundled_-Main_e8d67fa9-d7f6-48de-81a5-931af77c235f_720x.webp', 'price', 39.99)
+    JSON_OBJECT('name', 'Black', 'value', 'black', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DIRT LOCK - COMPLETE SCRUB AND PUMP KIT/DirtLockScrubAndPump-BlackBundled-Main_543e2957-4819-460a-ae25-e3bc69bdccf4_720x.webp', 'price', 39.99),
+    JSON_OBJECT('name', 'White', 'value', 'white', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DIRT LOCK - COMPLETE SCRUB AND PUMP KIT/DirtLockScrubAndPump-White_Bundled_-Main_e8d67fa9-d7f6-48de-81a5-931af77c235f_720x.webp', 'price', 39.99)
   ),
   JSON_OBJECT(
     'main', JSON_OBJECT('url', 'https://www.youtube.com/embed/Ck9pNdgxRp4', 'title', 'DETAIL GUARDZ Dirt Lock Scrub and Pump Attachment', 'description', 'Save $5.00 CAD by purchasing this as a kit! Includes Scrub And Pump Attachment and Dirt Lock Bucket Filter.'),
@@ -2212,12 +2212,12 @@ INSERT INTO products (
   'Purestars Double Twist Wash Mitt is a premium high performance ultra-soft wash mitt. Designed and manufactured in Korea using the very latest microfiber technology. Made of microfiber reducing scratches and removing contaminants from the surface safely.',
   14.99, NULL,
   'Detailing-Accessories', 'PURESTAR',
-  '/assets/Canada Products/DOUBLE TWIST WASH MITT/ssum_double-twist-mitt_720x.jpg',
+  'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DOUBLE TWIST WASH MITT/ssum_double-twist-mitt_720x.jpg',
   JSON_ARRAY(
-    '/assets/Canada Products/DOUBLE TWIST WASH MITT/ssum_double-twist-mitt_720x.jpg',
-    '/assets/Canada Products/DOUBLE TWIST WASH MITT/20200521_133140_720x.webp',
-    '/assets/Canada Products/DOUBLE TWIST WASH MITT/IMG_2979_720x.webp',
-    '/assets/Canada Products/DOUBLE TWIST WASH MITT/IMG_3021_720x.webp'
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DOUBLE TWIST WASH MITT/ssum_double-twist-mitt_720x.jpg',
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DOUBLE TWIST WASH MITT/20200521_133140_720x.webp',
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DOUBLE TWIST WASH MITT/IMG_2979_720x.webp',
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DOUBLE TWIST WASH MITT/IMG_3021_720x.webp'
   ),
   NULL,
   JSON_ARRAY('100% Korean Microfiber', 'Dense sponge core for glide', 'Ultra-soft threads'),
@@ -2263,21 +2263,21 @@ INSERT INTO products (
   'Purestars Color-pop Wash Mitt is a colorful and beautiful premium high performance ultra-soft wash mitt. High-density sponges hold shampoo abundantly for a long time! Material: 100% Korean Microfiber.',
   13.99, NULL,
   'Detailing-Accessories', 'PURESTAR',
-  '/assets/Canada Products/ULTRA SOFT COLOR-POP WASH MITT/ssum_colorpop-mitt_purple_720x.webp',
+  'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/ULTRA SOFT COLOR-POP WASH MITT/ssum_colorpop-mitt_purple_720x.webp',
   JSON_ARRAY(
-    '/assets/Canada Products/ULTRA SOFT COLOR-POP WASH MITT/ssum_colorpop-mitt_purple_720x.webp',
-    '/assets/Canada Products/ULTRA SOFT COLOR-POP WASH MITT/IMG_2983_720x.webp',
-    '/assets/Canada Products/ULTRA SOFT COLOR-POP WASH MITT/IMG_2988_720x.webp',
-    '/assets/Canada Products/ULTRA SOFT COLOR-POP WASH MITT/ssum_colorpop-mitt_green_720x.webp'
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/ULTRA SOFT COLOR-POP WASH MITT/ssum_colorpop-mitt_purple_720x.webp',
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/ULTRA SOFT COLOR-POP WASH MITT/IMG_2983_720x.webp',
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/ULTRA SOFT COLOR-POP WASH MITT/IMG_2988_720x.webp',
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/ULTRA SOFT COLOR-POP WASH MITT/ssum_colorpop-mitt_green_720x.webp'
   ),
   JSON_OBJECT(
     'purple', JSON_ARRAY(
-      '/assets/Canada Products/ULTRA SOFT COLOR-POP WASH MITT/ssum_colorpop-mitt_purple_720x.webp',
-      '/assets/Canada Products/ULTRA SOFT COLOR-POP WASH MITT/IMG_2983_720x.webp',
-      '/assets/Canada Products/ULTRA SOFT COLOR-POP WASH MITT/IMG_2988_720x.webp'
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/ULTRA SOFT COLOR-POP WASH MITT/ssum_colorpop-mitt_purple_720x.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/ULTRA SOFT COLOR-POP WASH MITT/IMG_2983_720x.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/ULTRA SOFT COLOR-POP WASH MITT/IMG_2988_720x.webp'
     ),
     'green', JSON_ARRAY(
-      '/assets/Canada Products/ULTRA SOFT COLOR-POP WASH MITT/ssum_colorpop-mitt_green_720x.webp'
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/ULTRA SOFT COLOR-POP WASH MITT/ssum_colorpop-mitt_green_720x.webp'
     )
   ),
   JSON_ARRAY('Ultra soft material', 'High-density sponge', 'Vibrant colors'),
@@ -2292,8 +2292,8 @@ INSERT INTO products (
     'manufacturer', 'Purestar'
   ),
   JSON_ARRAY(
-    JSON_OBJECT('name', 'Purple', 'value', 'purple', 'image', '/assets/Canada Products/ULTRA SOFT COLOR-POP WASH MITT/ssum_colorpop-mitt_purple_720x.webp', 'price', 13.99),
-    JSON_OBJECT('name', 'Green', 'value', 'green', 'image', '/assets/Canada Products/ULTRA SOFT COLOR-POP WASH MITT/ssum_colorpop-mitt_green_720x.webp', 'price', 13.99)
+    JSON_OBJECT('name', 'Purple', 'value', 'purple', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/ULTRA SOFT COLOR-POP WASH MITT/ssum_colorpop-mitt_purple_720x.webp', 'price', 13.99),
+    JSON_OBJECT('name', 'Green', 'value', 'green', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/ULTRA SOFT COLOR-POP WASH MITT/ssum_colorpop-mitt_green_720x.webp', 'price', 13.99)
   ),
   NULL,
   JSON_ARRAY(
@@ -2326,10 +2326,10 @@ INSERT INTO products (
   'Our highest quality detailing t-shirt with a doubled sided logo. Made from 100% cotton & pre-shrunk for the perfect fit!',
   24.99, NULL,
   'Apparels', 'DETAIL GUARDZ',
-  '/assets/Canada Products/APPAREL  MERCHANDISE/TDGSHORTSLEEVESHIRT-WHITE_720x.webp',
+  'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/APPAREL  MERCHANDISE/TDGSHORTSLEEVESHIRT-WHITE_720x.webp',
   JSON_ARRAY(
-    '/assets/Canada Products/APPAREL  MERCHANDISE/TDGSHORTSLEEVESHIRT-WHITE_720x.webp',
-    '/assets/Canada Products/APPAREL  MERCHANDISE/TDGSHORTSLEEVESHIRT-WHITE-REVERSE_720x.webp'
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/APPAREL  MERCHANDISE/TDGSHORTSLEEVESHIRT-WHITE_720x.webp',
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/APPAREL  MERCHANDISE/TDGSHORTSLEEVESHIRT-WHITE-REVERSE_720x.webp'
   ),
   NULL,
   JSON_ARRAY('100% Cotton', 'Pre-shrunk', 'Double sided logo'),
@@ -2344,7 +2344,7 @@ INSERT INTO products (
     'manufacturer', 'DETAIL GUARDZ Canada'
   ),
   JSON_ARRAY(
-    JSON_OBJECT('name', 'White', 'value', 'white', 'image', '/assets/Canada Products/APPAREL  MERCHANDISE/TDGSHORTSLEEVESHIRT-WHITE_720x.webp', 'price', 24.99)
+    JSON_OBJECT('name', 'White', 'value', 'white', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/APPAREL  MERCHANDISE/TDGSHORTSLEEVESHIRT-WHITE_720x.webp', 'price', 24.99)
   ),
   NULL,
   JSON_ARRAY(
@@ -2377,9 +2377,9 @@ INSERT INTO products (
   'Our signature premium coffee mug will get you on your feet and detailing again! The perfect mug for your beverage. High quality ceramic mug with vibrant logo printing.',
   22.99, NULL,
   'Merchandise', 'DETAIL GUARDZ',
-  '/assets/Canada Products/APPAREL  MERCHANDISE/MugTDG_720x.webp',
+  'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/APPAREL  MERCHANDISE/MugTDG_720x.webp',
   JSON_ARRAY(
-    '/assets/Canada Products/APPAREL  MERCHANDISE/MugTDG_720x.webp'
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/APPAREL  MERCHANDISE/MugTDG_720x.webp'
   ),
   NULL,
   JSON_ARRAY('11oz Capacity', 'Premium Ceramic', 'Classic Logo'),
@@ -2425,9 +2425,9 @@ INSERT INTO products (
   'This 13"x19" poster features our classic logo with a black motion background. Perfect for your garage or detailing studio!',
   4.49, NULL,
   'Merchandise', 'DETAIL GUARDZ',
-  '/assets/Canada Products/APPAREL  MERCHANDISE/DGBlackPosterWithMotion-website_720x.webp',
+  'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/APPAREL  MERCHANDISE/DGBlackPosterWithMotion-website_720x.webp',
   JSON_ARRAY(
-    '/assets/Canada Products/APPAREL  MERCHANDISE/DGBlackPosterWithMotion-website_720x.webp'
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/APPAREL  MERCHANDISE/DGBlackPosterWithMotion-website_720x.webp'
   ),
   NULL,
   JSON_ARRAY('13"x19" Size', 'High quality print', 'Classic motion design'),
@@ -2472,10 +2472,10 @@ INSERT INTO products (
   'Comfortably use your computer with our premium mouse pad that has added padding to ensure long lasting comfort. High quality printing and durable edge stitching.',
   12.99, NULL,
   'Merchandise', 'DETAIL GUARDZ',
-  '/assets/Canada Products/APPAREL  MERCHANDISE/mousepad_720x.webp',
+  'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/APPAREL  MERCHANDISE/mousepad_720x.webp',
   JSON_ARRAY(
-    '/assets/Canada Products/APPAREL  MERCHANDISE/mousepad_720x.webp',
-    '/assets/Canada Products/APPAREL  MERCHANDISE/mousepad2_720x.webp'
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/APPAREL  MERCHANDISE/mousepad_720x.webp',
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/APPAREL  MERCHANDISE/mousepad2_720x.webp'
   ),
   NULL,
   JSON_ARRAY('Added padding', 'Durable surface', 'Non-slip base'),
@@ -2520,10 +2520,10 @@ INSERT INTO products (
   'Let''s get you looking stylish with our premium lanyard. These lanyards are equipped with a lobster closure clasp and are made from UV resistant materials so they will not fade in direct sunlight. Organize your keys and other personal items with our stylish detailing lanyard! Share on Facebook Tweet on Twitter Pin on Pinterest',
   2.49, NULL,
   'Merchandise', 'DETAIL GUARDZ',
-  '/assets/Canada Products/APPAREL  MERCHANDISE/The_Detail_Guardz_-_Standard_Blue_Lanyard_720x.webp',
+  'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/APPAREL  MERCHANDISE/The_Detail_Guardz_-_Standard_Blue_Lanyard_720x.webp',
   JSON_ARRAY(
-    '/assets/Canada Products/APPAREL  MERCHANDISE/The_Detail_Guardz_-_Standard_Blue_Lanyard_720x.webp',
-    '/assets/Canada Products/APPAREL  MERCHANDISE/The_Detail_Guardz_-_Standard_Blue_Lanyard_CloseUp_720x.webp'
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/APPAREL  MERCHANDISE/The_Detail_Guardz_-_Standard_Blue_Lanyard_720x.webp',
+    'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/APPAREL  MERCHANDISE/The_Detail_Guardz_-_Standard_Blue_Lanyard_CloseUp_720x.webp'
   ),
   NULL,
   JSON_ARRAY('Lobster closure clasp', 'UV resistant materials', 'Vibrant blue color'),

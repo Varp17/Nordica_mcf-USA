@@ -5,6 +5,7 @@ import cors from 'cors';
 import compression from 'compression';
 import morgan from 'morgan';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import rateLimit from 'express-rate-limit';
 
@@ -48,8 +49,8 @@ import { startStockMonitoring } from './services/stockService.js';
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-const allowedOrigins = process.env.FRONTEND_URL 
-  ? process.env.FRONTEND_URL.split(',').map(url => url.trim()) 
+const allowedOrigins = process.env.FRONTEND_URL
+  ? process.env.FRONTEND_URL.split(',').map(url => url.trim())
   : '*';
 
 app.use(cors({
@@ -86,12 +87,25 @@ app.use(compression());
 app.use(regionDetect);
 
 // Static Assets
-app.use('/assets', express.static(path.join(__dirname, 'assets'), {
-  setHeaders: (res) => {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+app.use('/assets', (req, res, next) => {
+  if (process.env.ASSETS_S3_BASE_URL) {
+    // Decode first to avoid double encoding if the path already had %20 etc.
+    const decodedPath = decodeURIComponent(req.path);
+    const encodedPath = decodedPath.split('/').map(segment => encodeURIComponent(segment)).join('/');
+    const s3Url = `${process.env.ASSETS_S3_BASE_URL}/assets${encodedPath}`;
+    // Ensure no double slashes before redirection
+    const cleanS3Url = s3Url.replace(/([^:])\/\//g, '$1/');
+    logger.debug(`Redirecting asset request to S3: ${req.path} -> ${cleanS3Url}`);
+    return res.redirect(cleanS3Url);
   }
-}));
+  next();
+},
+  express.static(path.join(__dirname, 'assets'), {
+    setHeaders: (res) => {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    }
+  }));
 
 app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
   setHeaders: (res) => {
@@ -119,7 +133,7 @@ app.get('/health', async (req, res) => {
 });
 
 app.get('/api/geoip', (req, res) => {
-  const country = req.country || 'US';
+  const country = req.country || 'CA';
   res.json({ success: true, country });
 });
 

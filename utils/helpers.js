@@ -79,7 +79,7 @@ export function detectCountryFromRequest(req) {
   const cloudfrontCC  = req.headers['cloudfront-viewer-country'];
   const xCountry      = req.headers['x-country-code'];
 
-  return (cfCountry || cloudfrontCC || xCountry || 'US').toUpperCase();
+  return (cfCountry || cloudfrontCC || xCountry || 'CA').toUpperCase();
 }
 
 /**
@@ -104,6 +104,59 @@ export function maskSecret(str, visibleChars = 6) {
   return str.slice(0, visibleChars) + '...' + str.slice(-4);
 }
 
+/**
+ * Format a single image URL to use the S3 base URL if it's not already absolute
+ */
+export function formatImageUrl(url) {
+  if (!url) return url;
+  if (url.startsWith('http')) return url;
+  
+  const s3Base = process.env.ASSETS_S3_BASE_URL?.replace(/\/$/, '') || 'https://detailguardz.s3.us-east-1.amazonaws.com';
+  
+  // Clean up leading slashes to avoid double slashes
+  const cleanPath = url.startsWith('/') ? url : `/${url}`;
+  
+  // Ensure the URL starts with /assets if it's a relative path in our system
+  let finalPath = cleanPath;
+  if (!finalPath.startsWith('/assets/')) {
+    finalPath = `/assets${cleanPath}`;
+  }
+  
+  // URL-encode each segment of the path while keeping slashes
+  const encodedPath = finalPath.split('/').map(segment => encodeURIComponent(segment)).join('/');
+  
+  return `${s3Base}${encodedPath}`;
+}
+
+/**
+ * Deeply format all image URLs in an object or array
+ */
+export function deepFormatImages(data) {
+  if (!data) return data;
+  
+  if (Array.isArray(data)) {
+    return data.map(item => deepFormatImages(item));
+  }
+  
+  if (typeof data === 'string' && (data.startsWith('/assets/') || data.startsWith('assets/'))) {
+    return formatImageUrl(data);
+  }
+  
+  if (typeof data === 'object') {
+    const formatted = { ...data };
+    for (const key in formatted) {
+      if (['image', 'image_url', 'imageUrl', 'thumbnail', 'heroImage', 'banner_url', 'logo_url'].includes(key) || key.toLowerCase().endsWith('image')) {
+        formatted[key] = formatImageUrl(formatted[key]);
+      } else if (typeof formatted[key] === 'object' || typeof formatted[key] === 'string') {
+        formatted[key] = deepFormatImages(formatted[key]);
+      }
+    }
+    return formatted;
+  }
+  
+  return data;
+}
+
 export default {
   generateOrderNumber,
   generateMCFOrderId,
@@ -112,8 +165,8 @@ export default {
   retryWithBackoff,
   safeJSON,
   formatCurrency,
-  detectCountryFromRequest,
-  isValidCanadianPostalCode,
   isValidUSZip,
-  maskSecret
+  maskSecret,
+  formatImageUrl,
+  deepFormatImages
 };
