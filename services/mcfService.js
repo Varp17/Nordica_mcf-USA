@@ -102,29 +102,26 @@ export async function getFulfillmentOrder(sellerFulfillmentOrderId) {
 
   const { fulfillmentOrder, fulfillmentShipments } = payload;
 
-  const tracking = (fulfillmentShipments || []).map((shipment) => ({
-    amazonShipmentReference: shipment.amazonShipmentReference,
-    fulfillmentShipmentStatus: shipment.fulfillmentShipmentStatus,
-    shippingService:         shipment.shippingService || '',
-    trackingNumber:          shipment.trackingNumber  || null,
-    estimatedArrivalDate:    shipment.estimatedArrivalDate || null,
-    packages: (shipment.fulfillmentShipmentPackages?.member || []).map((pkg) => ({
-      packageNumber:   pkg.packageNumber,
-      trackingNumber:  pkg.trackingNumber,
-      carrierCode:     pkg.carrierCode,
-      estimatedWeight: pkg.estimatedWeight
-    }))
-  }));
+  const allTracking = (fulfillmentShipments || []).flatMap((shipment) => {
+    return (shipment.fulfillmentShipmentPackages?.member || []).map((pkg) => ({
+      amazonShipmentReference: shipment.amazonShipmentReference,
+      fulfillmentShipmentStatus: shipment.fulfillmentShipmentStatus,
+      shippingService: shipment.shippingService || '',
+      trackingNumber: pkg.trackingNumber || shipment.trackingNumber,
+      carrierCode: pkg.carrierCode,
+      estimatedArrivalDate: shipment.estimatedArrivalDate || null
+    }));
+  });
 
   return {
     status:              fulfillmentOrder.fulfillmentOrderStatus,
     statusLastUpdated:   fulfillmentOrder.statusUpdatedDate,
     destinationAddress:  fulfillmentOrder.destinationAddress,
     shippingSpeedCategory: fulfillmentOrder.shippingSpeedCategory,
-    tracking,
-    primaryTrackingNumber: tracking.find(t => t.trackingNumber)?.trackingNumber || null,
-    primaryCarrier:        tracking.find(t => t.shippingService)?.shippingService || null,
-    estimatedDelivery:     tracking.find(t => t.estimatedArrivalDate)?.estimatedArrivalDate || null
+    tracking:            allTracking,
+    primaryTrackingNumber: allTracking.length > 0 ? allTracking[0].trackingNumber : null,
+    primaryCarrier:        allTracking.length > 0 ? allTracking[0].carrierCode || allTracking[0].shippingService : null,
+    estimatedDelivery:     allTracking.length > 0 ? allTracking[0].estimatedArrivalDate : null
   };
 }
 

@@ -409,6 +409,120 @@ router.get("/products", authenticateToken, requireAdmin, async (req, res) => {
   }
 });
 
+// GET single product detail for admin
+router.get(
+  "/products/:id",
+  authenticateToken,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const [products] = await db.execute(
+        `SELECT * FROM products WHERE id = ?`,
+        [id]
+      );
+
+      if (products.length === 0) {
+        return res.status(404).json({ error: "Product not found" });
+      }
+
+      const product = products[0];
+      
+      // Parse JSON fields
+      try { product.key_features = typeof product.key_features === 'string' ? JSON.parse(product.key_features) : (product.key_features || []); } catch(e) { product.key_features = []; }
+      try { product.specifications = typeof product.specifications === 'string' ? JSON.parse(product.specifications) : (product.specifications || {}); } catch(e) { product.specifications = {}; }
+      try { product.images = typeof product.images === 'string' ? JSON.parse(product.images) : (product.images || []); } catch(e) { product.images = []; }
+      try { product.tags = typeof product.tags === 'string' ? JSON.parse(product.tags) : (product.tags || []); } catch(e) { product.tags = []; }
+
+      // Get color variants with their images
+      const [variants] = await db.execute(
+          "SELECT * FROM product_color_variants WHERE product_id = ? ORDER BY sort_order ASC",
+          [id]
+      );
+      
+      for (let v of variants) {
+          const [vImgs] = await db.execute(
+              "SELECT id, image_url, is_primary FROM product_images WHERE color_variant_id = ? ORDER BY sort_order ASC",
+              [v.id]
+          );
+          v.images = vImgs;
+      }
+      product.color_variants = variants;
+
+      res.json(product);
+    } catch (error) {
+      console.error("Admin get product detail error:", error);
+      res.status(500).json({ error: "Failed to fetch product details" });
+    }
+  }
+);
+
+// REPLACE image for a specific variant
+router.post(
+  "/products/:id/variants/:variantId/image",
+  authenticateToken,
+  requireAdmin,
+  s3Upload.single('image'),
+  async (req, res) => {
+    const connection = await db.getConnection();
+    try {
+      await connection.beginTransaction();
+      const { id, variantId } = req.params;
+      
+      if (!req.file) {
+        throw new Error("No image file provided.");
+      }
+
+      const imageUrl = req.file.location;
+
+      // Check if primary image exists for this variant
+      const [existing] = await connection.execute(
+        "SELECT id FROM product_images WHERE color_variant_id = ? AND is_primary = 1 LIMIT 1",
+        [variantId]
+      );
+
+      if (existing.length > 0) {
+        // Update existing primary
+        await connection.execute(
+          "UPDATE product_images SET image_url = ?, alt_text = ? WHERE id = ?",
+          [imageUrl, `Product variant image`, existing[0].id]
+        );
+      } else {
+        // Insert new
+        await connection.execute(
+          "INSERT INTO product_images (id, product_id, color_variant_id, image_url, image_type, is_primary, created_at) VALUES (?,?,?,?,?,?,NOW())",
+          [uuidv4(), id, variantId, imageUrl, 'color_variant', 1]
+        );
+      }
+
+      await connection.commit();
+      res.json({ success: true, imageUrl });
+    } catch (error) {
+      await connection.rollback();
+      console.error("❌ Replace variant image error:", error);
+      res.status(500).json({ error: "Failed to replace image", details: error.message });
+    } finally {
+      connection.release();
+    }
+  }
+);
+
+// GENERIC Upload for Gallery / Other Assets
+router.post(
+  "/products/:id/upload",
+  authenticateToken,
+  requireAdmin,
+  s3Upload.single('image'),
+  async (req, res) => {
+    try {
+      if (!req.file) throw new Error("No file uploaded");
+      res.json({ success: true, url: req.file.location });
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  }
+);
+
 // Create product - FIXED COUNTRY VALIDATION
 router.post(
   "/products",
@@ -560,26 +674,56 @@ router.put(
         shortDescription, fullDescription, youtubeUrl,
         features, specifications, tags, colorVariants, images,
         sku, weight, dimensions, material, warranty, returnPolicy,
-        in_stock, target_country, ...rest
+        in_stock, target_country, amazon_url, ...rest
       } = req.body;
 
+      const body = req.body;
       const updates = {};
-      if (name) updates.name = name;
-      if (price) updates.price = parseFloat(price);
-      if (description !== undefined) updates.description = description;
-      if (shortDescription !== undefined) updates.short_description = shortDescription;
-      if (fullDescription !== undefined) updates.full_description = fullDescription;
-      if (youtubeUrl !== undefined) updates.youtube_url = youtubeUrl;
-      if (sku !== undefined) updates.sku = sku;
-      if (weight !== undefined) updates.weight = weight;
-      if (dimensions !== undefined) updates.dimensions = dimensions;
-      if (material !== undefined) updates.material = material;
-      if (warranty !== undefined) updates.warranty = warranty;
-      if (returnPolicy !== undefined) updates.return_policy = returnPolicy;
+      
+      const setUpdate = (field, key) => {
+          if (body[field] !== undefined) updates[key] = body[field];
+          else if (body[key] !== undefined) updates[key] = body[key];
+      };
 
-      if (features) updates.key_features = typeof features === 'string' ? features : JSON.stringify(features);
-      if (specifications) updates.specifications = typeof specifications === 'string' ? specifications : JSON.stringify(specifications);
-      if (tags) updates.tags = typeof tags === 'string' ? tags : JSON.stringify(tags);
+      if (body.name) updates.name = body.name;
+      if (body.price) updates.price = parseFloat(body.price);
+      
+      setUpdate('description', 'description');
+      setUpdate('short_description', 'short_description');
+      setUpdate('shortDescription', 'short_description');
+      setUpdate('full_description', 'full_description');
+      setUpdate('fullDescription', 'full_description');
+      setUpdate('name_ar', 'name_ar');
+      setUpdate('description_ar', 'description_ar');
+      setUpdate('youtube_url', 'youtube_url');
+      setUpdate('youtubeUrl', 'youtube_url');
+      setUpdate('sku', 'sku');
+      setUpdate('weight', 'weight');
+      setUpdate('dimensions', 'dimensions');
+      setUpdate('material', 'material');
+      setUpdate('warranty', 'warranty');
+      setUpdate('return_policy', 'return_policy');
+      setUpdate('returnPolicy', 'return_policy');
+      setUpdate('discount', 'discount');
+      setUpdate('original_price', 'original_price');
+
+      if (body.features || body.key_features) {
+          const f = body.features || body.key_features;
+          updates.features = typeof f === 'string' ? f : JSON.stringify(f);
+      }
+      if (body.specifications) {
+          updates.specifications = typeof body.specifications === 'string' ? body.specifications : JSON.stringify(body.specifications);
+      }
+      if (body.about_section || body.aboutSection) {
+          const a = body.about_section || body.aboutSection;
+          updates.about_section = typeof a === 'string' ? a : JSON.stringify(a);
+      }
+      if (body.videos) {
+          updates.videos = typeof body.videos === 'string' ? body.videos : JSON.stringify(body.videos);
+      }
+      if (body.tags) {
+          updates.tags = typeof body.tags === 'string' ? body.tags : JSON.stringify(body.tags);
+      }
 
       // image update
       if (filesByField.heroImage || filesByField.image) {
@@ -593,6 +737,7 @@ router.put(
       if (filesByField.gallery) gallery = [...gallery, ...filesByField.gallery];
       updates.images = JSON.stringify(gallery);
 
+      if (amazon_url !== undefined) updates.amazon_url = amazon_url;
       if (target_country !== undefined) {
         const validCountries = ['us', 'canada', 'both'];
         updates.target_country = (target_country && validCountries.includes(target_country.toLowerCase())) ? target_country.toLowerCase() : 'both';
@@ -1607,6 +1752,54 @@ router.post(
   }
 );
 
+
+router.get(
+  "/orders/:id",
+  authenticateToken,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const [orders] = await db.execute(
+        `SELECT 
+           o.*,
+           u.first_name as customer_first_name,
+           u.last_name as customer_last_name,
+           u.email as customer_email,
+           (SELECT JSON_ARRAYAGG(
+              JSON_OBJECT(
+                'id', oi.id, 
+                'product_id', oi.product_id, 
+                'quantity', oi.quantity, 
+                'price_at_purchase', oi.price_at_purchase, 
+                'product_name_at_purchase', oi.product_name_at_purchase, 
+                'image_url_at_purchase', oi.image_url_at_purchase
+              )
+            ) FROM order_items oi WHERE oi.order_id = o.id
+           ) as items
+         FROM orders o 
+         JOIN users u ON o.user_id = u.id 
+         WHERE o.id = ?`,
+        [id]
+      );
+
+      if (orders.length === 0) {
+        return res.status(404).json({ error: "Order not found" });
+      }
+
+      const order = orders[0];
+      if (order.shipping_address && typeof order.shipping_address === "string") {
+        try { order.shipping_address = JSON.parse(order.shipping_address); } catch(e) {}
+      }
+      order.items = order.items || [];
+
+      res.json(order);
+    } catch (error) {
+      console.error("Admin order detail error:", error);
+      res.status(500).json({ error: "Failed to fetch order details" });
+    }
+  }
+);
 
 router.get(
   "/customers/:id/orders",

@@ -32,7 +32,7 @@ CREATE TABLE users (
   last_name              VARCHAR(100)  NOT NULL,
   phone                  VARCHAR(30)   DEFAULT NULL,
   role                   ENUM('customer', 'admin', 'superadmin', 'support') DEFAULT 'customer',
-  country                CHAR(2)       DEFAULT 'US',
+  country                VARCHAR(50)   DEFAULT 'US',
   -- Address fields (inline — no ALTER required)
   address1               VARCHAR(255)  DEFAULT NULL,
   address2               VARCHAR(255)  DEFAULT NULL,
@@ -42,6 +42,8 @@ CREATE TABLE users (
   is_email_verified      TINYINT(1)    NOT NULL DEFAULT 0,
   otp_code               VARCHAR(10)   DEFAULT NULL,
   otp_expiry             DATETIME      DEFAULT NULL,
+  pending_email          VARCHAR(255)  DEFAULT NULL,
+  pending_phone          VARCHAR(30)   DEFAULT NULL,
   is_active              TINYINT(1)    NOT NULL DEFAULT 1,
   total_orders           INT           NOT NULL DEFAULT 0,
   total_spent            DECIMAL(12,2) NOT NULL DEFAULT 0.00,
@@ -52,6 +54,29 @@ CREATE TABLE users (
   INDEX idx_role          (role),
   INDEX idx_email         (email),
   INDEX idx_email_address (email, address1)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ------------------------------------------------------------
+-- 2b. ADDRESSES (multiple per user)
+-- ------------------------------------------------------------
+DROP TABLE IF EXISTS addresses;
+CREATE TABLE addresses (
+  id           CHAR(36)      PRIMARY KEY DEFAULT (UUID()),
+  user_id      CHAR(36)      NOT NULL,
+  first_name   VARCHAR(100)  NOT NULL,
+  last_name    VARCHAR(100)  NOT NULL,
+  phone        VARCHAR(30)   DEFAULT NULL,
+  address1     VARCHAR(255)  NOT NULL,
+  address2     VARCHAR(255)  DEFAULT NULL,
+  city         VARCHAR(100)  NOT NULL,
+  state        VARCHAR(100)  DEFAULT NULL,
+  zip          VARCHAR(20)   NOT NULL,
+  country      VARCHAR(50)   NOT NULL DEFAULT 'US',
+  is_default   TINYINT(1)    NOT NULL DEFAULT 0,
+  created_at   DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at   DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  INDEX idx_address_user (user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
  
 -- ------------------------------------------------------------
@@ -121,6 +146,7 @@ CREATE TABLE products (
   brand              VARCHAR(100)  NOT NULL,
   brand_id           CHAR(36)      DEFAULT NULL,
   sku                VARCHAR(100)  DEFAULT NULL UNIQUE,
+  amazon_sku         VARCHAR(100)  DEFAULT NULL UNIQUE,
   
   -- Statistics
   rating             DECIMAL(3,2)  NOT NULL DEFAULT 0,
@@ -162,7 +188,7 @@ CREATE TABLE products (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ------------------------------------------------------------
--- 6. PRODUCT COLOR VARIANTS
+-- 6. PRODUCT COLOR VARIANTS (Legacy)
 -- ------------------------------------------------------------
 DROP TABLE IF EXISTS product_color_variants;
 CREATE TABLE product_color_variants (
@@ -173,7 +199,7 @@ CREATE TABLE product_color_variants (
   color            VARCHAR(100)  DEFAULT NULL,
   color_code       VARCHAR(7)    DEFAULT NULL,
   size             VARCHAR(50)   DEFAULT NULL,
-  country          VARCHAR(10)   DEFAULT 'US',
+  country          VARCHAR(50)   DEFAULT 'US',
   amazon_sku       VARCHAR(100)  DEFAULT NULL,
   price            DECIMAL(12,2) DEFAULT NULL,
   compare_price    DECIMAL(12,2) DEFAULT NULL,
@@ -184,6 +210,28 @@ CREATE TABLE product_color_variants (
   updated_at       DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
   INDEX idx_pcv_product (product_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ------------------------------------------------------------
+-- 6a. PRODUCT VARIANTS (New Standard)
+-- ------------------------------------------------------------
+DROP TABLE IF EXISTS product_variants;
+CREATE TABLE product_variants (
+  id               CHAR(36)      PRIMARY KEY DEFAULT (UUID()),
+  product_id       CHAR(36)      NOT NULL,
+  sku              VARCHAR(100)  DEFAULT NULL,
+  amazon_sku       VARCHAR(100)  DEFAULT NULL,
+  variant_name     VARCHAR(255)  DEFAULT NULL,
+  price            DECIMAL(12,2) DEFAULT NULL,
+  stock            INT           NOT NULL DEFAULT 0,
+  attributes       JSON          DEFAULT NULL,
+  is_active        TINYINT(1)    NOT NULL DEFAULT 1,
+  created_at       DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at       DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+  INDEX idx_pv_product (product_id),
+  INDEX idx_pv_sku (sku),
+  INDEX idx_pv_amazon_sku (amazon_sku)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ------------------------------------------------------------
@@ -313,6 +361,7 @@ CREATE TABLE orders (
   fulfillment_channel        VARCHAR(50)    DEFAULT NULL,
   amazon_fulfillment_id      VARCHAR(100)   DEFAULT NULL,
   mcf_order_id               VARCHAR(100)   DEFAULT NULL,
+  mcf_tracking_ids           JSON           DEFAULT NULL,
   shippo_transaction_id      VARCHAR(100)   DEFAULT NULL,
   fulfillment_error          TEXT           DEFAULT NULL,
   
@@ -343,7 +392,7 @@ CREATE TABLE order_items (
   id                 CHAR(36)      PRIMARY KEY DEFAULT (UUID()),
   order_id           CHAR(36)      NOT NULL,
   product_id         CHAR(36)      DEFAULT NULL,
-  product_variant_id CHAR(36)      DEFAULT NULL,
+  product_variant_id VARCHAR(100)  DEFAULT NULL,
   sku                VARCHAR(100)  NOT NULL,
   fnsku              VARCHAR(100)  DEFAULT NULL,
   product_name       VARCHAR(255)  NOT NULL,
@@ -835,6 +884,7 @@ CREATE TABLE IF NOT EXISTS invoice_audit_log (
     INDEX idx_ial_invoice (invoice_id),
     FOREIGN KEY (invoice_id) REFERENCES invoices(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 
 -- 9. Helper procedure to add columns safely (if your MySQL supports it)
 -- Since we can't reliably use procedures in one-shot, we'll try simple ALTERs

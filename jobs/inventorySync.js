@@ -34,34 +34,49 @@ inventoryQueue.process('sync-all-variants', 1, async (job) => {
   logger.info('InventorySync: Starting bulk stock update...');
 
   try {
-    // 1. Get all variants that have an amazon_sku
+    // 1. Get all variants and products that have an amazon_sku
     const [variants] = await db.query(
       `SELECT amazon_sku FROM product_variants WHERE amazon_sku IS NOT NULL AND is_active = 1`
     );
+    const [standalone] = await db.query(
+      `SELECT amazon_sku FROM products WHERE amazon_sku IS NOT NULL AND is_active = 1`
+    );
 
-    if (!variants.length) {
-      logger.info('InventorySync: No active variants with SKUs to sync');
+    const allSkus = Array.from(new Set([
+      ...variants.map(v => v.amazon_sku),
+      ...standalone.map(p => p.amazon_sku)
+    ]));
+
+    if (!allSkus.length) {
+      logger.info('InventorySync: No active products/variants with Amazon SKUs to sync');
       return { updated: 0 };
     }
 
-    const skus = variants.map(v => v.amazon_sku);
-    logger.info(`InventorySync: Fetching stock for ${skus.length} SKUs from Amazon`);
+    logger.info(`InventorySync: Fetching stock for ${allSkus.length} SKUs from Amazon`);
 
     // 2. Fetch inventory summaries from SP-API
-    const inventory = await mcfService.listInventory(skus);
+    const inventory = await mcfService.listInventory(allSkus);
 
     // 3. Update DB
     let updateCount = 0;
     for (const item of inventory) {
-      const [result] = await db.query(
+      // Update variants
+      const [vResult] = await db.query(
         `UPDATE product_variants SET stock = ?, updated_at = NOW() WHERE amazon_sku = ?`,
         [item.quantity, item.sku]
       );
-      if (result.affectedRows > 0) updateCount++;
+      if (vResult.affectedRows > 0) updateCount++;
+
+      // Update standalone products
+      const [pResult] = await db.query(
+        `UPDATE products SET inventory_cache = ?, in_stock = ?, updated_at = NOW() WHERE amazon_sku = ?`,
+        [item.quantity, item.quantity > 0 ? 1 : 0, item.sku]
+      );
+      if (pResult.affectedRows > 0) updateCount++;
     }
 
-    logger.info(`InventorySync: Complete. Updated ${updateCount} variants.`);
-    return { skusPolled: skus.length, updated: updateCount };
+    logger.info(`InventorySync: Complete. Updated ${updateCount} records across products/variants.`);
+    return { skusPolled: allSkus.length, updated: updateCount };
 
   } catch (err) {
     logger.error(`InventorySync Error: ${err.message}`);

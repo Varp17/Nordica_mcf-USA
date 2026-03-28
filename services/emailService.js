@@ -415,6 +415,29 @@ export async function sendPasswordResetOTPEmail(email, otp) {
   });
 }
 
+export async function sendContactChangeOTPEmail(email, otp, type = 'email') {
+  const storeName = process.env.STORE_NAME || 'Detail Guardz';
+  const label = type === 'email' ? 'Email Address' : 'Phone Number';
+  const body = `
+    <p>Hi,</p>
+    <p>We received a request to update the <strong>${label}</strong> on your ${storeName} account.</p>
+    <p>Please use the following verification code to confirm this change:</p>
+    <div style="text-align: center; margin: 30px 0;">
+      <span style="font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #1E3A5F; background: #f0f6ff; padding: 10px 20px; border-radius: 4px; border: 1px dashed #2E86AB;">
+        ${otp}
+      </span>
+    </div>
+    <p>This code will expire in 10 minutes. If you did not request this, please ignore this email and your account details will remain unchanged.</p>
+    <p>Best regards,<br>The ${storeName} Team</p>
+  `;
+
+  return sendEmail({
+    to: email,
+    subject: `Confirm Your New ${label} — ${otp}`,
+    html: wrapEmail('Security Verification', 'Action Required', body)
+  });
+}
+
 export async function sendPasswordChangedEmail(email, firstName) {
   const storeName = process.env.STORE_NAME || 'Detail Guardz';
   const body = `

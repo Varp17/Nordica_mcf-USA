@@ -23,7 +23,7 @@ async function pollOrderNow(orderId) {
     const [orders] = await db.execute(
       `SELECT o.id, o.order_number, o.fulfillment_status, o.tracking_number, 
               o.carrier, o.amazon_fulfillment_id, o.shipping_first_name, o.shipping_last_name, 
-              o.customer_email, o.country
+              o.customer_email, o.country, o.mcf_tracking_ids
        FROM orders o WHERE o.id = ?`, [orderId]
     );
 
@@ -60,19 +60,31 @@ async function processMCFUpdate(order, update) {
     const newStatus = statusMap[update.status] || order.fulfillment_status;
     const trackingNo = update.primaryTrackingNumber || order.tracking_number;
     const carrier = update.primaryCarrier || order.carrier;
+    const allTrackingJson = JSON.stringify(update.tracking);
 
-    if (newStatus !== order.fulfillment_status || trackingNo !== order.tracking_number) {
+    if (newStatus !== order.fulfillment_status || trackingNo !== order.tracking_number || allTrackingJson !== JSON.stringify(order.mcf_tracking_ids)) {
         await db.execute(
-            `UPDATE orders SET fulfillment_status = ?, tracking_number = ?, carrier = ?, updated_at = NOW() WHERE id = ?`,
-            [newStatus, trackingNo, carrier, order.id]
+            `UPDATE orders SET fulfillment_status = ?, tracking_number = ?, carrier = ?, mcf_tracking_ids = ?, updated_at = NOW() WHERE id = ?`,
+            [newStatus, trackingNo, carrier, allTrackingJson, order.id]
         );
 
+        // SHIPMENT TRIGGER
         if (newStatus === 'SHIPPED' && !order.tracking_number && trackingNo) {
             await emailService.sendOrderShippedEmail(order, { 
                 trackingNumber: trackingNo, 
                 carrier,
                 estimatedDelivery: update.estimatedDelivery
             });
+        }
+
+        // DELIVERY TRIGGER (New for US orders)
+        if (newStatus === 'DELIVERED' && order.fulfillment_status !== 'DELIVERED') {
+            await emailService.sendOrderDeliveredEmail(order);
+        }
+
+        // ERROR ALERT (If order becomes unfulfillable after submission)
+        if (newStatus === 'ERROR' && order.fulfillment_status !== 'ERROR') {
+            await emailService.sendFulfillmentErrorAlert(order, new Error('Amazon reported this order as UNFULFILLABLE.'));
         }
     }
 }

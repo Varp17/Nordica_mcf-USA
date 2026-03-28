@@ -5,7 +5,7 @@ import { v4 as uuidv4 } from "uuid";
 import Joi from "joi";
 import db from "../config/database.js";
 import { authenticateToken } from "../middleware/auth.js";
-import { sendOTPEmail, sendWelcomeEmail, sendPasswordResetOTPEmail, sendPasswordChangedEmail } from "../services/emailService.js";
+import { sendOTPEmail, sendWelcomeEmail, sendPasswordResetOTPEmail, sendPasswordChangedEmail, sendContactChangeOTPEmail } from "../services/emailService.js";
 
 const router = express.Router()
 
@@ -140,6 +140,12 @@ router.post("/login", async (req, res) => {
         first_name: user.first_name,
         last_name: user.last_name,
         phone: user.phone,
+        address1: user.address1,
+        address2: user.address2,
+        city: user.city,
+        state: user.state,
+        zip: user.zip,
+        country: user.country,
         role: user.role,
       },
     })
@@ -239,6 +245,7 @@ router.get("/me", authenticateToken, async (req, res) => {
   try {
     const [users] = await db.execute(
       `SELECT id, email, first_name, last_name, phone, 
+              address1, address2, city, state, zip, country,
               created_at as member_since, role, is_email_verified 
        FROM users WHERE id = ?`,
       [req.user.id],
@@ -288,7 +295,18 @@ router.put("/profile", authenticateToken, async (req, res) => {
         address1 = ?, address2 = ?, city = ?, state = ?, zip = ?, country = ?,
         updated_at = NOW() 
        WHERE id = ?`,
-      [firstName, lastName, phone, address1, address2, city, state, zip, country, userId]
+      [
+        firstName || null, 
+        lastName || null, 
+        phone || null, 
+        address1 || null, 
+        address2 || null, 
+        city || null, 
+        state || null, 
+        zip || null, 
+        country || null, 
+        userId
+      ]
     );
 
     res.json({ success: true, message: "Profile updated successfully" });
@@ -405,6 +423,96 @@ router.post("/change-password", authenticateToken, async (req, res) => {
     res.json({ success: true, message: "Password updated successfully" });
   } catch (error) {
     console.error("Change password error:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Request Contact Update (Email/Phone)
+router.post("/request-contact-update", authenticateToken, async (req, res) => {
+  try {
+    const { newEmail, newPhone } = req.body;
+    const userId = req.user.id;
+
+    if (!newEmail && !newPhone) {
+      return res.status(400).json({ success: false, message: "New email or phone is required" });
+    }
+
+    // If email change, check if already exists
+    if (newEmail) {
+      const [existing] = await db.execute("SELECT id FROM users WHERE email = ? AND id != ?", [newEmail, userId]);
+      if (existing.length > 0) {
+        return res.status(400).json({ success: false, message: "Email already in use" });
+      }
+    }
+
+    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const otpExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 mins
+
+    await db.execute(
+      "UPDATE users SET pending_email = ?, pending_phone = ?, otp_code = ?, otp_expiry = ? WHERE id = ?",
+      [newEmail || null, newPhone || null, otpCode, otpExpiry, userId]
+    );
+
+    // Send OTP to the NEW email if provided, otherwise the current email
+    const [user] = await db.execute("SELECT email FROM users WHERE id = ?", [userId]);
+    const targetEmail = newEmail || user[0].email;
+    
+    await sendContactChangeOTPEmail(targetEmail, otpCode, newEmail ? 'email' : 'phone');
+
+    res.json({ success: true, message: "Verification code sent." });
+  } catch (error) {
+    console.error("Request contact update error:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Verify Contact Update
+router.post("/verify-contact-update", authenticateToken, async (req, res) => {
+  try {
+    const { otpCode } = req.body;
+    const userId = req.user.id;
+
+    if (!otpCode) return res.status(400).json({ success: false, message: "OTP code is required" });
+
+    const [users] = await db.execute(
+      "SELECT pending_email, pending_phone, otp_code, otp_expiry FROM users WHERE id = ?",
+      [userId]
+    );
+
+    if (users.length === 0) return res.status(404).json({ success: false, message: "User not found" });
+    const user = users[0];
+
+    if (!user.otp_code || user.otp_code !== otpCode) {
+      return res.status(400).json({ success: false, message: "Invalid verification code" });
+    }
+
+    if (new Date() > new Date(user.otp_expiry)) {
+      return res.status(400).json({ success: false, message: "Verification code has expired" });
+    }
+
+    // Commit changes
+    const updates = [];
+    const params = [];
+    if (user.pending_email) {
+      updates.push("email = ?", "is_email_verified = 1");
+      params.push(user.pending_email);
+    }
+    if (user.pending_phone) {
+      updates.push("phone = ?");
+      params.push(user.pending_phone);
+    }
+
+    if (updates.length > 0) {
+      params.push(userId);
+      await db.execute(
+        `UPDATE users SET ${updates.join(", ")}, pending_email = NULL, pending_phone = NULL, otp_code = NULL, otp_expiry = NULL WHERE id = ?`,
+        params
+      );
+    }
+
+    res.json({ success: true, message: "Contact information updated successfully" });
+  } catch (error) {
+    console.error("Verify contact update error:", error);
     res.status(500).json({ error: "Internal server error" });
   }
 });

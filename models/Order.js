@@ -137,7 +137,13 @@ export async function findByCustomer(customerId, { page = 1, limit = 20 } = {}) 
 export async function updatePaymentStatus(orderId, { paymentStatus, paymentReference, paymentMethod }) {
   await db.query(
     `UPDATE orders SET payment_status = ?, payment_reference = COALESCE(?, payment_reference), payment_method = COALESCE(?, payment_method), paid_at = CASE WHEN ? = 'paid' THEN NOW() ELSE paid_at END, updated_at = NOW() WHERE id = ?`,
-    [paymentStatus, paymentReference || null, paymentMethod || null, paymentStatus, orderId]
+    [
+      paymentStatus, 
+      paymentReference !== undefined ? paymentReference : null, 
+      paymentMethod !== undefined ? paymentMethod : null, 
+      paymentStatus, 
+      orderId
+    ]
   );
   return findById(orderId);
 }
@@ -145,14 +151,14 @@ export async function updatePaymentStatus(orderId, { paymentStatus, paymentRefer
 export async function updateOrderStatus(orderId, status, notes = null) {
   await db.query(
     `UPDATE orders SET status = ?, notes = COALESCE(?, notes), updated_at = NOW() WHERE id = ?`,
-    [status, notes, orderId]
+    [status, notes !== undefined ? notes : null, orderId]
   );
   return findById(orderId);
 }
 
 export async function updateOrder(orderId, fields) {
   const setClauses = Object.keys(fields).map(k => `${k} = ?`).join(', ');
-  const values = [...Object.values(fields), new Date(), orderId];
+  const values = [...Object.values(fields).map(v => v === undefined ? null : v), new Date(), orderId];
   await db.query(`UPDATE orders SET ${setClauses}, updated_at = ? WHERE id = ?`, values);
   return findById(orderId);
 }

@@ -39,7 +39,7 @@ import paypalWebhookRoutes from './routes/paypalWebhook.js';
 const webhookRoutes = express.Router();
 const customerAuthRoutes = express.Router();
 import paymentRoutes from './routes/payment.js';
-const addressRoutes = express.Router();
+import addressRoutes from './routes/addresses.js';
 const crmRoutes = express.Router();
 
 // ── Background Jobs ───────────────────────────────────────────────────────────
@@ -91,14 +91,19 @@ app.use(regionDetect);
 // Static Assets
 app.use('/assets', (req, res, next) => {
   if (process.env.ASSETS_S3_BASE_URL) {
-    // Decode first to avoid double encoding if the path already had %20 etc.
-    const decodedPath = decodeURIComponent(req.path);
-    const encodedPath = decodedPath.split('/').map(segment => encodeURIComponent(segment)).join('/');
-    const s3Url = `${process.env.ASSETS_S3_BASE_URL}/assets${encodedPath}`;
-    // Ensure no double slashes before redirection
-    const cleanS3Url = s3Url.replace(/([^:])\/\//g, '$1/');
-    logger.debug(`Redirecting asset request to S3: ${req.path} -> ${cleanS3Url}`);
-    return res.redirect(cleanS3Url);
+    try {
+      // Decode first to avoid double encoding if the path already had %20 etc.
+      const decodedPath = decodeURIComponent(req.path);
+      const encodedPath = decodedPath.split('/').map(segment => encodeURIComponent(segment)).join('/');
+      const s3Url = `${process.env.ASSETS_S3_BASE_URL.replace(/\/$/, '')}/assets${encodedPath.startsWith('/') ? '' : '/'}${encodedPath}`;
+      // Ensure no double slashes before redirection
+      const cleanS3Url = s3Url.replace(/([^:])\/\//g, '$1/');
+      logger.debug(`Redirecting asset request to S3: ${req.path} -> ${cleanS3Url}`);
+      return res.redirect(cleanS3Url);
+    } catch (e) {
+      logger.error(`S3 Redirect Error: ${e.message} for path ${req.path}`);
+      // Fallback to local static serving if decoding fails
+    }
   }
   next();
 },
@@ -187,16 +192,18 @@ async function startServer() {
     await db.query('SELECT 1');
     logger.info('✅ MySQL database connected');
 
-    // 2. Test Redis connection (optional — server runs without Redis)
-    /* Commented out Redis connection as per user request
+    // 2. Test Redis connection (Essential for Bull jobs)
     try {
       await redisClient.connect();
       await redisClient.ping();
       logger.info('✅ Redis connected');
     } catch (redisErr) {
-      logger.warn(`⚠️ Redis unavailable: ${redisErr.message}`);
+      logger.error(`❌ Background Job Error: Redis is required for tracking & inventory, but is unavailable. ${redisErr.message}`);
+      // In production, we should probably exit or warn heavily
+      if (process.env.NODE_ENV === 'production') {
+        throw new Error('Redis is mandatory in production for background workflows.');
+      }
     }
-    */
 
     trackingPoller.startPolling();
     inventorySync.startInventorySync();

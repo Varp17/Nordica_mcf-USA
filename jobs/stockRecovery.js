@@ -18,12 +18,12 @@ async function recoverAbandonedStock() {
     try {
         await connection.beginTransaction();
 
-        // 1. Find pending orders older than 2 hours
+        // 1. Find pending orders older than 20 minutes
         // We use created_at since 'pending' orders are rarely updated until they move to 'paid'
         const [abandonedOrders] = await connection.execute(
             `SELECT id, order_number FROM orders 
              WHERE status = 'pending' 
-             AND created_at < DATE_SUB(NOW(), INTERVAL 2 HOUR)`
+             AND created_at < DATE_SUB(NOW(), INTERVAL 20 MINUTE)`
         );
 
         if (abandonedOrders.length === 0) {
@@ -68,7 +68,7 @@ async function recoverAbandonedStock() {
 let intervalId = null;
 
 export default {
-    start: (intervalMs = 3600000) => { // Default to every 1 hour
+    start: (intervalMs = 300000) => { // Default to every 5 minutes
         if (intervalId) return;
         // Run immediately on start
         recoverAbandonedStock();
