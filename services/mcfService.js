@@ -33,32 +33,34 @@ const SPEED_MAP = {
 };
 
 export async function createFulfillmentOrder(order) {
-  const sellerFulfillmentOrderId = generateMCFOrderId(order.id);
+  const sellerFulfillmentOrderId = generateMCFOrderId(order.order_number);
   const shippingSpeed = SPEED_MAP[order.shipping_speed?.toLowerCase()] || 'Standard';
+
+  // Amazon MCF strictly enforces character limits. We truncate to be safe.
+  const trunc = (str, len) => (str || '').toString().substring(0, len);
 
   const payload = {
     marketplaceId:             process.env.AMAZON_MARKETPLACE_ID_US || 'ATVPDKIKX0DER',
     sellerFulfillmentOrderId,
     displayableOrderId:        order.order_number,
     displayableOrderDate:      new Date(order.created_at).toISOString(),
-    displayableOrderComment:   `Order from ${process.env.STORE_NAME || 'Our Store'}`,
+    displayableOrderComment:   trunc(`Order from ${process.env.STORE_NAME || 'Nordica Ecom'}`, 250),
     shippingSpeedCategory:     shippingSpeed,
     destinationAddress: {
-      name:                `${order.shipping_first_name} ${order.shipping_last_name}`.trim(),
-      addressLine1:        order.shipping_address1,
-      addressLine2:        order.shipping_address2 || '',
-      city:                order.shipping_city,
-      stateOrRegion:       normalizeState(order.shipping_state),
-      postalCode:          order.shipping_zip,
+      name:                trunc(`${order.shipping_first_name} ${order.shipping_last_name}`.trim(), 50),
+      addressLine1:        trunc(order.shipping_address1, 60),
+      addressLine2:        trunc(order.shipping_address2 || '', 60),
+      city:                trunc(order.shipping_city, 50),
+      stateOrRegion:       trunc(normalizeState(order.shipping_state || order.shipping_province), 150),
+      postalCode:          trunc(order.shipping_zip || order.shipping_postal_code, 20),
       countryCode:         'US',
-      phone:               order.shipping_phone || ''
+      phone:               trunc(order.shipping_phone || '', 20)
     },
     items: (order.items || []).map((item, idx) => ({
       sellerSku:                      item.sku,
       sellerFulfillmentOrderItemId:   `${sellerFulfillmentOrderId}-${idx + 1}`,
       quantity:                       item.quantity,
-      displayableComment:             item.product_name,
-      giftMessage:                    '',
+      displayableComment:             trunc(item.product_name, 250),
       perUnitDeclaredValue: {
         currencyCode: 'USD',
         value:        String(parseFloat(item.unit_price || 0).toFixed(2))
@@ -75,10 +77,18 @@ export async function createFulfillmentOrder(order) {
     speed:     shippingSpeed
   });
 
-  await spApiRequest('POST', `${MCF_BASE}/fulfillmentOrders`, payload);
-  logger.info(`MCF: Fulfillment order created — ${sellerFulfillmentOrderId}`);
-
-  return { success: true, sellerFulfillmentOrderId };
+  try {
+    await spApiRequest('POST', `${MCF_BASE}/fulfillmentOrders`, payload);
+    logger.info(`MCF: Fulfillment order created — ${sellerFulfillmentOrderId}`);
+    return { success: true, sellerFulfillmentOrderId };
+  } catch (err) {
+    const errorData = err.response?.data?.errors?.[0];
+    if (err.response?.status === 400 && errorData?.code === 'InvalidInput' && errorData?.message?.includes('already exists')) {
+      logger.warn(`MCF: Fulfillment order ${sellerFulfillmentOrderId} already exists in Amazon — treating as success.`);
+      return { success: true, sellerFulfillmentOrderId, alreadyExists: true };
+    }
+    throw err;
+  }
 }
 
 export async function getFulfillmentOrder(sellerFulfillmentOrderId) {

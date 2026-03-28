@@ -15,19 +15,19 @@ async function setup() {
 
   try {
     // 1. Create Invoices Table (Not in seed.sql)
-    console.log('Creating invoices table...');
-    await db.query(`
-      CREATE TABLE IF NOT EXISTS invoices (
-        id CHAR(36) PRIMARY KEY,
-        order_id CHAR(36) NOT NULL,
-        invoice_number VARCHAR(50) UNIQUE NOT NULL,
-        total_amount DECIMAL(12,2) NOT NULL,
-        tax_amount DECIMAL(12,2) DEFAULT 0,
-        status ENUM('pending', 'paid', 'cancelled') DEFAULT 'pending',
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-    `);
+    // console.log('Creating invoices table...');
+    // await db.query(`
+    //   CREATE TABLE IF NOT EXISTS invoices (
+    //     id CHAR(36) PRIMARY KEY,
+    //     order_id CHAR(36) NOT NULL,
+    //     invoice_number VARCHAR(50) UNIQUE NOT NULL,
+    //     total_amount DECIMAL(12,2) NOT NULL,
+    //     tax_amount DECIMAL(12,2) DEFAULT 0,
+    //     status ENUM('pending', 'paid', 'cancelled') DEFAULT 'pending',
+    //     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    //     FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE
+    //   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    // `);
 
     // 2. Add Admin User (Deleted by DROP TABLE users in seed.sql)
     console.log('Adding admin user...');

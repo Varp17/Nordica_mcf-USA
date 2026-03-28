@@ -20,12 +20,12 @@ const router = express.Router()
 
 const productSchema = Joi.object({
   name: Joi.string().required(),
-  name_ar: Joi.string().allow(null, "").optional(), // Added
+  name_ar: Joi.string().allow(null, "").optional(),
   price: Joi.number().positive().required(),
   original_price: Joi.number().positive().allow(null, "").optional(),
-  description: Joi.string().allow(null, "").optional(), // Made optional
-  description_ar: Joi.string().allow(null, "").optional(), // Added
-  image: Joi.string().allow(null, "").optional(), // Made optional, renamed from image_url
+  description: Joi.string().allow(null, "").optional(),
+  description_ar: Joi.string().allow(null, "").optional(),
+  image: Joi.string().allow(null, "").optional(),
   sku: Joi.string().allow(null, "").optional(),
   in_stock: Joi.number().integer().min(0).required(),
   category_id: Joi.string().required(),
@@ -34,6 +34,7 @@ const productSchema = Joi.object({
   specifications: Joi.object().optional(),
   category: Joi.string().required(),
   brand: Joi.string().required(),
+  target_country: Joi.string().valid('us', 'canada', 'both').default('both')
 });
 
 // GET /api/products/banners - Public route for storefront to fetch active banners
@@ -99,11 +100,21 @@ router.get("/full_text_search", async (req, res) => {
     if (products.length === 0) {
       return res.status(404).json({ error: "Product not found" })
     }
+    const safeParse = (str) => {
+      if (!str) return [];
+      if (typeof str === 'object') return str;
+      try { return JSON.parse(str); } catch (e) { return []; }
+    };
+
     const formattedProducts = products.map((product) => ({
       ...product,
-      variants: variants,
+      images: safeParse(product.images),
+      features: safeParse(product.features),
+      specifications: safeParse(product.specifications),
+      about_section: safeParse(product.about_section),
+      color_options: safeParse(product.color_options),
       originalPrice: product.original_price,
-      imageUrl: product.image_url,
+      imageUrl: product.image,
       createdAt: product.created_at,
     }));
 
@@ -158,12 +169,15 @@ router.get("/", async (req, res) => {
     const whereConditions = ["p.is_active = TRUE"]; // Base condition for soft deletes
     const queryParams = [];
 
-    // Country filtering
+    // --- Region Filtering (target_country: us, canada, both) ---
     const userCountry = normalizeCountryCode(req.query.country || req.country || 'CA');
     _log.debug("Fetching products for country:", { userCountry, queryCountry: req.query.country, reqCountry: req.country });
-    const countryMatch = userCountry === 'CA' ? ['CA', 'CAD'] : ['US', 'USA'];
-    whereConditions.push(`(p.country IN (${countryMatch.map(() => '?').join(',')}) OR p.country IS NULL)`);
-    queryParams.push(...countryMatch);
+    
+    // If user is CA, show 'canada' or 'both'
+    // If user is US, show 'us' or 'both'
+    const countryTarget = userCountry === 'CA' ? ['canada', 'both'] : ['us', 'both'];
+    whereConditions.push(`p.target_country IN (${countryTarget.map(() => '?').join(',')})`);
+    queryParams.push(...countryTarget);
 
     if (req.query.categoryIds) {
       const categoryIds = req.query.categoryIds.split(',').map(id => id.trim());
@@ -371,42 +385,39 @@ router.get("/:id", async (req, res) => {
 })
 
 router.post("/", authenticateToken, requireAdmin, async (req, res) => {
-  let { name, name_ar, price, originalPrice, description, description_ar, imageUrl, sku, in_stock, category: category, brand: brand } = req.body;
-  console.log(name, price, originalPrice, description, description_ar, imageUrl, sku, in_stock, category, brand);
-
-  if (!name || !price || !category || !brand) {
-    return res.status(400).json({ message: "Name, price, category, and brand are required." });
+  const { error, value } = productSchema.validate(req.body);
+  if (error) {
+    return res.status(400).json({ error: error.details[0].message });
   }
+
+  let { 
+    name, name_ar, price, original_price, description, description_ar, image, sku, 
+    in_stock, category, brand, category_id, brand_id, target_country 
+  } = value;
 
   try {
     const newProductId = uuidv4();
     const stockCount = parseInt(in_stock, 10) || 0;
     const availability = stockCount > 0 ? "In Stock" : "Out of Stock";
 
-    const [[categoryResult]] = await db.execute('SELECT id FROM categories WHERE name = ?', [category]);
-    const [[brandResult]] = await db.execute('SELECT id FROM brands WHERE name = ?', [brand]);
-
-    if (!categoryResult || !brandResult) {
-      return res.status(400).json({ message: "Invalid Category or Brand ID provided." });
-    }
-
-    if(imageUrl && !imageUrl.startsWith('http')) {
-      // Ensure path starts with /assets/ as per the database schema in create_tables.sql
-      imageUrl = imageUrl.startsWith('/') 
-        ? (imageUrl.startsWith('/assets/') ? imageUrl : `/assets${imageUrl}`)
-        : `/assets/${imageUrl}`;
+    if(image && !image.startsWith('http')) {
+      image = image.startsWith('/') 
+        ? (image.startsWith('/assets/') ? image : `/assets${image}`)
+        : `/assets/${image}`;
     }
 
     const sql = `
-        id, name, name_ar, price, original_price, description, description_ar, image, sku, 
-        in_stock, availability, category_id, brand_id, category, brand
+      INSERT INTO products (
+        id, name, name_ar, price, original_price, description, description_ar, image, images, sku, 
+        in_stock, availability, category_id, brand_id, category, brand, target_country
       ) 
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `;
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `;
+    
     await db.execute(sql, [
-      newProductId, name, name_ar || null, parseFloat(price), originalPrice ? parseFloat(originalPrice) : null,
-      description || null, description_ar || null, imageUrl || null, sku || null, stockCount, availability,
-      categoryResult.id, brandResult.id, category, brand
+      newProductId, name, name_ar || null, parseFloat(price), original_price ? parseFloat(original_price) : null,
+      description || null, description_ar || null, image || null, JSON.stringify([]), sku || null, 
+      stockCount, availability, category_id, brand_id, category, brand, target_country || 'both'
     ]);
 
     res.status(201).json({ message: "Product created successfully", productId: newProductId });
@@ -463,7 +474,7 @@ router.put("/:id", authenticateToken, requireAdmin, async (req, res) => {
       `UPDATE products SET 
        name = ?, name_ar = ?, price = ?, original_price = ?, description = ?, description_ar = ?, 
        image = ?, brand = ?, category = ?, category_id = ?, brand_id = ?, sku = ?,
-       key_features = ?, specifications = ?, updated_at = NOW()
+       key_features = ?, specifications = ?, target_country = ?, updated_at = NOW()
        WHERE id = ?`,
       [
         name,
@@ -472,7 +483,7 @@ router.put("/:id", authenticateToken, requireAdmin, async (req, res) => {
         original_price || null,
         description,
         description_ar || null,
-        image || null, // Renamed from image_url
+        image || null,
         brand,
         category,
         categoryId,
@@ -480,6 +491,7 @@ router.put("/:id", authenticateToken, requireAdmin, async (req, res) => {
         sku || null,
         key_features ? JSON.stringify(key_features) : null,
         specifications ? JSON.stringify(specifications) : null,
+        target_country || 'both',
         req.params.id,
       ],
     )

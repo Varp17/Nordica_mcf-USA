@@ -145,6 +145,7 @@ CREATE TABLE products (
   tags               JSON          DEFAULT NULL,
   sizes              JSON          DEFAULT NULL,
   country            VARCHAR(50)   DEFAULT 'CAD',
+  inventory_cache    INT           NOT NULL DEFAULT 0,
   
   -- Region Control
   target_country     ENUM('us', 'canada', 'both') DEFAULT 'both' NOT NULL,

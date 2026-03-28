@@ -28,10 +28,11 @@ import wishlistRoutes from './routes/wishlist.js';
 import productRoutes from './routes/products.js';
 import fulfillmentRoutes from './routes/fulfillment.js';
 import invoiceRoutes from './routes/invoices.js';
-import shippoAdminRoutes from './shippo.js';
-import shippoWebhookRoutes from './shippoWebhook.js';
+import shippoAdminRoutes from './routes/shippo.js';
+import shippoWebhookRoutes from './routes/shippoWebhook.js';
 import trackingRoutes from './routes/tracking.js';
 import debugRoutes from './routes/debug.js';
+import paypalWebhookRoutes from './routes/paypalWebhook.js';
 
 
 // Missing routes stub (can be implemented later)
@@ -44,6 +45,7 @@ const crmRoutes = express.Router();
 // ── Background Jobs ───────────────────────────────────────────────────────────
 import trackingPoller from './jobs/trackingPoller.js';
 import inventorySync from './jobs/inventorySync.js';
+import stockRecovery from './jobs/stockRecovery.js';
 import { startStockMonitoring } from './services/stockService.js';
 
 const app = express();
@@ -152,7 +154,16 @@ app.use('/api/fulfillment', fulfillmentRoutes);
 app.use('/api/tracking', trackingRoutes);
 app.use('/api/webhooks', webhookRoutes);
 app.use('/api/webhooks/shippo', shippoWebhookRoutes);
+app.use('/api/webhooks/paypal', paypalWebhookRoutes);
 app.use('/api/admin', invoiceRoutes);
+app.get('/api/admin/recover-stock', async (req, res) => {
+  try {
+     await stockRecovery.runNow();
+     res.json({ success: true, message: 'Stock recovery job executed successfully.' });
+  } catch (err) {
+     res.status(500).json({ success: false, error: err.message });
+  }
+});
 app.use('/api/admin', crmRoutes);
 app.use('/api/debug', debugRoutes);
 
@@ -189,6 +200,7 @@ async function startServer() {
 
     trackingPoller.startPolling();
     inventorySync.startInventorySync();
+    stockRecovery.start();
     startStockMonitoring();
     logger.info('✅ Background jobs started');
 

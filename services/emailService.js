@@ -303,6 +303,31 @@ export async function sendOTPEmail(email, otp) {
   });
 }
 
+export async function sendWelcomeEmail(email, firstName) {
+  const storeName = process.env.STORE_NAME || 'Detail Guardz';
+  const storeUrl = process.env.STORE_WEBSITE || 'https://detailguardz.com';
+
+  const body = `
+    <p>Hi ${firstName},</p>
+    <p>Welcome to <strong>${storeName}</strong>! We're thrilled to have you join our community of detailing enthusiasts.</p>
+    <div class="highlight-box">
+      <p>Your account is now fully verified and ready to use. You can start exploring our premium car care products right away!</p>
+    </div>
+    <p>As a member, you'll be the first to know about new product launches, exclusive detailing tips, and seasonal promotions.</p>
+    <p style="text-align:center; margin:32px 0;">
+      <a href="${storeUrl}" class="btn">✨ Start Shopping Now</a>
+    </p>
+    <p>If you have any questions or need advice on which products are right for your vehicle, our support team is always here to help.</p>
+    <p>Happy detailing!<br>The ${storeName} Team</p>
+  `;
+
+  return sendEmail({
+    to: email,
+    subject: `Welcome to ${storeName}! ✨`,
+    html: wrapEmail(`Welcome aboard, ${firstName}!`, 'Account Verified', body)
+  });
+}
+
 export async function sendStockAlertEmail(productName, currentStock, sku) {
   const adminEmail = process.env.ADMIN_ALERT_EMAIL || 'k7391356@gmail.com';
   const isOutOfStock = currentStock <= 0;
@@ -369,6 +394,46 @@ export async function sendTrackingUpdateEmail(order, tracking) {
   });
 }
 
+export async function sendPasswordResetOTPEmail(email, otp) {
+  const storeName = process.env.STORE_NAME || 'Detail Guardz';
+  const body = `
+    <p>We received a request to reset your ${storeName} account password.</p>
+    <p>Please use the following code to authorize this change:</p>
+    <div style="text-align: center; margin: 30px 0;">
+      <span style="font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #1E3A5F; background: #fffbe6; padding: 10px 20px; border-radius: 4px; border: 1px dashed #faad14;">
+        ${otp}
+      </span>
+    </div>
+    <p>This code will expire in 15 minutes. <strong>If you did not request this, please ignore this email and your password will remain unchanged.</strong></p>
+    <p>Best regards,<br>The ${storeName} Team</p>
+  `;
+
+  return sendEmail({
+    to: email,
+    subject: `Password Reset Code — ${otp}`,
+    html: wrapEmail('Password Reset Request', 'Action Required', body)
+  });
+}
+
+export async function sendPasswordChangedEmail(email, firstName) {
+  const storeName = process.env.STORE_NAME || 'Detail Guardz';
+  const body = `
+    <p>Hi ${firstName || 'Value Customer'},</p>
+    <p>This is a confirmation that the password for your ${storeName} account has been successfully changed.</p>
+    <div class="highlight-box">
+      <p>If you made this change, you can safely ignore this email.</p>
+      <p><strong>If you did NOT make this change, please contact our support team immediately.</strong></p>
+    </div>
+    <p>Best regards,<br>The ${storeName} Team</p>
+  `;
+
+  return sendEmail({
+    to: email,
+    subject: `Your ${storeName} Password has been changed`,
+    html: wrapEmail('Password Changed', 'Security Notification', body)
+  });
+}
+
 export default {
   sendOrderConfirmationEmail,
   sendOrderShippedEmail,
@@ -376,5 +441,8 @@ export default {
   sendFulfillmentErrorAlert,
   sendTrackingUpdateEmail,
   sendOTPEmail,
-  sendStockAlertEmail
+  sendWelcomeEmail,
+  sendStockAlertEmail,
+  sendPasswordResetOTPEmail,
+  sendPasswordChangedEmail
 };

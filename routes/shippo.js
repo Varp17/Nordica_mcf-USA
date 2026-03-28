@@ -1117,6 +1117,7 @@ import { Shippo } from "shippo";
 import db from "../config/database.js";
 import { authenticateToken, requireAdmin } from "../middleware/auth.js";
 import { sendShipmentCreatedEmail } from "../utils/mailer.js";
+import shippoService from "../services/shippoService.js";
 
 const router = express.Router();
 
@@ -1135,15 +1136,15 @@ export const shippoClient = shippo;
 
 /** Normalise a Shippo trackingStatus response */
 const mapShippoTracking = (t) => ({
-  status:         t?.tracking_status?.status      || null,
-  substatus:      t?.tracking_status?.substatus   || null,
-  statusDate:     t?.tracking_status?.status_date || null,
-  location:       t?.tracking_status?.location    || null,
-  carrier:        t?.carrier                      || null,
-  trackingNumber: t?.tracking_number              || null,
-  serviceLevel:   t?.servicelevel?.name           || null,
-  eta:            t?.eta                          || null,
-  history:        t?.tracking_history             || [],
+  status: t?.tracking_status?.status || null,
+  substatus: t?.tracking_status?.substatus || null,
+  statusDate: t?.tracking_status?.status_date || null,
+  location: t?.tracking_status?.location || null,
+  carrier: t?.carrier || null,
+  trackingNumber: t?.tracking_number || null,
+  serviceLevel: t?.servicelevel?.name || null,
+  eta: t?.eta || null,
+  history: t?.tracking_history || [],
 });
 
 /** Safe JSON parse — returns null on failure */
@@ -1263,10 +1264,10 @@ router.get(
       console.log("📦 Carrier accounts raw:", JSON.stringify(response).slice(0, 500));
 
       const carriers = (response.results || []).map((c) => ({
-        id:        c.objectId   || c.object_id,
-        carrier:   c.carrier,
-        accountId: c.accountId  || c.account_id  || null,
-        active:    c.active,
+        id: c.objectId || c.object_id,
+        carrier: c.carrier,
+        accountId: c.accountId || c.account_id || null,
+        active: c.active,
         isDefault: c.isDefaultOrPrimary || c.is_default_or_primary || false,
       }));
 
@@ -1277,6 +1278,87 @@ router.get(
     }
   }
 );
+/* ══════════════════════════════════════════════════════════ */
+/* Trackings (detailed) from Shippo                         */
+/* GET /api/admin/shippo/trackings                          */
+/* ══════════════════════════════════════════════════════════ */
+router.get(
+  "/trackings",
+  authenticateToken,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      console.log("📊 GET /trackings (Shippo trackingStatus API)");
+
+      const { status, page = 1 } = req.query;
+
+      const transactions = await shippo.transactions.list({
+        page: Number(page),
+        results: 20,
+      });
+
+      const results = transactions.results || [];
+
+      const detailed = await Promise.all(
+        results.map(async (t) => {
+          const trackingNumber = t.tracking_number || t.trackingNumber || null;
+          const carrier = t.tracking_carrier || t.trackingCarrier || t.carrier || null;
+
+          let tracking = null;
+          if (trackingNumber && carrier) {
+            try {
+              const ts = await shippo.trackingStatus.get(carrier, trackingNumber);
+              tracking = mapShippoTracking(ts);
+            } catch (err) {
+              console.error(
+                "⚠️ trackingStatus.get failed for",
+                carrier,
+                trackingNumber,
+                err
+              );
+            }
+          }
+
+          const trackingStatus =
+            tracking?.status || t.tracking_status || t.trackingStatus || null;
+
+          return {
+            transactionId: t.object_id,
+            orderId: t.order || null,
+            shippo_tracking_number: trackingNumber,
+            shippo_carrier: carrier,
+            shippo_tracking_status: trackingStatus,
+            tracking,
+            tracking_raw: tracking || t,
+          };
+        })
+      );
+
+      const filtered = status
+        ? detailed.filter(
+            (d) =>
+              (d.shippo_tracking_status || "").toUpperCase() ===
+              String(status).toUpperCase()
+          )
+        : detailed;
+
+      res.json({
+        success: true,
+        data: filtered,
+        pagination: {
+          page: transactions.page || Number(page),
+          next: transactions.next,
+          previous: transactions.previous,
+        },
+      });
+    } catch (err) {
+      console.error("❌ List Shippo trackings error:", err);
+      res.status(500).json({ error: "Failed to list Shippo trackings" });
+    }
+  }
+);
+
+/* ══════════════════════════════════════════════════════════ */
 /* GAP 2a — Canada orders list                              */
 /* GET /api/admin/shippo/orders/canada                      */
 /*   ?page=1 &limit=20 &status=shipped &shippo_status=TRANSIT */
@@ -1290,9 +1372,9 @@ router.get(
   requireAdmin,
   async (req, res) => {
     try {
-      const pageNum  = Math.max(1, parseInt(req.query.page  || "1",  10));
+      const pageNum = Math.max(1, parseInt(req.query.page || "1", 10));
       const limitNum = Math.min(100, parseInt(req.query.limit || "20", 10));
-      const offset   = (pageNum - 1) * limitNum;
+      const offset = (pageNum - 1) * limitNum;
 
       const conditions = [
         "JSON_VALID(o.shipping_address) = 1",
@@ -1332,20 +1414,20 @@ router.get(
       );
 
       const mapped = orders.map((o) => ({
-        id:             o.id,
-        orderDate:      o.order_date,
-        status:         o.status,
-        paymentStatus:  o.payment_status,
-        totalAmount:    o.total_amount,
+        id: o.id,
+        orderDate: o.order_date,
+        status: o.status,
+        paymentStatus: o.payment_status,
+        totalAmount: o.total_amount,
         shippingAddress: safeJson(o.shipping_address),
-        customer:       { firstName: o.first_name, lastName: o.last_name, email: o.email },
+        customer: { firstName: o.first_name, lastName: o.last_name, email: o.email },
         shippo: {
           trackingNumber: o.shippo_tracking_number || null,
-          carrier:        o.shippo_carrier         || null,
+          carrier: o.shippo_carrier || null,
           trackingStatus: o.shippo_tracking_status || null,
-          labelUrl:       o.shippo_label_url        || null,
-          hasLabel:       !!o.shippo_label_url,
-          hasTracking:    !!o.shippo_tracking_number,
+          labelUrl: o.shippo_label_url || null,
+          hasLabel: !!o.shippo_label_url,
+          hasTracking: !!o.shippo_tracking_number,
         },
       }));
 
@@ -1385,18 +1467,20 @@ router.get(
 
       if (!rows.length) return res.status(404).json({ error: "Order not found" });
 
-      const o           = rows[0];
+      const o = rows[0];
       const trackingRaw = safeJson(o.shippo_tracking_raw);
 
       const trackingHistory = (trackingRaw?.tracking_history || [])
         .map((h) => ({
-          status:     h.status,
-          substatus:  h.substatus     || null,
-          statusDate: h.status_date   || null,
-          message:    h.status_details || null,
+          status: h.status,
+          substatus: h.substatus || null,
+          statusDate: h.status_date || null,
+          message: h.status_details || null,
           location: h.location
-            ? { city: h.location.city || null, state: h.location.state || null,
-                country: h.location.country || null, zip: h.location.zip || null }
+            ? {
+              city: h.location.city || null, state: h.location.state || null,
+              country: h.location.country || null, zip: h.location.zip || null
+            }
             : null,
         }))
         .reverse(); // most-recent first
@@ -1404,23 +1488,23 @@ router.get(
       res.json({
         success: true,
         data: {
-          id:              o.id,
-          orderDate:       o.order_date,
-          status:          o.status,
-          paymentStatus:   o.payment_status,
-          totalAmount:     o.total_amount,
+          id: o.id,
+          orderDate: o.order_date,
+          status: o.status,
+          paymentStatus: o.payment_status,
+          totalAmount: o.total_amount,
           shippingAddress: safeJson(o.shipping_address),
           customer: { firstName: o.first_name, lastName: o.last_name, email: o.email },
           shippo: {
-            trackingNumber:  o.shippo_tracking_number || null,
-            carrier:         o.shippo_carrier         || null,
-            trackingStatus:  o.shippo_tracking_status || null,
-            labelUrl:        o.shippo_label_url        || null,
-            eta:             trackingRaw?.eta          || null,
+            trackingNumber: o.shippo_tracking_number || null,
+            carrier: o.shippo_carrier || null,
+            trackingStatus: o.shippo_tracking_status || null,
+            labelUrl: o.shippo_label_url || null,
+            eta: trackingRaw?.eta || null,
             currentLocation: trackingRaw?.tracking_status?.location || null,
             trackingHistory,
-            hasLabel:        !!o.shippo_label_url,
-            hasTracking:     !!o.shippo_tracking_number,
+            hasLabel: !!o.shippo_label_url,
+            hasTracking: !!o.shippo_tracking_number,
           },
         },
       });
@@ -1463,10 +1547,10 @@ router.get(
         });
       }
 
-      let raw     = safeJson(order.shippo_tracking_raw);
+      let raw = safeJson(order.shippo_tracking_raw);
       let history = raw?.tracking_history || [];
-      let current = raw?.tracking_status  || null;
-      let eta     = raw?.eta              || null;
+      let current = raw?.tracking_status || null;
+      let eta = raw?.eta || null;
 
       // Live refresh only when no history is cached yet
       if (!history.length) {
@@ -1476,8 +1560,8 @@ router.get(
             order.shippo_tracking_number
           );
           history = live?.tracking_history || [];
-          current = live?.tracking_status  || null;
-          eta     = live?.eta              || null;
+          current = live?.tracking_status || null;
+          eta = live?.eta || null;
 
           await db.execute(
             `UPDATE orders
@@ -1493,13 +1577,15 @@ router.get(
       const events = history
         .map((h, index) => ({
           index,
-          status:     h.status,
-          substatus:  h.substatus      || null,
-          statusDate: h.status_date    || null,
-          message:    h.status_details || null,
+          status: h.status,
+          substatus: h.substatus || null,
+          statusDate: h.status_date || null,
+          message: h.status_details || null,
           location: h.location
-            ? { city: h.location.city || null, state: h.location.state || null,
-                country: h.location.country || null, zip: h.location.zip || null }
+            ? {
+              city: h.location.city || null, state: h.location.state || null,
+              country: h.location.country || null, zip: h.location.zip || null
+            }
             : null,
         }))
         .reverse(); // most-recent first
@@ -1507,8 +1593,8 @@ router.get(
       res.json({
         success: true,
         data: {
-          currentStatus:  current?.status || order.shippo_tracking_status || null,
-          carrier:        order.shippo_carrier,
+          currentStatus: current?.status || order.shippo_tracking_status || null,
+          carrier: order.shippo_carrier,
           trackingNumber: order.shippo_tracking_number,
           eta,
           events,
@@ -1709,7 +1795,7 @@ router.post(
         return res.status(404).json({ error: "Order not found" });
       }
 
-      const order           = rows[0];
+      const order = rows[0];
       const shippingAddress = safeJson(order.shipping_address);
       const shippingCountry = (
         shippingAddress?.country || shippingAddress?.Country || ""
@@ -1728,37 +1814,37 @@ router.post(
 
       // ── Build addresses ────────────────────────────────────────────
       const toAddress = {
-        name:    fullName(order.first_name, order.last_name),
-        email:   order.email || undefined,
+        name: fullName(order.first_name, order.last_name),
+        email: order.email || undefined,
         street1: shippingAddress?.address1 || shippingAddress?.line1,
         street2: shippingAddress?.address2 || shippingAddress?.line2 || "",
-        city:    shippingAddress?.city,
-        state:   shippingAddress?.state || shippingAddress?.province,
-        zip:     (shippingAddress?.postal_code || shippingAddress?.zip || "").replace(/\s+/g, ""),
+        city: shippingAddress?.city,
+        state: shippingAddress?.state || shippingAddress?.province,
+        zip: (shippingAddress?.postal_code || shippingAddress?.zip || "").replace(/\s+/g, ""),
         country: shippingCountry,
-        phone:   shippingAddress?.phone || undefined,
+        phone: shippingAddress?.phone || undefined,
       };
 
       const fromAddress = {
-        name:    process.env.SHIPPO_FROM_NAME    || "Nordica Plastics",
+        name: process.env.SHIPPO_FROM_NAME || "Nordica Plastics",
         street1: process.env.SHIPPO_FROM_STREET1 || "Default Street",
         street2: process.env.SHIPPO_FROM_STREET2 || "",
-        city:    process.env.SHIPPO_FROM_CITY    || "Toronto",
-        state:   process.env.SHIPPO_FROM_STATE   || "ON",
-        zip:     (process.env.SHIPPO_FROM_ZIP    || "M5V1E3").replace(/\s+/g, ""),
+        city: process.env.SHIPPO_FROM_CITY || "Toronto",
+        state: process.env.SHIPPO_FROM_STATE || "ON",
+        zip: (process.env.SHIPPO_FROM_ZIP || "M5V1E3").replace(/\s+/g, ""),
         country: process.env.SHIPPO_FROM_COUNTRY || "CA",
-        phone:   process.env.SHIPPO_FROM_PHONE   || undefined,
-        email:   process.env.SHIPPO_FROM_EMAIL   || undefined,
+        phone: process.env.SHIPPO_FROM_PHONE || undefined,
+        email: process.env.SHIPPO_FROM_EMAIL || undefined,
       };
 
       // ── Parcel (above Canada Post minimums) ───────────────────────
       const parcel = {
-        length:        "30",
-        width:         "20",
-        height:        "15",
+        length: "30",
+        width: "20",
+        height: "15",
         distance_unit: "cm",
-        weight:        "1",
-        mass_unit:     "kg",
+        weight: "1",
+        mass_unit: "kg",
       };
 
       // ── Step 1: Create shipment → get rates ────────────────────────
@@ -1766,18 +1852,18 @@ router.post(
       const shipmentRes = await shippoFetch("/shipments/", {
         method: "POST",
         body: JSON.stringify({
-          address_from:     fromAddress,
-          address_to:       toAddress,
-          parcels:          [parcel],
+          address_from: fromAddress,
+          address_to: toAddress,
+          parcels: [parcel],
           carrier_accounts: [carrier],
-          async:            false,
+          async: false,
         }),
       });
 
       if (!shipmentRes.ok) {
         console.error("❌ Shipment creation failed:", shipmentRes.data);
         return res.status(400).json({
-          error:   "Shippo shipment creation failed",
+          error: "Shippo shipment creation failed",
           details: shipmentRes.data,
         });
       }
@@ -1786,23 +1872,23 @@ router.post(
 
       // Debug logs — remove after testing
       console.log("🚢 Shipment status:", shipmentStatus);
-      console.log("📊 Rates count:",     rates?.length);
+      console.log("📊 Rates count:", rates?.length);
       console.log("💬 Shippo messages:", JSON.stringify(messages));
-      console.log("📋 First rate:",      JSON.stringify(rates?.[0])?.slice(0, 300));
+      console.log("📋 First rate:", JSON.stringify(rates?.[0])?.slice(0, 300));
 
       if (!rates?.length) {
         return res.status(400).json({
-          error:          "No rates returned from Shippo",
+          error: "No rates returned from Shippo",
           shipmentStatus,
-          messages:       messages || [],
-          hint:           "Check Shippo messages above for the exact reason",
+          messages: messages || [],
+          hint: "Check Shippo messages above for the exact reason",
         });
       }
 
       // ── Pick cheapest rate ─────────────────────────────────────────
       const rate = rates.reduce((best, r) =>
         parseFloat(r.amount || "0") < parseFloat(best?.amount ?? "Infinity") ? r : best
-      , null);
+        , null);
 
       console.log("✅ Selected rate:", rate?.servicelevel_name, rate?.amount, rate?.currency);
 
@@ -1810,24 +1896,24 @@ router.post(
       const txRes = await shippoFetch("/transactions/", {
         method: "POST",
         body: JSON.stringify({
-          rate:            rate.object_id,
+          rate: rate.object_id,
           label_file_type: "PDF",
-          async:           false,
+          async: false,
         }),
       });
 
       if (!txRes.ok || txRes.data?.status !== "SUCCESS") {
         console.error("❌ Label purchase failed:", txRes.data);
         return res.status(400).json({
-          error:   "Shippo label purchase failed",
+          error: "Shippo label purchase failed",
           details: txRes.data,
         });
       }
 
-      const tx              = txRes.data;
-      const trackingNumber  = tx.tracking_number  || tx.trackingNumber  || null;
+      const tx = txRes.data;
+      const trackingNumber = tx.tracking_number || tx.trackingNumber || null;
       const trackingCarrier = tx.tracking_carrier || tx.trackingCarrier || tx.carrier || "canada_post";
-      const labelUrl        = tx.label_url        || tx.labelUrl        || null;
+      const labelUrl = tx.label_url || tx.labelUrl || null;
 
       console.log("🏷️ Label bought:", trackingNumber, labelUrl);
 
@@ -1847,11 +1933,11 @@ router.post(
       // ── Step 4: Email customer (non-fatal) ─────────────────────────
       try {
         await sendShipmentCreatedEmail({
-          to:          order.email,
-          name:        fullName(order.first_name, order.last_name),
+          to: order.email,
+          name: fullName(order.first_name, order.last_name),
           orderNumber: order.id,
           trackingNumber,
-          carrier:     trackingCarrier,
+          carrier: trackingCarrier,
           labelUrl,
         });
       } catch (emailErr) {
@@ -1859,17 +1945,17 @@ router.post(
       }
 
       res.json({
-        success:         true,
+        success: true,
         tracking_number: trackingNumber,
-        carrier:         trackingCarrier,
-        label_url:       labelUrl,
-        order_status:    "shipped",
+        carrier: trackingCarrier,
+        label_url: labelUrl,
+        order_status: "shipped",
       });
 
     } catch (err) {
       console.error("❌ shippo-create error:", err);
       res.status(500).json({
-        error:   "Failed to create Shippo shipment",
+        error: "Failed to create Shippo shipment",
         details: err.message,
       });
     }
@@ -1930,7 +2016,7 @@ router.get(
       }
 
       const tracking = await shippo.trackingStatus.get(shippo_carrier, shippo_tracking_number);
-      const mapped   = mapShippoTracking(tracking);
+      const mapped = mapShippoTracking(tracking);
 
       await db.execute(
         `UPDATE orders SET shippo_tracking_status = ?, shippo_tracking_raw = ? WHERE id = ?`,
@@ -1960,15 +2046,15 @@ router.get(
       res.json({
         success: true,
         data: (orders.results || []).map((o) => ({
-          orderId:     o.object_id,
-          orderNumber: o.order_number       || null,
-          toName:      o.to_address?.name   || null,
-          toCity:      o.to_address?.city   || null,
-          toCountry:   o.to_address?.country || null,
-          totalPrice:  o.total_price        || null,
-          currency:    o.currency           || null,
-          status:      o.order_status       || null,
-          createdAt:   o.object_created     || null,
+          orderId: o.object_id,
+          orderNumber: o.order_number || null,
+          toName: o.to_address?.name || null,
+          toCity: o.to_address?.city || null,
+          toCountry: o.to_address?.country || null,
+          totalPrice: o.total_price || null,
+          currency: o.currency || null,
+          status: o.order_status || null,
+          createdAt: o.object_created || null,
         })),
         pagination: { page: orders.page, next: orders.next, previous: orders.previous },
       });
@@ -1994,16 +2080,16 @@ router.get(
       res.json({
         success: true,
         data: (txns.results || []).map((t) => ({
-          transactionId:  t.object_id,
-          orderId:        t.order                                                || null,
-          trackingNumber: t.tracking_number  || t.trackingNumber                || null,
-          carrier:        t.tracking_carrier || t.trackingCarrier || t.carrier  || null,
-          trackingStatus: t.tracking_status  || t.trackingStatus                || null,
-          labelUrl:       t.label_url        || t.labelUrl                      || null,
-          serviceLevel:   t.servicelevel_name || t.servicelevelName             || null,
-          price:          t.rate             || null,
-          currency:       t.currency         || null,
-          createdAt:      t.object_created   || null,
+          transactionId: t.object_id,
+          orderId: t.order || null,
+          trackingNumber: t.tracking_number || t.trackingNumber || null,
+          carrier: t.tracking_carrier || t.trackingCarrier || t.carrier || null,
+          trackingStatus: t.tracking_status || t.trackingStatus || null,
+          labelUrl: t.label_url || t.labelUrl || null,
+          serviceLevel: t.servicelevel_name || t.servicelevelName || null,
+          price: t.rate || null,
+          currency: t.currency || null,
+          createdAt: t.object_created || null,
         })),
         pagination: { page: txns.page, next: txns.next, previous: txns.previous },
       });
@@ -2024,9 +2110,9 @@ router.get(
   requireAdmin,
   async (req, res) => {
     try {
-      const pageNum  = Math.max(1,   parseInt(req.query.page  || "1",  10));
+      const pageNum = Math.max(1, parseInt(req.query.page || "1", 10));
       const limitNum = Math.min(100, parseInt(req.query.limit || "10", 10));
-      const offset   = (pageNum - 1) * limitNum;
+      const offset = (pageNum - 1) * limitNum;
 
       const [orders] = await db.execute(
         `SELECT o.*,

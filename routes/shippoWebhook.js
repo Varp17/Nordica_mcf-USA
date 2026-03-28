@@ -245,8 +245,8 @@
  */
 
 import express from "express";
-import crypto  from "crypto";
-import db      from "../config/database.js";
+import crypto from "crypto";
+import db from "../config/database.js";
 import { sendTrackingUpdateEmail } from "../utils/mailer.js";
 
 const router = express.Router();
@@ -263,12 +263,12 @@ const router = express.Router();
 /* scan within the same status.                        */
 /* ─────────────────────────────────────────────────── */
 const STATUS_LEVELS = {
-  UNKNOWN:     0,
+  UNKNOWN: 0,
   PRE_TRANSIT: 1,
-  TRANSIT:     2,
-  DELIVERED:   3,
-  RETURNED:    4,
-  FAILURE:     4,
+  TRANSIT: 2,
+  DELIVERED: 3,
+  RETURNED: 4,
+  FAILURE: 4,
 };
 
 /**
@@ -276,7 +276,7 @@ const STATUS_LEVELS = {
  * step the customer should be told about.
  */
 const shouldEmailCustomer = (oldStatus, newStatus) => {
-  if (!newStatus)  return false;
+  if (!newStatus) return false;
   if (!oldStatus || oldStatus === "UNKNOWN") return newStatus !== "UNKNOWN";
 
   const oldLevel = STATUS_LEVELS[oldStatus?.toUpperCase()] ?? -1;
@@ -299,7 +299,7 @@ router.post(
     try {
       /* ── 1. HMAC signature verification ──────────────────────── */
       const signature = req.headers["x-shippo-signature"];
-      const secret    = process.env.SHIPPO_WEBHOOK_SECRET;
+      const secret = process.env.SHIPPO_WEBHOOK_SECRET;
 
       if (!signature) {
         console.warn("⚠️ Webhook: missing x-shippo-signature");
@@ -327,12 +327,12 @@ router.post(
         return res.status(200).json({ received: true, ignored: true });
       }
 
-      const data           = payload.data;
-      const carrier        = data?.carrier;
+      const data = payload.data;
+      const carrier = data?.carrier;
       const trackingNumber = data?.tracking_number;
-      const newStatus      = data?.tracking_status?.status     || null;
-      const statusDate     = data?.tracking_status?.status_date || null;
-      const location       = data?.tracking_status?.location    || null;
+      const newStatus = data?.tracking_status?.status || null;
+      const statusDate = data?.tracking_status?.status_date || null;
+      const location = data?.tracking_status?.location || null;
 
       if (!carrier || !trackingNumber) {
         console.warn("⚠️ Webhook: missing carrier or tracking_number");
@@ -357,7 +357,7 @@ router.post(
         return res.status(200).json({ received: true, noMatch: true });
       }
 
-      const order     = existing[0];
+      const order = existing[0];
       const oldStatus = order.shippo_tracking_status;
 
       /* ── 4. Idempotency — skip write if status unchanged ─────── */
@@ -383,11 +383,11 @@ router.post(
       if (shouldEmailCustomer(oldStatus, newStatus)) {
         try {
           await sendTrackingUpdateEmail({
-            to:             order.email,
-            name:           `${order.first_name || ""} ${order.last_name || ""}`.trim() || "Customer",
-            orderNumber:    order.id,
+            to: order.email,
+            name: `${order.first_name || ""} ${order.last_name || ""}`.trim() || "Customer",
+            orderNumber: order.id,
             trackingNumber,
-            status:         newStatus,
+            status: newStatus,
             statusDate,
             location,
           });

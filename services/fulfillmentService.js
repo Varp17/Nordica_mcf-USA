@@ -45,8 +45,42 @@ export async function fulfillOrder(orderId) {
 
 async function _fulfillUS(order, invoicePdf = null) {
   logger.info(`Fulfilling US order ${order.order_number} via Amazon MCF`);
+
+  // Edge Case: Final Amazon Inventory & Address Fulfillability check
+  // (FBA stock might have changed since the customer was at checkout)
+  try {
+    const previews = await mcfService.getFulfillmentPreview({
+      name:    `${order.shipping_first_name} ${order.shipping_last_name}`,
+      line1:   order.shipping_address1,
+      line2:   order.shipping_address2,
+      city:    order.shipping_city,
+      stateOrRegion: order.shipping_state,
+      postalCode:    order.shipping_zip,
+      phone:         order.shipping_phone
+    }, order.items.map(i => ({ sku: i.sku, quantity: i.quantity })));
+
+    const speed = order.shipping_speed?.toLowerCase() || 'standard';
+    const activePreview = previews.find(p => p.shippingSpeedCategory.toLowerCase() === speed) || previews[0];
+
+    if (!activePreview || !activePreview.isFulfillable) {
+      throw new Error('MCF: Order is currently unfulfillable via Amazon (likely out of stock at FBA)');
+    }
+  } catch (prevErr) {
+    logger.error('MCF: Pre-check failed for US order:', { order: order.order_number, error: prevErr.message });
+    await _updateOrderStatus(order.id, { 
+       fulfillment_status: 'inventory_hold', 
+       fulfillment_error: prevErr.message 
+    });
+    return { success: false, status: 'inventory_hold', error: prevErr.message };
+  }
+
   const mcfResult = await mcfService.createFulfillmentOrder(order);
-  await _updateOrderStatus(order.id, { fulfillment_status: 'submitted_to_amazon', fulfillment_channel: 'amazon_mcf', amazon_fulfillment_id: mcfResult.sellerFulfillmentOrderId });
+  await _updateOrderStatus(order.id, { 
+     fulfillment_status: 'submitted_to_amazon', 
+     fulfillment_channel: 'amazon_mcf', 
+     amazon_fulfillment_id: mcfResult.sellerFulfillmentOrderId 
+  });
+
   logger.info(`US order ${order.order_number} submitted to Amazon MCF — ${mcfResult.sellerFulfillmentOrderId}`);
   await emailService.sendOrderConfirmationEmail(order, invoicePdf);
   return { success: true, fulfillmentChannel: 'amazon_mcf', status: 'submitted_to_amazon', amazonFulfillmentId: mcfResult.sellerFulfillmentOrderId };
@@ -55,7 +89,17 @@ async function _fulfillUS(order, invoicePdf = null) {
 async function _fulfillCA(order, invoicePdf = null) {
   logger.info(`Fulfilling CA order ${order.order_number} via Shippo`);
   const shipResult = await shippoService.createShipment(order);
-  await _updateOrderStatus(order.id, { fulfillment_status: 'label_created', fulfillment_channel: 'shippo', tracking_number: shipResult.trackingNumber, tracking_url: shipResult.trackingUrl, label_url: shipResult.labelUrl, carrier: shipResult.carrier, service_name: shipResult.serviceName, estimated_delivery: shipResult.estimatedDays ? new Date(Date.now() + shipResult.estimatedDays * 86400000).toISOString().split('T')[0] : null, shippo_transaction_id: shipResult.shippoTransactionId });
+  await _updateOrderStatus(order.id, {
+    fulfillment_status: 'label_created',
+    fulfillment_channel: 'shippo',
+    shippo_tracking_number: shipResult.trackingNumber,
+    shippo_carrier: shipResult.carrier,
+    shippo_tracking_status: 'PRE_TRANSIT',
+    shippo_label_url: shipResult.labelUrl,
+    service_name: shipResult.serviceName,
+    estimated_delivery: shipResult.estimatedDays ? new Date(Date.now() + shipResult.estimatedDays * 86400000).toISOString().split('T')[0] : null,
+    shippo_transaction_id: shipResult.shippoTransactionId
+  });
   logger.info(`CA order ${order.order_number} label created — tracking: ${shipResult.trackingNumber}`);
   try { await shippoService.registerTracking(shipResult.carrier, shipResult.trackingNumber); } catch (trackErr) { logger.warn(`Shippo tracking registration failed (non-critical): ${trackErr.message}`); }
   await emailService.sendOrderConfirmationEmail(order, invoicePdf);

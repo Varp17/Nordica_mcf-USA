@@ -11,11 +11,12 @@ export function generateOrderNumber() {
 
 /**
  * Generate a unique fulfillment order ID for Amazon MCF
- * Must be unique per seller — we embed the orderId + timestamp
+ * Must be unique per seller — we base it on the order number for idempotency
  */
-export function generateMCFOrderId(orderId) {
-  const ts = Date.now().toString(36).toUpperCase();
-  return `MCF-${orderId.slice(0, 8)}-${ts}`;
+export function generateMCFOrderId(orderNumber) {
+  // Amazon prefers no spaces, only Alphanumeric and hyphens
+  const cleanNumber = orderNumber.replace(/[^a-zA-Z0-9-]/g, '');
+  return `MCF-${cleanNumber}`;
 }
 
 /**

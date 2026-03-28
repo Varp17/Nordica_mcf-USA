@@ -34,30 +34,71 @@ async function getPayPalAccessToken() {
 }
 
 /**
- * POST /api/payment/create-order
- * Initiates a PayPal order
+ * Helper to get proper Frontend URL (handles comma-separated list in .env)
  */
-router.post('/create-order', async (req, res) => {
-  try {
-    const { country, currency, items, shipping, shippingCost, subtotal, tax, total, email } = req.body;
-    
-    const accessToken = await getPayPalAccessToken();
-    
-    const nTotal = parseFloat(total);
-    const nSubtotal = parseFloat(subtotal);
-    const nShipping = parseFloat(shippingCost || 0);
-    const nTax = parseFloat(tax || 0);
+function getBaseUrl(req) {
+  if (req.headers.origin) return req.headers.origin;
+  const firstUrl = (process.env.FRONTEND_URL || 'http://localhost:3000').split(',')[0];
+  return firstUrl;
+}
 
+/**
+ * POST /api/payment/create-order
+ * 1. Validates cart & prices server-side
+ * 2. Deducts stock & creates internal order in 'pending' status
+ * 3. Initiates PayPal order linked to internal order number
+ */
+router.post('/create-order', optionalAuth, async (req, res) => {
+  try {
+    const { country, currency, items, shipping, shippingCost, subtotal, tax, total, email, shippingSpeed } = req.body;
+    
+    // 1. Server-side validation (Price & Stock)
+    const validation = await Product.validateCartItems(items, country);
+    if (!validation.valid) {
+      return res.status(400).json({ success: false, message: validation.errors.join(', ') });
+    }
+
+    // 2. Create Internal Order (Status: Pending, Payment: Pending)
+    // This atomically deducts stock via Order.createOrder
+    let internalOrder;
+    try {
+      internalOrder = await Order.createOrder({
+        customerId: req.user?.userId || req.user?.id || null, // Handle both token formats
+        country,
+        items: validation.items,
+        shipping,
+        shippingSpeed: shippingSpeed || 'standard',
+        paymentMethod: 'paypal',
+        paymentStatus: 'pending',
+        subtotal: parseFloat(subtotal),
+        tax: parseFloat(tax || 0),
+        shippingCost: parseFloat(shippingCost || 0),
+        total: parseFloat(total),
+        currency: currency || (country === 'CA' ? 'CAD' : 'USD'),
+        customer_email: email,
+        notes: 'Checkout initiated via PayPal'
+      });
+      logger.info(`Internal order ${internalOrder.order_number} created for ${email}`);
+    } catch (orderErr) {
+      logger.error(`Failed to pre-create order: ${orderErr.message}`);
+      return res.status(500).json({ success: false, message: 'Failed to initiate order. Inventory may be insufficient.' });
+    }
+
+    // 3. Create PayPal Order
+    const accessToken = await getPayPalAccessToken();
+    const frontendBase = getBaseUrl(req);
+    
     const paypalOrder = {
       intent: 'CAPTURE',
       purchase_units: [{
+        reference_id: internalOrder.order_number, // Link internal order# to PayPal
         amount: {
-          currency_code: currency || (country === 'CA' ? 'CAD' : 'USD'),
-          value: nTotal.toFixed(2),
+          currency_code: internalOrder.currency,
+          value: parseFloat(total).toFixed(2),
           breakdown: {
-            item_total: { currency_code: currency, value: nSubtotal.toFixed(2) },
-            shipping: { currency_code: currency, value: nShipping.toFixed(2) },
-            tax_total: { currency_code: currency, value: nTax.toFixed(2) }
+            item_total: { currency_code: internalOrder.currency, value: parseFloat(subtotal).toFixed(2) },
+            shipping: { currency_code: internalOrder.currency, value: parseFloat(shippingCost || 0).toFixed(2) },
+            tax_total: { currency_code: internalOrder.currency, value: parseFloat(tax || 0).toFixed(2) }
           }
         },
         shipping: {
@@ -73,8 +114,8 @@ router.post('/create-order', async (req, res) => {
         }
       }],
       application_context: {
-        return_url: `${process.env.FRONTEND_URL}/payment-success`,
-        cancel_url: `${process.env.FRONTEND_URL}/checkout`,
+        return_url: `${frontendBase}/payment-success?orderId=${internalOrder.id}`,
+        cancel_url: `${frontendBase}/checkout?cancelledOrder=${internalOrder.id}`,
         shipping_preference: 'SET_PROVIDED_ADDRESS',
         user_action: 'PAY_NOW'
       }
@@ -90,149 +131,147 @@ router.post('/create-order', async (req, res) => {
       data: paypalOrder,
     });
 
+    const paypalOrderId = response.data.id;
+
+    // 4. Update Internal Order with the PayPal Reference
+    await Order.updateOrder(internalOrder.id, {
+      payment_reference: paypalOrderId,
+      notes: `PayPal Order Created. ID: ${paypalOrderId}`
+    });
+
     res.json({
       success: true,
-      paypalOrderId: response.data.id,
+      paypalOrderId: paypalOrderId,
+      internalOrderId: internalOrder.id,
+      orderNumber: internalOrder.order_number,
       links: response.data.links
     });
+
   } catch (err) {
-    logger.error(`PayPal Create Order Error: ${err.message}`, { response: err.response?.data });
+    logger.error(`PayPal Create Order Error: ${err.message}`, { 
+      data: err.response?.data,
+      body: req.body 
+    });
     res.status(500).json({ success: false, message: 'Failed to create PayPal order' });
   }
 });
 
 /**
  * POST /api/payment/capture
- * Captures the payment and creates the internal order
+ * 1. Checks if order already paid (Idempotency)
+ * 2. Captures payment from PayPal
+ * 3. Finalizes internal order
  */
-router.post('/capture', optionalAuth, async (req, res) => {
+router.post('/capture', async (req, res) => {
   try {
-    const { paypalOrderId, country, email, items, shipping, shippingSpeed, subtotal, tax, shippingCost, total, currency } = req.body;
-    
-    // 0. Validate items and prices server-side to prevent tampering
-    const validation = await Product.validateCartItems(items, country);
-    if (!validation.valid) {
-      throw new Error(`Validation failed: ${validation.errors.join(', ')}`);
+    const { paypalOrderId } = req.body;
+    if (!paypalOrderId) throw new Error('paypalOrderId is required');
+
+    // 1. Find the internal order by its PayPal reference
+    const [orders] = await db.query('SELECT * FROM orders WHERE payment_reference = ?', [paypalOrderId]);
+    if (!orders.length) {
+      return res.status(404).json({ success: false, message: 'Order not found for this payment reference.' });
+    }
+    const order = orders[0];
+
+    // 2. Idempotency: Check if already processed
+    if (order.payment_status === 'paid') {
+      logger.info(`Capture already completed for PayPal ID ${paypalOrderId}`);
+      return res.json({
+        success: true,
+        alreadyProcessed: true,
+        order: { id: order.id, orderNumber: order.order_number, total: order.total }
+      });
     }
 
     const accessToken = await getPayPalAccessToken();
-    
-    // 1. Check for duplicate capture request (Idempotency)
-    const [existing] = await db.query('SELECT id, order_number, total, currency FROM orders WHERE payment_reference = ?', [paypalOrderId]);
-    if (existing.length > 0) {
-      logger.info(`Idempotent capture: Order already exists for ${paypalOrderId}`);
-      return res.json({
-        success: true,
-        order: {
-          id: existing[0].id,
-          orderNumber: existing[0].order_number,
-          total: existing[0].total,
-          currency: existing[0].currency
-        }
-      });
+
+    // 3. Capture Payment
+    const captureResponse = await axios({
+      url: `${PAYPAL_API}/v2/checkout/orders/${paypalOrderId}/capture`,
+      method: 'post',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      }
+    });
+
+    if (captureResponse.data.status !== 'COMPLETED') {
+      throw new Error(`PayPal payment NOT completed (Status: ${captureResponse.data.status})`);
     }
 
-    // 2. Pre-create Order in 'pending' status (This deducts stock)
-    // This ensures we have a record if capture succeeds but our server crashes/times out
-    let order;
-    try {
-      order = await Order.createOrder({
-        customerId: req.user?.id || null,
-        country,
-        items: validation.items,
-        shipping,
-        shippingSpeed: shippingSpeed || 'standard',
-        paymentMethod: 'paypal',
-        paymentStatus: 'pending',
-        subtotal: parseFloat(subtotal),
-        tax: parseFloat(tax || 0),
-        shippingCost: parseFloat(shippingCost || 0),
-        total: parseFloat(total),
-        currency: currency || (country === 'CA' ? 'CAD' : 'USD'),
-        customer_email: email,
-        notes: `PayPal Order ID: ${paypalOrderId}`
+    const captureMeta = captureResponse.data.purchase_units[0].payments.captures[0];
+    const captureId = captureMeta.id;
+    const captureAmount = parseFloat(captureMeta.amount.value);
+
+    // 4. Double check amount matches internal order
+    if (Math.abs(captureAmount - parseFloat(order.total)) > 0.01) {
+      logger.error(`CRITICAL: Amount mismatch on capture! PayPal: ${captureAmount}, Internal Order ${order.order_number}: ${order.total}`);
+      await Order.updateOrder(order.id, { 
+        payment_status: 'flagged_mismatch', 
+        notes: `CRITICAL: Mismatched capture. Recieved ${captureAmount}, expected ${order.total}. ID: ${captureId}`
       });
-    } catch (dbErr) {
-      logger.error(`Failed to pre-create order: ${dbErr.message}`);
-      return res.status(500).json({ success: false, message: 'Failed to initiate order. Please try again.' });
+      return res.status(400).json({ success: false, message: 'Payment amount mismatch. Order flagged for review.' });
     }
 
-    // 3. Capture the payment
-    try {
-      const captureResponse = await axios({
-        url: `${PAYPAL_API}/v2/checkout/orders/${paypalOrderId}/capture`,
-        method: 'post',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        }
-      });
+    // 5. Success - Finalize internal order
+    await Order.updatePaymentStatus(order.id, {
+      paymentStatus: 'paid',
+      paymentReference: captureId, // Update to actual Capture ID
+      paymentMethod: 'paypal'
+    });
 
-      if (captureResponse.data.status !== 'COMPLETED') {
-        throw new Error(`PayPal payment status: ${captureResponse.data.status}`);
+    // 6. Async fulfillment trigger
+    fulfillOrder(order.id).catch(err => logger.error(`Background fulfillment error [${order.id}]: ${err.message}`));
+
+    res.json({
+      success: true,
+      order: {
+        id: order.id,
+        orderNumber: order.order_number,
+        total: order.total,
+        currency: order.currency
       }
-
-      const captureMeta = captureResponse.data.purchase_units[0].payments.captures[0];
-      const captureId = captureMeta.id;
-      const captureAmount = parseFloat(captureMeta.amount.value);
-
-      // 4. Verify amount matches
-      const expectedTotal = parseFloat(total);
-      if (Math.abs(captureAmount - expectedTotal) > 0.01) {
-        logger.error(`CRITICAL: Amount mismatch! PayPal: ${captureAmount}, Expected: ${expectedTotal}. Refund required.`);
-        // We've already captured the money, we must keep the order but mark it for review
-        await Order.updateOrder(order.id, { 
-          payment_status: 'flagged_mismatch', 
-          payment_reference: captureId,
-          notes: `CRITICAL: Amount mismatch! PayPal: ${captureAmount}, Expected: ${expectedTotal}`
-        });
-        throw new Error('Payment amount mismatch detected.');
-      }
-
-      // 5. Success: Finalize Order
-      await Order.updatePaymentStatus(order.id, {
-        paymentStatus: 'paid',
-        paymentReference: captureId,
-        paymentMethod: 'paypal'
-      });
-
-      // 6. Trigger Fulfillment
-      fulfillOrder(order.id).catch(err => {
-        logger.error(`Background fulfillment failed for order ${order.id}: ${err.message}`);
-      });
-
-      res.json({
-        success: true,
-        order: {
-          id: order.id,
-          orderNumber: order.order_number,
-          total: order.total,
-          currency: order.currency
-        }
-      });
-
-    } catch (captureErr) {
-      logger.error(`PayPal Capture Failed for Order ${order.id}: ${captureErr.message}`);
-      
-      // 7. Critical: Restore stock and mark order as cancelled
-      try {
-        await Product.restoreStock(validation.items);
-        await Order.updateOrder(order.id, { 
-          status: 'cancelled', 
-          payment_status: 'failed',
-          notes: `Capture Failed: ${captureErr.message}`
-        });
-      } catch (cleanupErr) {
-        logger.error(`FAILED TO CLEANUP FAILED ORDER ${order.id}: ${cleanupErr.message}`);
-      }
-
-      const msg = captureErr.response?.data?.message || captureErr.message;
-      res.status(500).json({ success: false, message: `Payment capture failed: ${msg}` });
-    }
+    });
 
   } catch (err) {
-    logger.error(`General Capture Workflow Error: ${err.message}`, { stack: err.stack });
-    res.status(500).json({ success: false, message: 'An unexpected error occurred during payment processing.' });
+    const errorMsg = err.response?.data?.message || err.message;
+    logger.error(`PayPal Capture Error: ${errorMsg}`);
+    res.status(500).json({ success: false, message: `Payment failed: ${errorMsg}` });
+  }
+});
+
+/**
+ * POST /api/payment/cancel-order
+ * Restores stock and marks order as cancelled if user backs out of PayPal
+ */
+router.post('/cancel-order', async (req, res) => {
+  try {
+    const { orderId } = req.body;
+    const [rows] = await db.query('SELECT * FROM orders WHERE id = ?', [orderId]);
+    if (!rows.length) return res.status(404).json({ success: false, message: 'Order not found' });
+    
+    const order = rows[0];
+    if (order.status !== 'pending' || order.payment_status === 'paid') {
+      return res.json({ success: true, message: 'Order cannot be cancelled in current state' });
+    }
+
+    // Get items to restore stock
+    const [items] = await db.query('SELECT * FROM order_items WHERE order_id = ?', [orderId]);
+    
+    // Restore Stock & Delete/Cancel Order
+    await Product.restoreStock(items);
+    await Order.updateOrder(orderId, {
+      status: 'cancelled',
+      payment_status: 'cancelled',
+      notes: 'Customer cancelled at PayPal checkout'
+    });
+
+    logger.info(`Customer cancelled checkout - Order ${order.order_number} marked cancelled, stock restored`);
+    res.json({ success: true, message: 'Checkout cancelled, stock restored.' });
+  } catch (err) {
+    logger.error(`Payment Cancel Error: ${err.message}`);
+    res.status(500).json({ success: false, message: 'Internal error during cancellation' });
   }
 });
 

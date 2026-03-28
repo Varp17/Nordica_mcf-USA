@@ -4,7 +4,7 @@ import { authenticateToken, requireAdmin } from "../middleware/auth.js";
 import { v4 as uuidv4 } from "uuid";
 import json2xls from "json2xls";
 import path from "path";
-import { upload } from "../config/uploadConfig.js";
+import { upload as s3Upload } from "../services/s3Service.js";
 import { shippoClient } from "./shippo.js";
 import fetch from "node-fetch";
 
@@ -118,6 +118,37 @@ router.get("/analytics", authenticateToken, requireAdmin, async (req, res) => {
        ${baseWhere} AND o.status = 'delivered'`,
       dateParams
     );
+
+    // Regional inventory breakdown for dashboard tabs
+    const [inventoryResults] = await db.query(
+      `SELECT target_country, COUNT(*) as count FROM products WHERE is_active = 1 GROUP BY target_country`
+    );
+
+    const inventoryByRegion = { us: 0, canada: 0, both: 0, total: 0 };
+    inventoryResults.forEach(r => {
+      const tc = (r.target_country || '').toLowerCase().trim();
+      const count = Number(r.count || 0);
+      if (tc === 'us') inventoryByRegion.us += count;
+      else if (tc === 'canada') inventoryByRegion.canada += count;
+      else if (tc === 'both' || tc === '') inventoryByRegion.both += count;
+      inventoryByRegion.total += count;
+    });
+
+    const stats = {
+      totalUsers: Number(customersResult[0].totalCustomers),
+      totalOrders: Number(ordersResult[0].totalOrders),
+      totalRevenue: Number(salesResult[0].totalSales || 0),
+      totalProducts: inventoryByRegion.total,
+      pendingOrders: Number(pendingOrdersCount[0].count),
+      cancelledOrders: Number(cancelledOrdersCount[0].count),
+      shippedOrders: Number(shippedOrdersCount[0].count),
+      deliveredOrders: Number(deliveredOrdersCount[0].count),
+      inventoryByRegion: {
+        ...inventoryByRegion,
+        usMarket: inventoryByRegion.us + inventoryByRegion.both,
+        canadaMarket: inventoryByRegion.canada + inventoryByRegion.both,
+      }
+    };
 
     // -------- Payment revenue breakdown ----------
     const [paymentRevenue] = await db.execute(
@@ -275,7 +306,7 @@ router.get("/analytics", authenticateToken, requireAdmin, async (req, res) => {
       `SELECT 
          p.id, p.name, p.price, p.image,
          COALESCE(SUM(oi.quantity), 0) as total_sold,
-         COALESCE(SUM(oi.quantity * oi.price_at_purchase), 0) as revenue
+         COALESCE(SUM(oi.quantity * oi.unit_price), 0) as revenue
        FROM products p
        LEFT JOIN order_items oi ON p.id = oi.product_id
        WHERE p.is_active = 1
@@ -289,20 +320,11 @@ router.get("/analytics", authenticateToken, requireAdmin, async (req, res) => {
     );
 
     res.json({
-      stats: {
-        totalUsers: Number(customersResult[0].totalCustomers),
-        totalOrders: Number(ordersResult[0].totalOrders),
-        totalRevenue: Number(salesResult[0].totalSales || 0),
-        totalProducts: Number(productCount[0].count),
-        pendingOrders: Number(pendingOrdersCount[0].count),
-        cancelledOrders: Number(cancelledOrdersCount[0].count),
-        shippedOrders: Number(shippedOrdersCount[0].count),
-        deliveredOrders: Number(deliveredOrdersCount[0].count),
-      },
+      stats,
       paymentRevenue,
-      recentOrders: orders, // Use the orders from the baseWhere query
+      recentOrders: orders,
       monthlySales,
-      topProducts: topProducts.map(p => ({ ...p, image_url: p.image })), // Map image to image_url
+      topProducts: topProducts.map(p => ({ ...p, image_url: p.image })),
       salesByRegion,
       failedPayments,
       countrySplit,
@@ -319,7 +341,7 @@ router.get("/analytics", authenticateToken, requireAdmin, async (req, res) => {
 // List products
 router.get("/products", authenticateToken, requireAdmin, async (req, res) => {
   try {
-    const { page = 1, limit = 20, search = "", category } = req.query;
+    const { page = 1, limit = 20, search = "", category, country } = req.query;
 
     const pageNum = parseInt(page, 10) || 1;
     const limitNum = parseInt(limit, 10) || 20;
@@ -333,26 +355,54 @@ router.get("/products", authenticateToken, requireAdmin, async (req, res) => {
         " AND (p.name LIKE ? OR p.brand LIKE ? OR p.category LIKE ? OR p.sku LIKE ?)";
       params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
     }
-    if (category) {
+    if (category && category !== "all") {
       whereClause += " AND p.category = ?";
       params.push(category);
     }
+    if (country && country !== "all") {
+      whereClause += " AND (LOWER(p.target_country) = ? OR LOWER(p.target_country) = 'both')";
+      params.push(country.toLowerCase());
+    }
 
-    const [products] = await db.execute(`
+    const [productsResult] = await db.query(`
         SELECT p.*, c.name as category_name 
         FROM products p
         LEFT JOIN categories c ON p.category_id = c.id
+        ${whereClause}
         ORDER BY p.created_at DESC
-      `);
+        LIMIT ? OFFSET ?
+      `, [...params, limitNum, offset]);
 
-      // Map 'image' to 'image_url' for frontend compatibility if needed, 
-      // or just ensure frontend uses 'image'
-      const mappedProducts = products.map(p => ({
-        ...p,
-        image_url: p.image // seed.sql uses 'image'
-      }));
+    const [countResults] = await db.execute(`
+        SELECT COUNT(*) as total FROM products p ${whereClause}
+      `, params);
+    
+    const total = countResults[0]?.total || 0;
 
-      res.json(mappedProducts);
+    res.json({
+      products: productsResult.map(p => {
+        const safeParse = (str) => {
+          if (!str) return [];
+          if (typeof str === 'object') return str;
+          try { return JSON.parse(str); } catch (e) { return []; }
+        };
+        return {
+          ...p,
+          image_url: p.image, // compatibility
+          images: safeParse(p.images),
+          features: safeParse(p.key_features || p.features),
+          specifications: safeParse(p.specifications),
+          tags: safeParse(p.tags)
+        };
+      }),
+      pagination: {
+        total,
+        page: pageNum,
+        limit: limitNum,
+        pages: Math.ceil(total / limitNum)
+      }
+    });
+
   } catch (error) {
     console.error("Get products error:", error);
     res.status(500).json({ error: "Failed to fetch products" });
@@ -364,245 +414,112 @@ router.post(
   "/products",
   authenticateToken,
   requireAdmin,
-  upload.any(), // Accept any field names
+  s3Upload.any(), // Accept any field names
   async (req, res) => {
     const connection = await db.getConnection();
 
     try {
       await connection.beginTransaction();
 
-      console.log('📦 Creating product with data:', {
-        name: req.body.name,
-        brand: req.body.brand,
-        category: req.body.category,
-        target_country: req.body.target_country,
-        target_country_type: typeof req.body.target_country,
-        filesCount: req.files?.length || 0
-      });
+      // Process S3 Files
+      const filesByField = {};
+      if (req.files) {
+        req.files.forEach(f => {
+          if (!filesByField[f.fieldname]) filesByField[f.fieldname] = [];
+          filesByField[f.fieldname].push(f.location);
+        });
+      }
 
-      // Get or create categories and brands
       const { category, brand } = req.body;
-
-      // Get or create category
+      
+      // Get or create category/brand ... (logic remains)
       let categoryId;
       if (category) {
-        const [existingCategories] = await connection.execute(
-          "SELECT id FROM categories WHERE LOWER(name) = LOWER(?)",
-          [category]
-        );
-
-        if (existingCategories.length > 0) {
-          categoryId = existingCategories[0].id;
-        } else {
-          // Create new category
+        const [existingCategories] = await connection.execute("SELECT id FROM categories WHERE LOWER(name) = LOWER(?)", [category]);
+        if (existingCategories.length > 0) categoryId = existingCategories[0].id;
+        else {
           const newCategoryId = uuidv4();
-          await connection.execute(
-            "INSERT INTO categories (id, name, is_active, created_at) VALUES (?, ?, 1, NOW())",
-            [newCategoryId, category]
-          );
+          await connection.execute("INSERT INTO categories (id, name, is_active, created_at) VALUES (?, ?, 1, NOW())", [newCategoryId, category]);
           categoryId = newCategoryId;
-          console.log('✅ Created new category:', category);
         }
       }
 
-      // Get or create brand
       let brandId;
       if (brand) {
-        const [existingBrands] = await connection.execute(
-          "SELECT id FROM brands WHERE LOWER(name) = LOWER(?)",
-          [brand]
-        );
-
-        if (existingBrands.length > 0) {
-          brandId = existingBrands[0].id;
-        } else {
-          // Create new brand
+        const [existingBrands] = await connection.execute("SELECT id FROM brands WHERE LOWER(name) = LOWER(?)", [brand]);
+        if (existingBrands.length > 0) brandId = existingBrands[0].id;
+        else {
           const newBrandId = uuidv4();
-          await connection.execute(
-            "INSERT INTO brands (id, name, is_active, created_at) VALUES (?, ?, 1, NOW())",
-            [newBrandId, brand]
-          );
+          await connection.execute("INSERT INTO brands (id, name, is_active, created_at) VALUES (?, ?, 1, NOW())", [newBrandId, brand]);
           brandId = newBrandId;
-          console.log('✅ Created new brand:', brand);
         }
       }
 
       const {
-        name,
-        price,
-        description,
-        image_url,
-        shortDescription,
-        fullDescription,
-        youtubeUrl,
-        features,
-        specifications,
-        tags,
-        colorVariants,
-        sku,
-        weight,
-        dimensions,
-        material,
-        warranty,
-        returnPolicy,
-        in_stock,
-        target_country, // NEW: Extract country
+        name, price, description, shortDescription, fullDescription, youtubeUrl,
+        features, specifications, tags, colorVariants, sku, weight, dimensions,
+        material, warranty, returnPolicy, in_stock, target_country, images,
         ...rest
       } = req.body;
 
       const stock = parseInt(in_stock) || 0;
       const availability = stock > 0 ? "In Stock" : "Out of Stock";
-
-      // FIXED: Better country validation with explicit check
       const validCountries = ['us', 'canada', 'both'];
-      let targetCountry = 'both'; // Default
-      
-      // Only accept if it's a non-empty string and valid
-      if (target_country && typeof target_country === 'string' && target_country.trim() !== '') {
-        const cleanCountry = target_country.trim().toLowerCase();
-        if (validCountries.includes(cleanCountry)) {
-          targetCountry = cleanCountry;
-        }
-      }
-      
-      console.log('🌍 Target country received:', target_country);
-      console.log('🌍 Target country validated to:', targetCountry);
+      let targetCountry = (target_country && validCountries.includes(target_country.toLowerCase())) ? target_country.toLowerCase() : 'both';
 
-      // Parse JSON strings from frontend
-      const featuresArray = features ? JSON.parse(features) : [];
-      const specificationsArray = specifications ? JSON.parse(specifications) : [];
-      const tagsArray = tags ? JSON.parse(tags) : [];
-      const colorVariantsArray = colorVariants ? JSON.parse(colorVariants) : [];
-
-    
+      const heroImage = filesByField.heroImage?.[0] || filesByField.image?.[0] || req.body.image_url || req.body.image || null;
+      let gallery = [];
+      try { gallery = typeof images === 'string' ? JSON.parse(images) : (images || []); } catch(e) {}
+      if (filesByField.gallery) gallery = [...gallery, ...filesByField.gallery];
 
       const productId = uuidv4();
-
-      // Insert product - UPDATED: Added target_country column
       await connection.execute(
         `INSERT INTO products (
           id, name, name_ar, price, original_price, discount,
           short_description, description, description_ar, full_description,
-          image, youtube_url,
+          image, images, youtube_url,
           rating, reviews, brand, category, category_id, brand_id,
           availability, sku, in_stock,
           weight, dimensions, material, warranty, return_policy,
           key_features, specifications, tags,
           target_country,
           is_active, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
         [
-          productId,
-          name,
-          rest.name_ar || null,
-          parseFloat(price),
+          productId, name, rest.name_ar || null, parseFloat(price),
           rest.original_price ? parseFloat(rest.original_price) : null,
           rest.discount ? parseFloat(rest.discount) : null,
-          shortDescription || null,
-          description || fullDescription || "",
-          rest.description_ar || null,
-          fullDescription || null,
-          image_url,
-          youtubeUrl || null,
-          rest.rating || 0,
-          rest.reviews || 0,
-          brand,
-          category,
-          categoryId,
-          brandId,
-          availability,
-          sku || null,
-          stock,
-          weight || null,
-          dimensions || null,
-          material || null,
-          warranty || null,
-          returnPolicy || null,
-          JSON.stringify(featuresArray),
-          JSON.stringify(specificationsArray),
-          JSON.stringify(tagsArray),
-          targetCountry, // NEW: Store country
-          1,
+          shortDescription || null, description || fullDescription || "",
+          rest.description_ar || null, fullDescription || null,
+          heroImage, JSON.stringify(gallery), youtubeUrl || null,
+          rest.rating || 0, rest.reviews || 0, brand, category, categoryId, brandId,
+          availability, sku || null, stock, 
+          weight || null, dimensions || null, material || null, warranty || null, returnPolicy || null,
+          features || "[]", specifications || "[]", tags || "[]",
+          targetCountry, 1,
         ]
       );
 
-      console.log('✅ Product created:', productId, 'for country:', targetCountry);
-
-      // Process uploaded files
-      if (req.files && req.files.length > 0) {
-        const filesByField = {};
-        req.files.forEach(file => {
-          if (!filesByField[file.fieldname]) {
-            filesByField[file.fieldname] = [];
-          }
-          filesByField[file.fieldname].push(file);
-        });
-
-        console.log('📁 Files grouped by field:', Object.keys(filesByField));
-
-        // Insert main images
-        if (filesByField.mainImages) {
-          for (let i = 0; i < filesByField.mainImages.length; i++) {
-            const file = filesByField.mainImages[i];
-            await connection.execute(
-              `INSERT INTO product_images (id, product_id, image_url, image_type, display_order, created_at)
-               VALUES (?, ?, ?, 'main', ?, NOW())`,
-              [uuidv4(), productId, `/uploads/${file.filename}`, i + 1]
-            );
-          }
-          console.log(`✅ Inserted ${filesByField.mainImages.length} main images`);
-        }
-
-        // Insert related images
-        if (filesByField.relatedImages) {
-          for (let i = 0; i < filesByField.relatedImages.length; i++) {
-            const file = filesByField.relatedImages[i];
-            await connection.execute(
-              `INSERT INTO product_images (id, product_id, image_url, image_type, display_order, created_at)
-               VALUES (?, ?, ?, 'related', ?, NOW())`,
-              [uuidv4(), productId, `/uploads/${file.filename}`, i + 1]
-            );
-          }
-          console.log(`✅ Inserted ${filesByField.relatedImages.length} related images`);
-        }
-
-        // Insert color variants and their images
-        if (colorVariantsArray && colorVariantsArray.length > 0) {
-          for (let i = 0; i < colorVariantsArray.length; i++) {
-            const variant = colorVariantsArray[i];
-            const variantId = uuidv4();
-
-            await connection.execute(
-              `INSERT INTO product_color_variants (id, product_id, color_name, color_code, stock, created_at)
-               VALUES (?, ?, ?, ?, ?, NOW())`,
+      // Color Variants & Images
+      const colorVariantsArray = typeof colorVariants === 'string' ? JSON.parse(colorVariants) : (colorVariants || []);
+      for (let i = 0; i < colorVariantsArray.length; i++) {
+          const variant = colorVariantsArray[i];
+          const variantId = uuidv4();
+          await connection.execute(
+              "INSERT INTO product_color_variants (id, product_id, color_name, color_code, stock, created_at) VALUES (?,?,?,?,?,NOW())",
               [variantId, productId, variant.color, variant.colorCode, variant.stock || 0]
-            );
-
-            // Insert images for this color variant
-            const colorImageFieldName = `colorVariantImages_${i}`;
-            if (filesByField[colorImageFieldName]) {
-              for (let j = 0; j < filesByField[colorImageFieldName].length; j++) {
-                const file = filesByField[colorImageFieldName][j];
-                await connection.execute(
-                  `INSERT INTO product_images (id, product_id, image_url, image_type, color_variant_id, display_order, created_at)
-                   VALUES (?, ?, ?, 'color_variant', ?, ?, NOW())`,
-                  [uuidv4(), productId, `/uploads/${file.filename}`, variantId, j + 1]
-                );
-              }
-              console.log(`✅ Inserted ${filesByField[colorImageFieldName].length} images for color: ${variant.color}`);
-            }
+          );
+          const vFiles = filesByField[`colorVariantImages_${i}`] || [];
+          for (let j = 0; j < vFiles.length; j++) {
+              await connection.execute(
+                  "INSERT INTO product_images (id, product_id, image_url, image_type, color_variant_id, display_order, created_at) VALUES (?,?,?,?,?,?,NOW())",
+                  [uuidv4(), productId, vFiles[j], 'color_variant', variantId, j+1]
+              );
           }
-          console.log(`✅ Inserted ${colorVariantsArray.length} color variants`);
-        }
       }
 
       await connection.commit();
-      
-      res.status(201).json({
-        message: "Product created successfully",
-        productId: productId,
-        target_country: targetCountry, // NEW: Return country in response
-      });
+      res.status(201).json({ success: true, productId, target_country: targetCountry });
     } catch (error) {
       await connection.rollback();
       console.error("❌ Create product error:", error);
@@ -621,55 +538,38 @@ router.put(
   "/products/:id",
   authenticateToken,
   requireAdmin,
-  upload.any(),
+  s3Upload.any(),
   async (req, res) => {
     const connection = await db.getConnection();
 
     try {
       await connection.beginTransaction();
-
       const { id } = req.params;
-      
-      console.log('📝 Updating product:', id);
-      console.log('📝 Country received:', req.body.target_country);
+
+      // Process S3 Files
+      const filesByField = {};
+      if (req.files) {
+        req.files.forEach(f => {
+          if (!filesByField[f.fieldname]) filesByField[f.fieldname] = [];
+          filesByField[f.fieldname].push(f.location);
+        });
+      }
 
       const {
-        name,
-        price,
-        category,
-        brand,
-        description,
-        image_url,
-        shortDescription,
-        fullDescription,
-        youtubeUrl,
-        features,
-        specifications,
-        tags,
-        colorVariants,
-        sku,
-        weight,
-        dimensions,
-        material,
-        warranty,
-        returnPolicy,
-        in_stock,
-        target_country, // NEW: Extract country
-        ...rest
+        name, price, category, brand, description, image_url, image,
+        shortDescription, fullDescription, youtubeUrl,
+        features, specifications, tags, colorVariants, images,
+        sku, weight, dimensions, material, warranty, returnPolicy,
+        in_stock, target_country, ...rest
       } = req.body;
 
-      // Build update object
       const updates = {};
-
       if (name) updates.name = name;
       if (price) updates.price = parseFloat(price);
       if (description !== undefined) updates.description = description;
-      if (shortDescription !== undefined)
-        updates.short_description = shortDescription;
-      if (fullDescription !== undefined)
-        updates.full_description = fullDescription;
+      if (shortDescription !== undefined) updates.short_description = shortDescription;
+      if (fullDescription !== undefined) updates.full_description = fullDescription;
       if (youtubeUrl !== undefined) updates.youtube_url = youtubeUrl;
-      if (image_url !== undefined) updates.image = image_url; // Changed to 'image'
       if (sku !== undefined) updates.sku = sku;
       if (weight !== undefined) updates.weight = weight;
       if (dimensions !== undefined) updates.dimensions = dimensions;
@@ -677,171 +577,86 @@ router.put(
       if (warranty !== undefined) updates.warranty = warranty;
       if (returnPolicy !== undefined) updates.return_policy = returnPolicy;
 
-      if (features) updates.key_features = features;
-      if (specifications) updates.specifications = specifications;
-      if (tags) updates.tags = tags;
+      if (features) updates.key_features = typeof features === 'string' ? features : JSON.stringify(features);
+      if (specifications) updates.specifications = typeof specifications === 'string' ? specifications : JSON.stringify(specifications);
+      if (tags) updates.tags = typeof tags === 'string' ? tags : JSON.stringify(tags);
 
-      // FIXED: Better country validation
-      if (target_country !== undefined) {
-        const validCountries = ['us', 'canada', 'both'];
-        if (target_country && typeof target_country === 'string' && target_country.trim() !== '') {
-          const cleanCountry = target_country.trim().toLowerCase();
-          if (validCountries.includes(cleanCountry)) {
-            updates.target_country = cleanCountry;
-          } else {
-            updates.target_country = 'both'; // Default fallback
-          }
-        } else {
-          updates.target_country = 'both'; // Default fallback
-        }
-        console.log('🌍 Updating country to:', updates.target_country);
+      // image update
+      if (filesByField.heroImage || filesByField.image) {
+          updates.image = filesByField.heroImage?.[0] || filesByField.image?.[0];
+      } else if (image_url || image) {
+          updates.image = image_url || image;
       }
 
-      // Handle category/brand (create if doesn't exist)
-      if (category) {
-        const [existingCategories] = await connection.execute(
-          "SELECT id FROM categories WHERE LOWER(name) = LOWER(?)",
-          [category]
-        );
+      let gallery = [];
+      try { gallery = typeof images === 'string' ? JSON.parse(images) : (images || []); } catch(e) {}
+      if (filesByField.gallery) gallery = [...gallery, ...filesByField.gallery];
+      updates.images = JSON.stringify(gallery);
 
-        if (existingCategories.length > 0) {
-          updates.category_id = existingCategories[0].id;
-        } else {
-          const newCategoryId = uuidv4();
-          await connection.execute(
-            "INSERT INTO categories (id, name, is_active, created_at) VALUES (?, ?, 1, NOW())",
-            [newCategoryId, category]
-          );
-          updates.category_id = newCategoryId;
+      if (target_country !== undefined) {
+        const validCountries = ['us', 'canada', 'both'];
+        updates.target_country = (target_country && validCountries.includes(target_country.toLowerCase())) ? target_country.toLowerCase() : 'both';
+      }
+
+      if (category) {
+        const [cats] = await connection.execute("SELECT id FROM categories WHERE LOWER(name) = LOWER(?)", [category]);
+        if (cats.length > 0) updates.category_id = cats[0].id;
+        else {
+          const nid = uuidv4();
+          await connection.execute("INSERT INTO categories (id, name, is_active, created_at) VALUES (?, ?, 1, NOW())", [nid, category]);
+          updates.category_id = nid;
         }
         updates.category = category;
       }
 
       if (brand) {
-        const [existingBrands] = await connection.execute(
-          "SELECT id FROM brands WHERE LOWER(name) = LOWER(?)",
-          [brand]
-        );
-
-        if (existingBrands.length > 0) {
-          updates.brand_id = existingBrands[0].id;
-        } else {
-          const newBrandId = uuidv4();
-          await connection.execute(
-            "INSERT INTO brands (id, name, is_active, created_at) VALUES (?, ?, 1, NOW())",
-            [newBrandId, brand]
-          );
-          updates.brand_id = newBrandId;
+        const [brs] = await connection.execute("SELECT id FROM brands WHERE LOWER(name) = LOWER(?)", [brand]);
+        if (brs.length > 0) updates.brand_id = brs[0].id;
+        else {
+          const nid = uuidv4();
+          await connection.execute("INSERT INTO brands (id, name, is_active, created_at) VALUES (?, ?, 1, NOW())", [nid, brand]);
+          updates.brand_id = nid;
         }
         updates.brand = brand;
       }
 
-      // Handle stock
       if (in_stock !== undefined) {
         updates.in_stock = parseInt(in_stock);
-        updates.availability =
-          parseInt(in_stock) > 0 ? "In Stock" : "Out of Stock";
+        updates.availability = parseInt(in_stock) > 0 ? "In Stock" : "Out of Stock";
       }
 
-      // Update product basic info
       if (Object.keys(updates).length > 0) {
-        const fields = Object.keys(updates)
-          .map((key) => `${key} = ?`)
-          .join(", ");
-        const values = Object.values(updates).concat(id);
-
-        await connection.execute(
-          `UPDATE products SET ${fields}, updated_at = NOW() WHERE id = ?`,
-          values
-        );
+        const fields = Object.keys(updates).map(k => `${k} = ?`).join(", ");
+        await connection.execute(`UPDATE products SET ${fields}, updated_at = NOW() WHERE id = ?`, [...Object.values(updates), id]);
       }
 
-      // Handle uploaded files (same as create)
-      if (req.files && req.files.length > 0) {
-        const filesByField = {};
-        req.files.forEach(file => {
-          if (!filesByField[file.fieldname]) {
-            filesByField[file.fieldname] = [];
-          }
-          filesByField[file.fieldname].push(file);
-        });
-
-        if (filesByField.mainImages) {
-          for (let i = 0; i < filesByField.mainImages.length; i++) {
-            const file = filesByField.mainImages[i];
-            await connection.execute(
-              `INSERT INTO product_images (id, product_id, image_url, image_type, display_order, created_at)
-               VALUES (?, ?, ?, 'main', ?, NOW())`,
-              [uuidv4(), id, `/uploads/${file.filename}`, i + 1]
-            );
-          }
-        }
-
-        if (filesByField.relatedImages) {
-          for (let i = 0; i < filesByField.relatedImages.length; i++) {
-            const file = filesByField.relatedImages[i];
-            await connection.execute(
-              `INSERT INTO product_images (id, product_id, image_url, image_type, display_order, created_at)
-               VALUES (?, ?, ?, 'related', ?, NOW())`,
-              [uuidv4(), id, `/uploads/${file.filename}`, i + 1]
-            );
-          }
-        }
-      }
-
-      // Update color variants if provided
       if (colorVariants) {
-        const colorVariantsArray = JSON.parse(colorVariants);
-
-        // Delete existing variants
-        await connection.execute(
-          "DELETE FROM product_color_variants WHERE product_id = ?",
-          [id]
-        );
-
-        // Insert new variants (same as create)
-        for (let i = 0; i < colorVariantsArray.length; i++) {
-          const variant = colorVariantsArray[i];
-          const variantId = uuidv4();
-
+        await connection.execute("DELETE FROM product_color_variants WHERE product_id = ?", [id]);
+        await connection.execute("DELETE FROM product_images WHERE product_id = ? AND image_type = 'color_variant'", [id]);
+        const cvArray = typeof colorVariants === 'string' ? JSON.parse(colorVariants) : (colorVariants || []);
+        for (let i = 0; i < cvArray.length; i++) {
+          const v = cvArray[i];
+          const vId = uuidv4();
           await connection.execute(
-            `INSERT INTO product_color_variants (id, product_id, color_name, color_code, stock, created_at)
-             VALUES (?, ?, ?, ?, ?, NOW())`,
-            [variantId, id, variant.color, variant.colorCode, variant.stock || 0]
+            "INSERT INTO product_color_variants (id, product_id, color_name, color_code, stock, created_at) VALUES (?,?,?,?,?,NOW())",
+            [vId, id, v.color, v.colorCode, v.stock || 0]
           );
-
-          const colorImageFieldName = `colorVariantImages_${i}`;
-          const filesByField = {};
-          if (req.files) {
-            req.files.forEach(file => {
-              if (!filesByField[file.fieldname]) {
-                filesByField[file.fieldname] = [];
-              }
-              filesByField[file.fieldname].push(file);
-            });
-          }
-
-          if (filesByField[colorImageFieldName]) {
-            for (let j = 0; j < filesByField[colorImageFieldName].length; j++) {
-              const file = filesByField[colorImageFieldName][j];
-              await connection.execute(
-                `INSERT INTO product_images (id, product_id, image_url, image_type, color_variant_id, display_order, created_at)
-                 VALUES (?, ?, ?, 'color_variant', ?, ?, NOW())`,
-                [uuidv4(), id, `/uploads/${file.filename}`, variantId, j + 1]
-              );
-            }
+          const vFiles = filesByField[`colorVariantImages_${i}`] || [];
+          for (let j = 0; j < vFiles.length; j++) {
+            await connection.execute(
+              "INSERT INTO product_images (id, product_id, image_url, image_type, color_variant_id, display_order, created_at) VALUES (?,?,?,?,?,?,NOW())",
+              [uuidv4(), id, vFiles[j], 'color_variant', vId, j+1]
+            );
           }
         }
       }
 
       await connection.commit();
-      res.json({ message: "Product updated successfully" });
+      res.json({ success: true, message: "Product updated successfully" });
     } catch (error) {
       await connection.rollback();
       console.error("❌ Update product error:", error);
-      res
-        .status(500)
-        .json({ error: "Failed to update product", details: error.message });
+      res.status(500).json({ error: "Failed to update product", details: error.message });
     } finally {
       connection.release();
     }
@@ -1978,7 +1793,7 @@ router.post(
   "/banners",
   authenticateToken,
   requireAdmin,
-  upload.single("file"),
+  s3Upload.single("file"),
   async (req, res) => {
     try {
       const {
@@ -1995,7 +1810,7 @@ router.post(
       } = req.body;
 
       const file = req.file;
-      const uploadedPath = file ? `/uploads/${file.filename}` : null;
+      const uploadedPath = file ? file.location : null;
       const finalImageUrl = uploadedPath || image_url;
 
       if (!finalImageUrl) {
@@ -2034,7 +1849,7 @@ router.put(
   "/banners/:id",
   authenticateToken,
   requireAdmin,
-  upload.single("file"),
+  s3Upload.single("file"),
   async (req, res) => {
     try {
       const { id } = req.params;
@@ -2052,7 +1867,7 @@ router.put(
       } = req.body;
 
       const file = req.file;
-      const uploadedPath = file ? `/uploads/${file.filename}` : null;
+      const uploadedPath = file ? file.location : null;
 
       const updates = [];
       const values = [];
@@ -2150,6 +1965,26 @@ router.post('/create-dummy-order', authenticateToken, requireAdmin, async (req, 
     res.status(500).json({ message: err.message });
   } finally {
     connection.release();
+  }
+});
+
+// DEBUG: Market Categorization (Run once to setup regional split)
+router.post("/debug/recalibrate-regions", authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const [all] = await db.query("SELECT id FROM products WHERE is_active = 1 LIMIT 21");
+    if (all.length === 0) return res.json({ message: "No products found" });
+    
+    // Assign top 6 to US
+    for (let i = 0; i < Math.min(6, all.length); i++) {
+        await db.query("UPDATE products SET target_country = 'us' WHERE id = ?", [all[i].id]);
+    }
+    // Assign next 15 to Canada
+    for (let i = 6; i < Math.min(21, all.length); i++) {
+        await db.query("UPDATE products SET target_country = 'canada' WHERE id = ?", [all[i].id]);
+    }
+    res.json({ success: true, message: `Market split complete: ${all.length} products categorized.` });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
   }
 });
 
