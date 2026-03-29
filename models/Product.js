@@ -86,6 +86,7 @@ export async function findVariantById(identifier) {
       price: parseFloat(v.price),
       stock: v.stock,
       sku: v.amazon_sku || v.sku,
+      amazon_sku: v.amazon_sku || v.sku,
       country: v.country,
       image: v.image_url || v.product_image
     };
@@ -118,6 +119,7 @@ export async function findVariantById(identifier) {
       price: parseFloat(v.price),
       stock: v.stock,
       sku: v.amazon_sku || v.sku,
+      amazon_sku: v.amazon_sku || v.sku,
       country: v.p_country,
       image: v.product_image
     };
