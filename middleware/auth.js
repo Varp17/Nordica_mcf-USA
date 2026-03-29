@@ -47,6 +47,7 @@ export function requireRole(...roles) {
       return res.status(401).json({ success: false, message: 'Not authenticated' });
     }
     if (!roles.includes(req.user.role)) {
+      logger.warn(`Auth failure: UID ${req.user.id} has role '${req.user.role}', but expected '${roles.join(' or ')}' for ${req.method} ${req.originalUrl}`);
       return res.status(403).json({ success: false, message: 'Insufficient permissions' });
     }
     next();

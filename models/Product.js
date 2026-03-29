@@ -271,4 +271,35 @@ function _parseProduct(p) {
   };
 }
 
-export default { findAll, findById, findBySlug, findBySku, findVariantById, validateCartItems, deductStock, restoreStock };
+export async function checkStock(identifier, quantity = 1) {
+  let baseId = identifier;
+  let colorName = null;
+  if (typeof identifier === 'string' && identifier.includes('::')) {
+    [baseId, colorName] = identifier.split('::');
+  }
+
+  const product = await findVariantById(baseId);
+  if (!product) return { available: false, currentStock: 0, error: 'Product not found' };
+
+  let currentStock = product.inventory_cache !== undefined ? product.inventory_cache : (product.stock || 0);
+
+  // If color was specified, find stock in color_options JSON
+  if (colorName && Array.isArray(product.color_options)) {
+    const searchColor = colorName.trim().toLowerCase();
+    const option = product.color_options.find(o => 
+      (o.value && o.value.toLowerCase() === searchColor) || 
+      (o.name && o.name.toLowerCase() === searchColor)
+    );
+    if (option) {
+      currentStock = option.stock !== undefined ? option.stock : (option.inventory_cache || 0);
+    }
+  }
+
+  return {
+    available: currentStock >= quantity,
+    currentStock,
+    name: product.name
+  };
+}
+
+export default { findAll, findById, findBySlug, findBySku, findVariantById, validateCartItems, deductStock, restoreStock, checkStock };

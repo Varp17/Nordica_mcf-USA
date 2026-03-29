@@ -33,6 +33,7 @@ import shippoWebhookRoutes from './routes/shippoWebhook.js';
 import trackingRoutes from './routes/tracking.js';
 import debugRoutes from './routes/debug.js';
 import paypalWebhookRoutes from './routes/paypalWebhook.js';
+import stockRoutes from './routes/stock.js';
 
 
 // Missing routes stub (can be implemented later)
@@ -90,20 +91,18 @@ app.use(regionDetect);
 
 // Static Assets
 app.use('/assets', (req, res, next) => {
-  if (process.env.ASSETS_S3_BASE_URL) {
-    try {
-      // Decode first to avoid double encoding if the path already had %20 etc.
-      const decodedPath = decodeURIComponent(req.path);
-      const encodedPath = decodedPath.split('/').map(segment => encodeURIComponent(segment)).join('/');
-      const s3Url = `${process.env.ASSETS_S3_BASE_URL.replace(/\/$/, '')}/assets${encodedPath.startsWith('/') ? '' : '/'}${encodedPath}`;
-      // Ensure no double slashes before redirection
-      const cleanS3Url = s3Url.replace(/([^:])\/\//g, '$1/');
-      logger.debug(`Redirecting asset request to S3: ${req.path} -> ${cleanS3Url}`);
-      return res.redirect(cleanS3Url);
-    } catch (e) {
-      logger.error(`S3 Redirect Error: ${e.message} for path ${req.path}`);
-      // Fallback to local static serving if decoding fails
+  try {
+    if (process.env.ASSETS_S3_BASE_URL) {
+      // Robust S3 URL construction
+      const pathPart = req.path.startsWith('/') ? req.path : `/${req.path}`;
+      const s3Base = process.env.ASSETS_S3_BASE_URL.replace(/\/$/, '');
+      const s3Url = `${s3Base}/assets${pathPart}`;
+      
+      logger.debug(`Redirecting asset request to S3: ${req.path} -> ${s3Url}`);
+      return res.redirect(s3Url);
     }
+  } catch (e) {
+    logger.error(`S3 Redirect Error: ${e.message} for path ${req.path}`);
   }
   next();
 },
@@ -170,6 +169,7 @@ app.get('/api/admin/recover-stock', async (req, res) => {
   }
 });
 app.use('/api/admin', crmRoutes);
+app.use('/api/stock', stockRoutes);
 app.use('/api/debug', debugRoutes);
 
 
@@ -192,24 +192,22 @@ async function startServer() {
     await db.query('SELECT 1');
     logger.info('✅ MySQL database connected');
 
-    // 2. Test Redis connection (Essential for Bull jobs)
+    // 2. Test Redis connection (Used for tracking poller, NOT required for inventorySync anymore)
     try {
       await redisClient.connect();
       await redisClient.ping();
       logger.info('✅ Redis connected');
     } catch (redisErr) {
-      logger.error(`❌ Background Job Error: Redis is required for tracking & inventory, but is unavailable. ${redisErr.message}`);
-      // In production, we should probably exit or warn heavily
-      if (process.env.NODE_ENV === 'production') {
-        throw new Error('Redis is mandatory in production for background workflows.');
-      }
+      logger.warn(`⚠️  Redis unavailable: ${redisErr.message}. Tracking poller may not work, but stock sync will continue without it.`);
+      // Redis is no longer mandatory — inventorySync now uses setInterval instead of Bull
     }
 
+    // Start background jobs (inventorySync runs independently of Redis)
     trackingPoller.startPolling();
     inventorySync.startInventorySync();
     stockRecovery.start();
     startStockMonitoring();
-    logger.info('✅ Background jobs started');
+    logger.info('✅ Background jobs started (1-hour stock sync, stock monitoring, stock recovery)');
 
     app.listen(PORT, () => {
       logger.info(`✅ Server running on port ${PORT}`);

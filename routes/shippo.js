@@ -1,4 +1,4 @@
-// import express from "express";
+// // import express from "express";
 // import { Shippo } from "shippo";
 // import db from "../config/database.js";
 // import { authenticateToken, requireAdmin } from "../middleware/auth.js";
@@ -83,6 +83,97 @@
 //     }
 //   }
 // );
+
+// /* ================================================== */
+// /* 2️⃣ Trackings (detailed) from Shippo               */
+// /* GET /api/admin/shippo/trackings                    */
+// /* ================================================== */
+// const handleTrackings = async (req, res) => {
+//   try {
+//     console.log("📊 GET /trackings (Shippo trackingStatus API)");
+
+//     const { status, page = 1 } = req.query;
+
+//     const transactions = await shippo.transactions.list({
+//       page: Number(page),
+//       results: 20,
+//     });
+
+//     const results = transactions.results || [];
+
+//     const detailed = await Promise.all(
+//       results.map(async (t) => {
+//         const trackingNumber =
+//           t.tracking_number || t.trackingNumber || null;
+//         const carrier =
+//           t.tracking_carrier ||
+//           t.trackingCarrier ||
+//           t.carrier ||
+//           null;
+
+//         let tracking = null;
+//         if (trackingNumber && carrier) {
+//           try {
+//             const ts = await shippo.trackingStatus.get(
+//               carrier,
+//               trackingNumber
+//             );
+//             tracking = mapShippoTracking(ts);
+//           } catch (err) {
+//             console.error(
+//               "⚠️ trackingStatus.get failed for",
+//               carrier,
+//               trackingNumber,
+//               err
+//             );
+//           }
+//         }
+
+//         const trackingStatus =
+//           tracking?.status ||
+//           t.tracking_status ||
+//           t.trackingStatus ||
+//           null;
+
+//         return {
+//           transactionId: t.object_id,
+//           orderId: t.order || null,
+//           shippo_tracking_number: trackingNumber,
+//           shippo_carrier: carrier,
+//           shippo_tracking_status: trackingStatus,
+//           tracking,
+//           tracking_raw: tracking || t,
+//         };
+//       })
+//     );
+
+//     const filtered = status
+//       ? detailed.filter(
+//           (d) =>
+//             (d.shippo_tracking_status || "").toUpperCase() ===
+//             String(status).toUpperCase()
+//         )
+//       : detailed;
+
+//     res.json({
+//       success: true,
+//       data: filtered,
+//       pagination: {
+//         page: transactions.page || Number(page),
+//         next: transactions.next,
+//         previous: transactions.previous,
+//       },
+//     });
+//   } catch (err) {
+//     console.error("❌ List Shippo trackings error:", err);
+//     res
+//       .status(500)
+//       .json({ error: "Failed to list Shippo trackings" });
+//   }
+// };
+
+// router.get("/trackings", authenticateToken, requireAdmin, handleTrackings);
+// router.get("/tracking", authenticateToken, requireAdmin, handleTrackings); // Alias for frontend compatibility
 
 // /* ================================================== */
 // /* 2️⃣ Transactions (labels) from Shippo              */
@@ -1282,81 +1373,79 @@ router.get(
 /* Trackings (detailed) from Shippo                         */
 /* GET /api/admin/shippo/trackings                          */
 /* ══════════════════════════════════════════════════════════ */
-router.get(
-  "/trackings",
-  authenticateToken,
-  requireAdmin,
-  async (req, res) => {
-    try {
-      console.log("📊 GET /trackings (Shippo trackingStatus API)");
+const handleTrackings = async (req, res) => {
+  try {
+    console.log("📊 GET /trackings (Shippo trackingStatus API)");
 
-      const { status, page = 1 } = req.query;
+    const { status, page = 1 } = req.query;
 
-      const transactions = await shippo.transactions.list({
-        page: Number(page),
-        results: 20,
-      });
+    const transactions = await shippo.transactions.list({
+      page: Number(page),
+      results: 20,
+    });
 
-      const results = transactions.results || [];
+    const results = transactions.results || [];
 
-      const detailed = await Promise.all(
-        results.map(async (t) => {
-          const trackingNumber = t.tracking_number || t.trackingNumber || null;
-          const carrier = t.tracking_carrier || t.trackingCarrier || t.carrier || null;
+    const detailed = await Promise.all(
+      results.map(async (t) => {
+        const trackingNumber = t.tracking_number || t.trackingNumber || null;
+        const carrier = t.tracking_carrier || t.trackingCarrier || t.carrier || null;
 
-          let tracking = null;
-          if (trackingNumber && carrier) {
-            try {
-              const ts = await shippo.trackingStatus.get(carrier, trackingNumber);
-              tracking = mapShippoTracking(ts);
-            } catch (err) {
-              console.error(
-                "⚠️ trackingStatus.get failed for",
-                carrier,
-                trackingNumber,
-                err
-              );
-            }
+        let tracking = null;
+        if (trackingNumber && carrier) {
+          try {
+            const ts = await shippo.trackingStatus.get(carrier, trackingNumber);
+            tracking = mapShippoTracking(ts);
+          } catch (err) {
+            console.error(
+              "⚠️ trackingStatus.get failed for",
+              carrier,
+              trackingNumber,
+              err
+            );
           }
+        }
 
-          const trackingStatus =
-            tracking?.status || t.tracking_status || t.trackingStatus || null;
+        const trackingStatus =
+          tracking?.status || t.tracking_status || t.trackingStatus || null;
 
-          return {
-            transactionId: t.object_id,
-            orderId: t.order || null,
-            shippo_tracking_number: trackingNumber,
-            shippo_carrier: carrier,
-            shippo_tracking_status: trackingStatus,
-            tracking,
-            tracking_raw: tracking || t,
-          };
-        })
-      );
+        return {
+          transactionId: t.object_id,
+          orderId: t.order || null,
+          shippo_tracking_number: trackingNumber,
+          shippo_carrier: carrier,
+          shippo_tracking_status: trackingStatus,
+          tracking,
+          tracking_raw: tracking || t,
+        };
+      })
+    );
 
-      const filtered = status
-        ? detailed.filter(
-            (d) =>
-              (d.shippo_tracking_status || "").toUpperCase() ===
-              String(status).toUpperCase()
-          )
-        : detailed;
+    const filtered = status
+      ? detailed.filter(
+          (d) =>
+            (d.shippo_tracking_status || "").toUpperCase() ===
+            String(status).toUpperCase()
+        )
+      : detailed;
 
-      res.json({
-        success: true,
-        data: filtered,
-        pagination: {
-          page: transactions.page || Number(page),
-          next: transactions.next,
-          previous: transactions.previous,
-        },
-      });
-    } catch (err) {
-      console.error("❌ List Shippo trackings error:", err);
-      res.status(500).json({ error: "Failed to list Shippo trackings" });
-    }
+    res.json({
+      success: true,
+      data: filtered,
+      pagination: {
+        page: transactions.page || Number(page),
+        next: transactions.next,
+        previous: transactions.previous,
+      },
+    });
+  } catch (err) {
+    console.error("❌ List Shippo trackings error:", err);
+    res.status(500).json({ error: "Failed to list Shippo trackings" });
   }
-);
+};
+
+router.get("/trackings", authenticateToken, requireAdmin, handleTrackings);
+router.get("/tracking", authenticateToken, requireAdmin, handleTrackings); // Alias for frontend compatibility
 
 /* ══════════════════════════════════════════════════════════ */
 /* GAP 2a — Canada orders list                              */

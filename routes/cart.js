@@ -1,6 +1,7 @@
 import express from "express";
 import { v4 as uuidv4 } from "uuid";
 import db from "../config/database.js";
+import Product from "../models/Product.js";
 import { authenticateToken } from "../middleware/auth.js";
 
 const router = express.Router()
@@ -249,10 +250,20 @@ router.post("/items", authenticateToken, async (req, res, next) => {
     }
 
     // 2. Check product availability
+    const stockStatus = await Product.checkStock(productId, quantity);
+    if (!stockStatus.available) {
+      return res.status(400).json({ 
+        success: false, 
+        error: `Insufficient stock for ${stockStatus.name || 'product'}. Available: ${stockStatus.currentStock}` 
+      });
+    }
+
+    /* Original basic check:
     const [products] = await connection.execute("SELECT in_stock FROM products WHERE id = ?", [productId]);
     if (products.length === 0 || products[0].in_stock <= 0) {
       throw new Error("Product not found or is out of stock");
     }
+    */
 
     // 3. Check if item already in cart
     const [existingItems] = await connection.execute(
@@ -311,6 +322,15 @@ router.put("/items/:productId", authenticateToken, async (req, res) => {
     }
 
     const cartId = carts[0].id
+
+    // Check stock before updating
+    const stockStatus = await Product.checkStock(productId, quantity);
+    if (!stockStatus.available) {
+      return res.status(400).json({ 
+        success: false, 
+        error: `Insufficient stock for ${stockStatus.name || 'product'}. Available: ${stockStatus.currentStock}` 
+      });
+    }
 
     // Update item quantity
     const [result] = await db.execute(

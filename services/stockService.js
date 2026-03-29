@@ -65,8 +65,8 @@ export async function checkInventoryLevels() {
   }
 }
 
-// Start a periodic check every 6 hours
-export function startStockMonitoring(intervalMs = 6 * 60 * 60 * 1000) {
+// Start a periodic check every 1 hour (updated from 6 hours)
+export function startStockMonitoring(intervalMs = 1 * 60 * 60 * 1000) {
   logger.info(`Stock monitoring started (Interval: ${intervalMs / 3600000} hours)`);
   
   // Run once on startup

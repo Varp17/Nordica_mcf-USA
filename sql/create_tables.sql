@@ -14,10 +14,10 @@ SET FOREIGN_KEY_CHECKS = 0;
 -- ------------------------------------------------------------
 -- 1. DATABASE
 -- ------------------------------------------------------------
-CREATE DATABASE IF NOT EXISTS nordica_ecomliv
+CREATE DATABASE IF NOT EXISTS nordica_ecomsun
   CHARACTER SET utf8mb4
   COLLATE utf8mb4_unicode_ci;
-USE nordica_ecomliv;
+USE nordica_ecomsun;
 
 -- ------------------------------------------------------------
 -- 2. USERS (admin + customers)
@@ -147,6 +147,7 @@ CREATE TABLE products (
   brand_id           CHAR(36)      DEFAULT NULL,
   sku                VARCHAR(100)  DEFAULT NULL UNIQUE,
   amazon_sku         VARCHAR(100)  DEFAULT NULL UNIQUE,
+  amazon_url         VARCHAR(500)  DEFAULT NULL,
   
   -- Statistics
   rating             DECIMAL(3,2)  NOT NULL DEFAULT 0,
@@ -336,6 +337,7 @@ CREATE TABLE orders (
   -- Financial
   subtotal                   DECIMAL(12,2)  NOT NULL,
   tax                        DECIMAL(12,2)  NOT NULL DEFAULT 0.00,
+  tax_amount                 DECIMAL(12,2)  NOT NULL DEFAULT 0.00,
   shipping_cost              DECIMAL(12,2)  NOT NULL DEFAULT 0.00,
   total                      DECIMAL(12,2)  NOT NULL,
   currency                   CHAR(3)        DEFAULT 'USD',
@@ -400,6 +402,9 @@ CREATE TABLE order_items (
   quantity           INT           NOT NULL DEFAULT 1,
   unit_price         DECIMAL(12,2) NOT NULL,
   total_price        DECIMAL(12,2) NOT NULL,
+  price_at_purchase  DECIMAL(12,2) DEFAULT NULL,
+  product_name_at_purchase VARCHAR(255) DEFAULT NULL,
+  image_url_at_purchase VARCHAR(1000) DEFAULT NULL,
   weight_kg          DECIMAL(6,3)  DEFAULT 0.500,
   currency           CHAR(3)       DEFAULT 'USD',
   created_at         DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -607,6 +612,7 @@ DROP TABLE IF EXISTS banners;
 CREATE TABLE banners (
   id               CHAR(36)      PRIMARY KEY DEFAULT (UUID()),
   title            VARCHAR(255)  NOT NULL,
+  description      TEXT          DEFAULT NULL,
   subtitle         TEXT          DEFAULT NULL,
   image_url        VARCHAR(1000) NOT NULL,
   link_url         VARCHAR(500)  DEFAULT NULL,
@@ -672,8 +678,14 @@ GROUP BY DATE_FORMAT(invoice_date, '%Y-%m'), currency;
 -- ------------------------------------------------------------
 -- 22. STORED PROCEDURE — Generate Invoice Number (monthly sequence)
 -- ------------------------------------------------------------
-DROP PROCEDURE IF EXISTS generate_invoice_number;
-DELIMITER //
+-- ------------------------------------------------------------
+-- 22. STORED PROCEDURE — Generate Invoice Number
+-- ------------------------------------------------------------
+
+DELIMITER $$
+
+DROP PROCEDURE IF EXISTS generate_invoice_number$$
+
 CREATE PROCEDURE generate_invoice_number(OUT new_invoice_number VARCHAR(20))
 BEGIN
   DECLARE current_year  INT;
@@ -697,16 +709,16 @@ BEGIN
     LPAD(current_month, 2, '0'), '-',
     LPAD(next_number,   5, '0')
   );
-END //
-DELIMITER ;
+END$$
 
+DELIMITER ;
 -- ------------------------------------------------------------
 -- 23. SAMPLE / SEED DATA
 -- ------------------------------------------------------------
 
--- Admin user (password: admin123, bcrypt hash)
+-- Admin user (password: Admin@Secure123!, bcrypt hash)
 INSERT INTO users (id, email, password_hash, first_name, last_name, role, is_active) VALUES
-  (UUID(), 'admin@ecom.com', '$2a$10$DC9d6SQpYsVdgmuYFguj9eZ8TpGa4JjGiPM99QvhFcmpof/huHhv9y', 'Admin', 'User', 'superadmin', 1)
+  (UUID(), 'admin@detailguardz.com', '$2a$10$DC9d6SQpYsVdgmuYFguj9eZ8TpGa4JjGiPM99QvhFcmpof/huHhv9y', 'Admin', 'User', 'superadmin', 1)
 ON DUPLICATE KEY UPDATE email = email;
 
 -- Sample customer
@@ -900,7 +912,7 @@ INSERT INTO products (
   id, name, slug, description, long_description, price, original_price,
   category, brand, image, images, variant_images, features, compatibility,
   rating, review_count, in_stock, about_section, badge, url, specifications,
-  color_options, videos, reviews, rating_breakdown, hide_for_usa, sizes, country, target_country
+  color_options, videos, reviews, rating_breakdown, hide_for_usa, sizes, country, target_country, amazon_url
 ) SELECT 
   UUID(), 
   'DETAIL GUARDZ Dirt Lock Car Wash Insert – Bucket Filter for 3–8 Gallon Round Pails – Traps Debris, Prevents Swirl Marks – Self-Locking Rubber Grips, Venturi Flow, Cleaning Tool',
@@ -1024,8 +1036,7 @@ INSERT INTO products (
     JSON_OBJECT('stars', 2, 'percentage', 3, 'count', 66),
     JSON_OBJECT('stars', 1, 'percentage', 4, 'count', 88)
   ),
-  0, NULL, 'USA', 'both'
-FROM DUAL;
+  0, NULL, 'USA', 'us', NULL FROM DUAL;
 
 -- ============================================================
 -- CONTINUED: PRODUCT INSERTS
@@ -1036,7 +1047,7 @@ INSERT INTO products (
   id, name, slug, description, long_description, price, original_price,
   category, brand, image, images, variant_images, features, compatibility,
   rating, review_count, in_stock, about_section, badge, url, specifications,
-  color_options, videos, reviews, rating_breakdown, hide_for_usa, sizes, country, target_country
+  color_options, videos, reviews, rating_breakdown, hide_for_usa, sizes, country, target_country, amazon_url
 ) SELECT 
   UUID(), 
   'DETAIL GUARDZ Dirt Lock Scrub Wall 180/360 – Vertical Cleaning Tool for Brushes, Mitts',
@@ -1141,15 +1152,14 @@ INSERT INTO products (
     JSON_OBJECT('stars', 2, 'percentage', 4, 'count', 33),
     JSON_OBJECT('stars', 1, 'percentage', 6, 'count', 49)
   ),
-  0, NULL, 'USA', 'both'
-FROM DUAL;
+  0, NULL, 'USA', 'us', NULL FROM DUAL;
 
 -- Dirt Lock Scrub & Pump (USA)
 INSERT INTO products (
   id, name, slug, description, long_description, price, original_price,
   category, brand, image, images, variant_images, features, compatibility,
   rating, review_count, in_stock, about_section, badge, url, specifications,
-  color_options, videos, reviews, rating_breakdown, hide_for_usa, sizes, country, target_country
+  color_options, videos, reviews, rating_breakdown, hide_for_usa, sizes, country, target_country, amazon_url
 ) SELECT 
   UUID(),
   'DETAIL GUARDZ The Dirt Lock Scrub and Pump Attachment for Car Wash Bucket Filter',
@@ -1208,8 +1218,8 @@ INSERT INTO products (
     'manufacturer', 'DETAIL GUARDZ Canada'
   ),
   JSON_ARRAY(
-    JSON_OBJECT('name', 'BLACK', 'value', 'black', 'sku', 'DIRT-LOCK-SAP-BLACK', 'asin', 'B08FTBJ9XT', 'amazon_sku', 'DIRT-LOCK-SAP-BLACK', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/The Dirt Lock Scrub and Pump black.webp', 'price', 16.99, 'title', 'DETAIL GUARDZ The Dirt Lock Scrub and Pump Attachment for Car Wash Bucket Filter (Black)'),
-    JSON_OBJECT('name', 'WHITE', 'value', 'white', 'sku', 'DIRT-LOCK-SAP-WHITE', 'asin', 'B08FTK9PJJ', 'amazon_sku', 'DIRT-LOCK-SAP-WHITE', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/The Dirt Lock Scrub and Pump white.webp', 'price', 16.99, 'title', 'DETAIL GUARDZ The Dirt Lock Scrub and Pump Attachment for Car Wash Bucket Filter (White)')
+    JSON_OBJECT('name', 'BLACK', 'value', 'black', 'sku', 'DIRT LOCK-SAP BLACK', 'asin', 'B08FTBJ9XT', 'fnsku', 'B08FTBJ9XT', 'amazon_sku', 'DIRT LOCK-SAP BLACK', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/The Dirt Lock Scrub and Pump black.webp', 'price', 16.99, 'title', 'DETAIL GUARDZ The Dirt Lock Scrub and Pump Attachment for Car Wash Bucket Filter (Black)'),
+    JSON_OBJECT('name', 'WHITE', 'value', 'white', 'sku', 'DIRT LOCK-SAP WHITE', 'asin', 'B08FTK9PJJ', 'amazon_sku', 'DIRT LOCK-SAP WHITE', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/The Dirt Lock Scrub and Pump white.webp', 'price', 16.99, 'title', 'DETAIL GUARDZ The Dirt Lock Scrub and Pump Attachment for Car Wash Bucket Filter (White)')
   ),
   JSON_OBJECT(
     'main', JSON_OBJECT('url', 'https://www.youtube.com/embed/Ck9pNdgxRp4', 'title', 'DETAIL GUARDZ Dirt Lock Scrub and Pump Attachment', 'description', 'Experience the power of filtered water. The Scrub and Pump attachment ensures you are always using the cleanest possible water on your vehicle.'),
@@ -1228,15 +1238,14 @@ INSERT INTO products (
     JSON_OBJECT('stars', 2, 'percentage', 5, 'count', 12),
     JSON_OBJECT('stars', 1, 'percentage', 4, 'count', 9)
   ),
-  0, NULL, 'USA', 'both'
-FROM DUAL;
+  0, NULL, 'USA', 'us', NULL FROM DUAL;
 
 -- Pad Washer System (USA)
 INSERT INTO products (
   id, name, slug, description, long_description, price, original_price,
   category, brand, image, images, variant_images, features, compatibility,
   rating, review_count, in_stock, about_section, badge, url, specifications,
-  color_options, videos, reviews, rating_breakdown, hide_for_usa, sizes, country, target_country
+  color_options, videos, reviews, rating_breakdown, hide_for_usa, sizes, country, target_country, amazon_url
 ) SELECT 
   UUID(),
   'The Detail Guardz - Dirt Lock Pad Washer System With Attachment',
@@ -1294,10 +1303,10 @@ INSERT INTO products (
     'manufacturer', 'DETAIL GUARDZ Canada'
   ),
   JSON_ARRAY(
-    JSON_OBJECT('name', 'Black + 650ML Cleaner', 'value', 'black-cleaner', 'sku', 'DIRT-LOCK-PWSBL', 'asin', 'B07VGMKW7S', 'amazon_sku', 'DIRT-LOCK-PWSBL', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Pad Washer Images/Black + 650ML Cleaner.webp', 'price', 58.99, 'title', 'The Detail Guardz - Dirt Lock Pad Washer System Attachment with Spray Cleaner (Black)', 'url', 'https://www.amazon.com/Detail-Guardz-Attachment-Without-Cleaner/dp/B07VGMKW7S/ref=pd_cer_fm_1/135-9153945-0013018?pd_rd_r=457f8f31-4d35-4d41-86e7-f8ad048dcd17&pd_rd_wg=vU41E&pd_rd_w=ynUdM&pd_rd_i=B07XL4CL1T&th=1'),
-    JSON_OBJECT('name', 'White + 650ML Cleaner', 'value', 'white-cleaner', 'sku', 'DIRT-LOCK-PWSW-1', 'asin', 'B08KTV77ZC', 'amazon_sku', 'DIRT-LOCK-PWSW-1', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Pad Washer Images/White + 650ML Cleaner.webp', 'price', 58.99, 'title', 'DETAIL GUARDZ The Dirt Lock Pad Washer System Attachment with Spray Cleaner (White)', 'url', 'https://www.amazon.com/Detail-Guardz-Attachment-Without-Cleaner/dp/B08KTV77ZC/ref=pd_cer_fm_1/135-9153945-0013018?pd_rd_r=457f8f31-4d35-4d41-86e7-f8ad048dcd17&pd_rd_wg=vU41E&pd_rd_w=ynUdM&pd_rd_i=B07XL4CL1T&th=1'),
-    JSON_OBJECT('name', 'black', 'value', 'black', 'sku', 'DIRT-LOCK-PWS-BLACK', 'asin', 'B07XL4CL1T', 'amazon_sku', 'DIRT-LOCK-PWS-BLACK', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Pad Washer Images/black.webp', 'price', 49.99, 'title', 'The Detail Guardz - Dirt Lock Pad Washer System Attachment (Black)', 'url', 'https://www.amazon.com/Detail-Guardz-Attachment-Without-Cleaner/dp/B07XL4CL1T/ref=pd_cer_fm_1/135-9153945-0013018?pd_rd_r=457f8f31-4d35-4d41-86e7-f8ad048dcd17&pd_rd_wg=vU41E&pd_rd_w=ynUdM&pd_rd_i=B07XL4CL1T&th=1'),
-    JSON_OBJECT('name', 'white', 'value', 'white', 'sku', 'DIRT-LOCK-PWS-WHITE-1', 'asin', 'B08KTVWVMJ', 'amazon_sku', 'DIRT-LOCK-PWS-WHITE-1', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Pad Washer Images/white.webp', 'price', 49.99, 'title', 'DETAIL GUARDZ The Dirt Lock Pad Washer System Attachment (White)', 'url', 'https://www.amazon.com/Detail-Guardz-Attachment-Without-Cleaner/dp/B08KTVWVMJ/ref=pd_cer_fm_1/135-9153945-0013018?pd_rd_r=457f8f31-4d35-4d41-86e7-f8ad048dcd17&pd_rd_wg=vU41E&pd_rd_w=ynUdM&pd_rd_i=B07XL4CL1T&th=1')
+    JSON_OBJECT('name', 'Black + 650ML Cleaner', 'value', 'black-cleaner', 'sku', 'DIRT LOCK-PWSBL', 'asin', 'B07VGMKW7S', 'amazon_sku', 'DIRT LOCK-PWSBL', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Pad Washer Images/Black + 650ML Cleaner.webp', 'price', 58.99, 'title', 'The Detail Guardz - Dirt Lock Pad Washer System Attachment with Spray Cleaner (Black)', 'url', 'https://www.amazon.com/Detail-Guardz-Attachment-Without-Cleaner/dp/B07VGMKW7S/ref=pd_cer_fm_1/135-9153945-0013018?pd_rd_r=457f8f31-4d35-4d41-86e7-f8ad048dcd17&pd_rd_wg=vU41E&pd_rd_w=ynUdM&pd_rd_i=B07XL4CL1T&th=1'),
+    JSON_OBJECT('name', 'White + 650ML Cleaner', 'value', 'white-cleaner', 'sku', 'DIRT LOCK-PWSW-1', 'asin', 'B08KTV77ZC', 'amazon_sku', 'DIRT LOCK-PWSW-1', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Pad Washer Images/White + 650ML Cleaner.webp', 'price', 58.99, 'title', 'DETAIL GUARDZ The Dirt Lock Pad Washer System Attachment with Spray Cleaner (White)', 'url', 'https://www.amazon.com/Detail-Guardz-Attachment-Without-Cleaner/dp/B08KTV77ZC/ref=pd_cer_fm_1/135-9153945-0013018?pd_rd_r=457f8f31-4d35-4d41-86e7-f8ad048dcd17&pd_rd_wg=vU41E&pd_rd_w=ynUdM&pd_rd_i=B07XL4CL1T&th=1'),
+    JSON_OBJECT('name', 'black', 'value', 'black', 'sku', 'DIRT LOCK-PWS-BLACK', 'asin', 'B07XL4CL1T', 'amazon_sku', 'DIRT LOCK-PWS-BLACK', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Pad Washer Images/black.webp', 'price', 49.99, 'title', 'The Detail Guardz - Dirt Lock Pad Washer System Attachment (Black)', 'url', 'https://www.amazon.com/Detail-Guardz-Attachment-Without-Cleaner/dp/B07XL4CL1T/ref=pd_cer_fm_1/135-9153945-0013018?pd_rd_r=457f8f31-4d35-4d41-86e7-f8ad048dcd17&pd_rd_wg=vU41E&pd_rd_w=ynUdM&pd_rd_i=B07XL4CL1T&th=1'),
+    JSON_OBJECT('name', 'white', 'value', 'white', 'sku', 'DIRT LOCK-PWS-WHITE-1', 'asin', 'B08KTVWVMJ', 'amazon_sku', 'DIRT LOCK-PWS-WHITE-1', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Pad Washer Images/white.webp', 'price', 49.99, 'title', 'DETAIL GUARDZ The Dirt Lock Pad Washer System Attachment (White)', 'url', 'https://www.amazon.com/Detail-Guardz-Attachment-Without-Cleaner/dp/B08KTVWVMJ/ref=pd_cer_fm_1/135-9153945-0013018?pd_rd_r=457f8f31-4d35-4d41-86e7-f8ad048dcd17&pd_rd_wg=vU41E&pd_rd_w=ynUdM&pd_rd_i=B07XL4CL1T&th=1')
   ),
   JSON_OBJECT(
     'main', JSON_OBJECT('url', 'https://www.youtube.com/embed/_ZHI-xV6XLg', 'title', 'DETAIL GUARDZ Dirt Lock Pad Washer System', 'description', 'See how the SEMA Award-winning Dirt Lock Pad Washer System cleans your polishing pads safely and gently in seconds.'),
@@ -1319,15 +1328,14 @@ INSERT INTO products (
     JSON_OBJECT('stars', 2, 'percentage', 10, 'count', 7),
     JSON_OBJECT('stars', 1, 'percentage', 20, 'count', 13)
   ),
-  0, NULL, 'USA', 'both'
-FROM DUAL;
+  0, NULL, 'USA', 'us', NULL FROM DUAL;
 
 -- Hose Roller 4pk (USA)
 INSERT INTO products (
   id, name, slug, description, long_description, price, original_price,
   category, brand, image, images, variant_images, features, compatibility,
   rating, review_count, in_stock, about_section, badge, url, specifications,
-  color_options, videos, reviews, rating_breakdown, hide_for_usa, sizes, country, target_country
+  color_options, videos, reviews, rating_breakdown, hide_for_usa, sizes, country, target_country, amazon_url
 ) SELECT 
   UUID(),
   'DETAIL GUARDZ Hose Guide – Tire Wheel Rolling System Preventing Stucking and Snagging Under Tires',
@@ -1414,11 +1422,11 @@ INSERT INTO products (
     'manufacturer', 'DETAIL GUARDZ Canada'
   ),
   JSON_ARRAY(
-    JSON_OBJECT('name', 'Black', 'value', 'black', 'sku', '1008-4-stickerless', 'asin', 'B07ND5F6N8', 'amazon_sku', '1008-4-stickerless', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Black/1. Hero Image.webp', 'price', 19.99),
-    JSON_OBJECT('name', 'Blue', 'value', 'blue', 'sku', 'Detail-Guardz-Hose-Guides-2.0-Blue', 'asin', 'B0FFBC4B67', 'amazon_sku', 'Detail Guardz Hose Guides 2.0 -Blue', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Blue/1. Hero Image.webp', 'price', 19.99),
-    JSON_OBJECT('name', 'Red', 'value', 'red', 'sku', 'Detail-Guardz-Hose-Guides-2.0-Red', 'asin', 'B0FHKV1PRW', 'amazon_sku', 'Detail Guardz Hose Guides 2.0_Red', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Red/1. Hero Image.webp', 'price', 19.99),
-    JSON_OBJECT('name', 'Yellow', 'value', 'yellow', 'sku', 'Detail-Guardz-Hose-Guides-2.0-Yellow', 'asin', 'B0FHKV4JZT', 'amazon_sku', 'Detail Guardz Hose Guides 2.0_Yellow', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Yellow/1. Hero Image.webp', 'price', 19.99),
-    JSON_OBJECT('name', 'Neon', 'value', 'neon', 'sku', 'Detail-Guardz-Hose-Guides-2.0-Neon', 'asin', 'B0FHJMVP5V', 'amazon_sku', 'Detail Guardz Hose Guides 2.0_Neon', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Neon/1. Hero Image.webp', 'price', 19.99)
+    JSON_OBJECT('name', 'Black', 'value', 'black', 'sku', 'Detail Guardz Hose Guides 2.0_NewBlack', 'asin', 'B07ND5F6N8', 'amazon_sku', 'Detail Guardz Hose Guides 2.0_NewBlack', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Black/1. Hero Image.webp', 'price', 19.99),
+    JSON_OBJECT('name', 'Blue', 'value', 'blue', 'sku', 'Detail Guardz Hose Guides 2.0 -Blue', 'asin', 'B0FFBC4B67', 'amazon_sku', 'Detail Guardz Hose Guides 2.0 -Blue', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Blue/1. Hero Image.webp', 'price', 19.99),
+    JSON_OBJECT('name', 'Red', 'value', 'red', 'sku', 'Detail Guardz Hose Guides 2.0_Red', 'asin', 'B0FHKV1PRW', 'amazon_sku', 'Detail Guardz Hose Guides 2.0_Red', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Red/1. Hero Image.webp', 'price', 19.99),
+    JSON_OBJECT('name', 'Yellow', 'value', 'yellow', 'sku', 'Detail Guardz Hose Guides 2.0_Yellow', 'asin', 'B0FHKV4JZT', 'amazon_sku', 'Detail Guardz Hose Guides 2.0_Yellow', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Yellow/1. Hero Image.webp', 'price', 19.99),
+    JSON_OBJECT('name', 'Neon', 'value', 'neon', 'sku', 'Detail Guardz Hose Guides 2.0_Neon', 'asin', 'B0FHJMVP5V', 'amazon_sku', 'Detail Guardz Hose Guides 2.0_Neon', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/4-Pack Hose Guide/Neon/1. Hero Image.webp', 'price', 19.99)
   ),
   JSON_OBJECT(
     'main', JSON_OBJECT('url', 'https://www.youtube.com/embed/W37xy__Vou4', 'title', 'DETAIL GUARDZ Hose Guide', 'description', 'Stop fighting your hose! See how the Detail Guardz Hose Guide keeps your wash flowing smoothly with its anti-jam roller system.'),
@@ -1439,15 +1447,14 @@ INSERT INTO products (
     JSON_OBJECT('stars', 2, 'percentage', 3, 'count', 83),
     JSON_OBJECT('stars', 1, 'percentage', 5, 'count', 138)
   ),
-  0, NULL, 'USA', 'both'
-FROM DUAL;
+  0, NULL, 'USA', 'us', NULL FROM DUAL;
 
 -- Dirt Lock Complete Pad Washer Kit (USA)
 INSERT INTO products (
   id, name, slug, description, long_description, price, original_price,
   category, brand, image, images, variant_images, features, compatibility,
   rating, review_count, in_stock, about_section, badge, url, specifications,
-  color_options, videos, reviews, rating_breakdown, hide_for_usa, sizes, country, target_country
+  color_options, videos, reviews, rating_breakdown, hide_for_usa, sizes, country, target_country, amazon_url
 ) SELECT 
   UUID(),
   'The Detail Guardz - Dirt Lock Pad Washer System Attachment (Black)',
@@ -1517,8 +1524,8 @@ INSERT INTO products (
     'manufacturer', 'DETAIL GUARDZ Canada'
   ),
   JSON_ARRAY(
-    JSON_OBJECT('name', 'Black', 'value', 'black', 'sku', 'DIRT LOCK-PWS-BLACK', 'asin', 'B07XL4CL1T', 'amazon_sku', 'DIRT LOCK-PWS-BLACK', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Pad Washer Images/black.webp', 'price', 49.99, 'title', 'The Detail Guardz - Dirt Lock Pad Washer System Attachment (Black)', 'url', 'https://www.amazon.com/Detail-Guardz-Attachment-Without-Cleaner/dp/B07XL4CL1T/ref=pd_cer_fm_1/135-9153945-0013018?pd_rd_r=457f8f31-4d35-4d41-86e7-f8ad048dcd17&pd_rd_wg=vU41E&pd_rd_w=ynUdM&pd_rd_i=B07XL4CL1T&th=1'),
-    JSON_OBJECT('name', 'White', 'value', 'white', 'sku', 'DIRT LOCK-PWS-WHITE-1', 'asin', 'B08KTVWVMJ', 'amazon_sku', 'DIRT LOCK-PWS-WHITE-1', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Pad Washer Images/white.webp', 'price', 49.99, 'title', 'DETAIL GUARDZ The Dirt Lock Pad Washer System Attachment (White)', 'url', 'https://www.amazon.com/Detail-Guardz-Attachment-Without-Cleaner/dp/B08KTVWVMJ/ref=pd_cer_fm_1/135-9153945-0013018?pd_rd_r=457f8f31-4d35-4d41-86e7-f8ad048dcd17&pd_rd_wg=vU41E&pd_rd_w=ynUdM&pd_rd_i=B07XL4CL1T&th=1')
+    JSON_OBJECT('name', 'Black', 'value', 'black', 'sku', 'DIRT LOCK-PWS-BLACK', 'asin', 'B07XL4CL1T', 'fnsku', 'X002B6QOON', 'amazon_sku', 'DIRT LOCK-PWS-BLACK', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Pad Washer Images/black.webp', 'price', 49.99, 'title', 'The Detail Guardz - Dirt Lock Pad Washer System Attachment (Black)', 'url', 'https://www.amazon.com/Detail-Guardz-Attachment-Without-Cleaner/dp/B07XL4CL1T/ref=pd_cer_fm_1/135-9153945-0013018?pd_rd_r=457f8f31-4d35-4d41-86e7-f8ad048dcd17&pd_rd_wg=vU41E&pd_rd_w=ynUdM&pd_rd_i=B07XL4CL1T&th=1'),
+    JSON_OBJECT('name', 'White', 'value', 'white', 'sku', 'DIRT LOCK-PWS-WHITE-1', 'asin', 'B08KTVWVMJ', 'fnsku', 'X002O8MDE3', 'amazon_sku', 'DIRT LOCK-PWS-WHITE-1', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Pad Washer Images/white.webp', 'price', 49.99, 'title', 'DETAIL GUARDZ The Dirt Lock Pad Washer System Attachment (White)', 'url', 'https://www.amazon.com/Detail-Guardz-Attachment-Without-Cleaner/dp/B08KTVWVMJ/ref=pd_cer_fm_1/135-9153945-0013018?pd_rd_r=457f8f31-4d35-4d41-86e7-f8ad048dcd17&pd_rd_wg=vU41E&pd_rd_w=ynUdM&pd_rd_i=B07XL4CL1T&th=1')
   ),
   JSON_OBJECT(
     'main', JSON_OBJECT('url', 'https://www.youtube.com/embed/_ZHI-xV6XLg', 'title', 'DETAIL GUARDZ Dirt Lock Pad Washer System', 'description', 'The complete guide to using the Pad Washer system with the Dirt Lock filter.'),
@@ -1539,8 +1546,7 @@ INSERT INTO products (
     JSON_OBJECT('stars', 2, 'percentage', 3, 'count', 17),
     JSON_OBJECT('stars', 1, 'percentage', 1, 'count', 5)
   ),
-  0, NULL, 'USA', 'both'
-FROM DUAL;
+  0, NULL, 'USA', 'us', NULL FROM DUAL;
 
 -- ============================================================
 -- CANADA PRODUCTS
@@ -1551,7 +1557,7 @@ INSERT INTO products (
   id, name, slug, description, long_description, price, original_price,
   category, brand, image, images, variant_images, features, compatibility,
   rating, review_count, in_stock, about_section, badge, url, specifications,
-  color_options, videos, reviews, rating_breakdown, hide_for_usa, sizes, country, target_country
+  color_options, videos, reviews, rating_breakdown, hide_for_usa, sizes, country, target_country, amazon_url
 ) SELECT 
   UUID(),
   'DETAIL GUARDZ 5 GALLON DETAILING BUCKET',
@@ -1594,15 +1600,14 @@ INSERT INTO products (
     JSON_OBJECT('stars', 2, 'percentage', 3, 'count', 17),
     JSON_OBJECT('stars', 1, 'percentage', 1, 'count', 5)
   ),
-  0, NULL, 'CAD', 'both'
-FROM DUAL;
+  0, NULL, 'CAD', 'canada', NULL FROM DUAL;
 
 -- CAD Dirt Lock
 INSERT INTO products (
   id, name, slug, description, long_description, price, original_price,
   category, brand, image, images, variant_images, features, compatibility,
   rating, review_count, in_stock, about_section, badge, url, specifications,
-  color_options, videos, reviews, rating_breakdown, hide_for_usa, sizes, country, target_country
+  color_options, videos, reviews, rating_breakdown, hide_for_usa, sizes, country, target_country, amazon_url
 ) SELECT 
   UUID(),
   'DIRT LOCK - CAR WASH BUCKET INSERT',
@@ -1720,15 +1725,14 @@ INSERT INTO products (
     JSON_OBJECT('stars', 2, 'percentage', 3, 'count', 17),
     JSON_OBJECT('stars', 1, 'percentage', 1, 'count', 5)
   ),
-  0, NULL, 'CAD', 'both'
-FROM DUAL;
+  0, NULL, 'CAD', 'canada', NULL FROM DUAL;
 
 -- CAD Pad Washer Kit
 INSERT INTO products (
   id, name, slug, description, long_description, price, original_price,
   category, brand, image, images, variant_images, features, compatibility,
   rating, review_count, in_stock, about_section, badge, url, specifications,
-  color_options, videos, reviews, rating_breakdown, hide_for_usa, sizes, country, target_country
+  color_options, videos, reviews, rating_breakdown, hide_for_usa, sizes, country, target_country, amazon_url
 ) SELECT 
   UUID(),
   'DIRT LOCK - COMPLETE PAD WASHER KIT',
@@ -1813,15 +1817,14 @@ INSERT INTO products (
     JSON_OBJECT('stars', 2, 'percentage', 3, 'count', 17),
     JSON_OBJECT('stars', 1, 'percentage', 1, 'count', 5)
   ),
-  0, NULL, 'CAD', 'both'
-FROM DUAL;
+  0, NULL, 'CAD', 'canada', NULL FROM DUAL;
 
 -- CAD Pad Washer Cleaner Kit
 INSERT INTO products (
   id, name, slug, description, long_description, price, original_price,
   category, brand, image, images, variant_images, features, compatibility,
   rating, review_count, in_stock, about_section, badge, url, specifications,
-  color_options, videos, reviews, rating_breakdown, hide_for_usa, sizes, country, target_country
+  color_options, videos, reviews, rating_breakdown, hide_for_usa, sizes, country, target_country, amazon_url
 ) SELECT 
   UUID(),
   'DIRT LOCK - COMPLETE PAD WASHER KIT WITH CLEANER',
@@ -1903,15 +1906,14 @@ INSERT INTO products (
     JSON_OBJECT('stars', 2, 'percentage', 3, 'count', 17),
     JSON_OBJECT('stars', 1, 'percentage', 1, 'count', 5)
   ),
-  0, NULL, 'CAD', 'both'
-FROM DUAL;
+  0, NULL, 'CAD', 'canada', NULL FROM DUAL;
 
 -- CAD Scrub Wall Kit
 INSERT INTO products (
   id, name, slug, description, long_description, price, original_price,
   category, brand, image, images, variant_images, features, compatibility,
   rating, review_count, in_stock, about_section, badge, url, specifications,
-  color_options, videos, reviews, rating_breakdown, hide_for_usa, sizes, country, target_country
+  color_options, videos, reviews, rating_breakdown, hide_for_usa, sizes, country, target_country, amazon_url
 ) SELECT 
   UUID(),
   'DIRT LOCK - COMPLETE SCRUB WALL KIT',
@@ -1995,15 +1997,14 @@ INSERT INTO products (
     JSON_OBJECT('stars', 2, 'percentage', 3, 'count', 17),
     JSON_OBJECT('stars', 1, 'percentage', 1, 'count', 5)
   ),
-  0, NULL, 'CAD', 'both'
-FROM DUAL;
+  0, NULL, 'CAD', 'canada', NULL FROM DUAL;
 
 -- CAD Hose Guide 4PK
 INSERT INTO products (
   id, name, slug, description, long_description, price, original_price,
   category, brand, image, images, variant_images, features, compatibility,
   rating, review_count, in_stock, about_section, badge, url, specifications,
-  color_options, videos, reviews, rating_breakdown, hide_for_usa, sizes, country, target_country
+  color_options, videos, reviews, rating_breakdown, hide_for_usa, sizes, country, target_country, amazon_url
 ) SELECT 
   UUID(),
   'DETAIL GUARDZ - HOSE GUIDE (4PK)',
@@ -2075,7 +2076,7 @@ INSERT INTO products (
   JSON_ARRAY(
     JSON_OBJECT('name', 'Blue', 'value', 'blue', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DETAIL GUARDZ - HOSE GUIDE (4PK)/Detail_Guardz_Car_Hose_Guides_-_4_Pack_Blue_d6ccc2fc-4146-4699-bd6f-625d5a7fad15_720x.webp', 'price', 32.99),
     JSON_OBJECT('name', 'Black', 'value', 'black', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DETAIL GUARDZ - HOSE GUIDE (4PK)/Detail_Guardz_Car_Hose_Guides_-_4_Pack_Black_720x.webp', 'price', 32.99),
-    JSON_OBJECT('name', 'Neon Green', 'value', 'neon-green', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DETAIL GUARDZ - HOSE GUIDE (4PK)/Detail_Guardz_Car_Hose_Guides_-_4_Pack_Neon-Green_720x.webp', 'price', 32.99),
+    JSON_OBJECT('name', 'Neon', 'value', 'neon', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DETAIL GUARDZ - HOSE GUIDE (4PK)/Detail_Guardz_Car_Hose_Guides_-_4_Pack_Neon-Green_720x.webp', 'price', 32.99),
     JSON_OBJECT('name', 'Red', 'value', 'red', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DETAIL GUARDZ - HOSE GUIDE (4PK)/Detail_Guardz_Car_Hose_Guides_-_4_Pack_Red_720x.webp', 'price', 32.99),
     JSON_OBJECT('name', 'Yellow', 'value', 'yellow', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DETAIL GUARDZ - HOSE GUIDE (4PK)/Detail_Guardz_Car_Hose_Guides_-_4_Pack_Yellow_720x.webp', 'price', 32.99)
   ),
@@ -2098,15 +2099,14 @@ INSERT INTO products (
     JSON_OBJECT('stars', 2, 'percentage', 3, 'count', 17),
     JSON_OBJECT('stars', 1, 'percentage', 1, 'count', 5)
   ),
-  0, NULL, 'CAD', 'both'
-FROM DUAL;
+  0, NULL, 'CAD', 'canada', NULL FROM DUAL;
 
 -- CAD PPSC 650ML
 INSERT INTO products (
   id, name, slug, description, long_description, price, original_price,
   category, brand, image, images, variant_images, features, compatibility,
   rating, review_count, in_stock, about_section, badge, url, specifications,
-  color_options, videos, reviews, rating_breakdown, hide_for_usa, sizes, country, target_country
+  color_options, videos, reviews, rating_breakdown, hide_for_usa, sizes, country, target_country, amazon_url
 ) SELECT 
   UUID(),
   'DETAIL GUARDZ - POLISHING PAD SPRAY CLEANER 650ML',
@@ -2147,15 +2147,14 @@ INSERT INTO products (
     JSON_OBJECT('stars', 2, 'percentage', 3, 'count', 17),
     JSON_OBJECT('stars', 1, 'percentage', 1, 'count', 5)
   ),
-  0, NULL, 'CAD', 'both'
-FROM DUAL;
+  0, NULL, 'CAD', 'canada', NULL FROM DUAL;
 
 -- CAD Scrub Pump Kit
 INSERT INTO products (
   id, name, slug, description, long_description, price, original_price,
   category, brand, image, images, variant_images, features, compatibility,
   rating, review_count, in_stock, about_section, badge, url, specifications,
-  color_options, videos, reviews, rating_breakdown, hide_for_usa, sizes, country, target_country
+  color_options, videos, reviews, rating_breakdown, hide_for_usa, sizes, country, target_country, amazon_url
 ) SELECT 
   UUID(),
   'DIRT LOCK - COMPLETE SCRUB AND PUMP KIT',
@@ -2246,15 +2245,14 @@ INSERT INTO products (
     JSON_OBJECT('stars', 2, 'percentage', 3, 'count', 17),
     JSON_OBJECT('stars', 1, 'percentage', 1, 'count', 5)
   ),
-  0, NULL, 'CAD', 'both'
-FROM DUAL;
+  0, NULL, 'CAD', 'canada', NULL FROM DUAL;
 
 -- CAD Double Twist Mitt
 INSERT INTO products (
   id, name, slug, description, long_description, price, original_price,
   category, brand, image, images, variant_images, features, compatibility,
   rating, review_count, in_stock, about_section, badge, url, specifications,
-  color_options, videos, reviews, rating_breakdown, hide_for_usa, sizes, country, target_country
+  color_options, videos, reviews, rating_breakdown, hide_for_usa, sizes, country, target_country, amazon_url
 ) SELECT 
   UUID(),
   'DOUBLE TWIST WASH MITT',
@@ -2297,15 +2295,14 @@ INSERT INTO products (
     JSON_OBJECT('stars', 2, 'percentage', 3, 'count', 17),
     JSON_OBJECT('stars', 1, 'percentage', 1, 'count', 5)
   ),
-  0, NULL, 'CAD', 'both'
-FROM DUAL;
+  0, NULL, 'CAD', 'canada', NULL FROM DUAL;
 
 -- CAD Color Pop Mitt
 INSERT INTO products (
   id, name, slug, description, long_description, price, original_price,
   category, brand, image, images, variant_images, features, compatibility,
   rating, review_count, in_stock, about_section, badge, url, specifications,
-  color_options, videos, reviews, rating_breakdown, hide_for_usa, sizes, country, target_country
+  color_options, videos, reviews, rating_breakdown, hide_for_usa, sizes, country, target_country, amazon_url
 ) SELECT 
   UUID(),
   'ULTRA SOFT COLOR-POP WASH MITT',
@@ -2360,15 +2357,14 @@ INSERT INTO products (
     JSON_OBJECT('stars', 2, 'percentage', 3, 'count', 17),
     JSON_OBJECT('stars', 1, 'percentage', 1, 'count', 5)
   ),
-  0, NULL, 'CAD', 'both'
-FROM DUAL;
+  0, NULL, 'CAD', 'canada', NULL FROM DUAL;
 
 -- CAD T-Shirt White
 INSERT INTO products (
   id, name, slug, description, long_description, price, original_price,
   category, brand, image, images, variant_images, features, compatibility,
   rating, review_count, in_stock, about_section, badge, url, specifications,
-  color_options, videos, reviews, rating_breakdown, hide_for_usa, sizes, country, target_country
+  color_options, videos, reviews, rating_breakdown, hide_for_usa, sizes, country, target_country, amazon_url
 ) SELECT 
   UUID(),
   'PREMIUM T-SHIRT WHITE',
@@ -2411,15 +2407,14 @@ INSERT INTO products (
     JSON_OBJECT('stars', 2, 'percentage', 3, 'count', 17),
     JSON_OBJECT('stars', 1, 'percentage', 1, 'count', 5)
   ),
-  0, JSON_ARRAY('Small', 'Medium', 'Large', 'XL', '2XL', '3XL'), 'CAD', 'both'
-FROM DUAL;
+  0, JSON_ARRAY('Small', 'Medium', 'Large', 'XL', '2XL', '3XL'), 'CAD', 'canada', NULL FROM DUAL;
 
 -- CAD Coffee Mug
 INSERT INTO products (
   id, name, slug, description, long_description, price, original_price,
   category, brand, image, images, variant_images, features, compatibility,
   rating, review_count, in_stock, about_section, badge, url, specifications,
-  color_options, videos, reviews, rating_breakdown, hide_for_usa, sizes, country, target_country
+  color_options, videos, reviews, rating_breakdown, hide_for_usa, sizes, country, target_country, amazon_url
 ) SELECT 
   UUID(),
   'DETAIL GUARDZ - PREMIUM COFFEE MUG 11OZ',
@@ -2459,15 +2454,14 @@ INSERT INTO products (
     JSON_OBJECT('stars', 2, 'percentage', 3, 'count', 17),
     JSON_OBJECT('stars', 1, 'percentage', 1, 'count', 5)
   ),
-  0, NULL, 'CAD', 'both'
-FROM DUAL;
+  0, NULL, 'CAD', 'canada', NULL FROM DUAL;
 
 -- CAD Motion Poster
 INSERT INTO products (
   id, name, slug, description, long_description, price, original_price,
   category, brand, image, images, variant_images, features, compatibility,
   rating, review_count, in_stock, about_section, badge, url, specifications,
-  color_options, videos, reviews, rating_breakdown, hide_for_usa, sizes, country, target_country
+  color_options, videos, reviews, rating_breakdown, hide_for_usa, sizes, country, target_country, amazon_url
 ) SELECT 
   UUID(),
   'DETAIL GUARDZ - BLACK MOTION POSTER 13"x19"',
@@ -2506,15 +2500,14 @@ INSERT INTO products (
     JSON_OBJECT('stars', 2, 'percentage', 3, 'count', 17),
     JSON_OBJECT('stars', 1, 'percentage', 1, 'count', 5)
   ),
-  0, NULL, 'CAD', 'both'
-FROM DUAL;
+  0, NULL, 'CAD', 'canada', NULL FROM DUAL;
 
 -- CAD Mouse Pad
 INSERT INTO products (
   id, name, slug, description, long_description, price, original_price,
   category, brand, image, images, variant_images, features, compatibility,
   rating, review_count, in_stock, about_section, badge, url, specifications,
-  color_options, videos, reviews, rating_breakdown, hide_for_usa, sizes, country, target_country
+  color_options, videos, reviews, rating_breakdown, hide_for_usa, sizes, country, target_country, amazon_url
 ) SELECT 
   UUID(),
   'PREMIUM MOUSE PAD',
@@ -2554,15 +2547,14 @@ INSERT INTO products (
     JSON_OBJECT('stars', 2, 'percentage', 3, 'count', 17),
     JSON_OBJECT('stars', 1, 'percentage', 1, 'count', 5)
   ),
-  0, NULL, 'CAD', 'both'
-FROM DUAL;
+  0, NULL, 'CAD', 'canada', NULL FROM DUAL;
 
 -- CAD Blue Lanyard
 INSERT INTO products (
   id, name, slug, description, long_description, price, original_price,
   category, brand, image, images, variant_images, features, compatibility,
   rating, review_count, in_stock, about_section, badge, url, specifications,
-  color_options, videos, reviews, rating_breakdown, hide_for_usa, sizes, country, target_country
+  color_options, videos, reviews, rating_breakdown, hide_for_usa, sizes, country, target_country, amazon_url
 ) SELECT 
   UUID(),
   'DETAIL GUARDZ - BLUE LANYARD',
@@ -2603,8 +2595,7 @@ INSERT INTO products (
     JSON_OBJECT('stars', 2, 'percentage', 3, 'count', 17),
     JSON_OBJECT('stars', 1, 'percentage', 1, 'count', 5)
   ),
-  0, NULL, 'CAD', 'both'
-FROM DUAL;
+  0, NULL, 'CAD', 'canada', NULL FROM DUAL;
 
 
 

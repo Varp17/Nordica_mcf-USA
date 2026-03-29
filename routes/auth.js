@@ -390,18 +390,14 @@ router.post("/reset-password", async (req, res) => {
   }
 });
 
-// Change Password (Logged in)
-router.post("/change-password", authenticateToken, async (req, res) => {
+// Request Password Change OTP (Logged in)
+router.post("/request-password-change-otp", authenticateToken, async (req, res) => {
   try {
-    const { currentPassword, newPassword } = req.body;
+    const { currentPassword } = req.body;
     const userId = req.user.id;
 
-    if (!currentPassword || !newPassword) {
-      return res.status(400).json({ success: false, message: "All fields are required" });
-    }
-
-    if (newPassword.length < 6) {
-      return res.status(400).json({ success: false, message: "New password must be at least 6 characters" });
+    if (!currentPassword) {
+      return res.status(400).json({ success: false, message: "Current password is required" });
     }
 
     const [users] = await db.execute("SELECT first_name, email, password_hash FROM users WHERE id = ?", [userId]);
@@ -413,10 +409,64 @@ router.post("/change-password", authenticateToken, async (req, res) => {
       return res.status(400).json({ success: false, message: "Current password is incorrect" });
     }
 
+    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const otpExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 mins
+
+    await db.execute(
+      "UPDATE users SET otp_code = ?, otp_expiry = ? WHERE id = ?",
+      [otpCode, otpExpiry, userId]
+    );
+
+    await sendPasswordResetOTPEmail(user.email, otpCode); // Reusing password reset template for consistency
+
+    res.json({ success: true, message: "Security verification code sent to your email." });
+  } catch (error) {
+    console.error("Request password change OTP error:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Change Password (Logged in - OTP VERIFIED)
+router.post("/change-password", authenticateToken, async (req, res) => {
+  try {
+    const { currentPassword, newPassword, otpCode } = req.body;
+    const userId = req.user.id;
+
+    if (!currentPassword || !newPassword || !otpCode) {
+      return res.status(400).json({ success: false, message: "All fields are required (Current Pass, New Pass, and OTP Code)" });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ success: false, message: "New password must be at least 6 characters" });
+    }
+
+    const [users] = await db.execute("SELECT first_name, email, password_hash, otp_code, otp_expiry FROM users WHERE id = ?", [userId]);
+    if (users.length === 0) return res.status(404).json({ error: "User not found" });
+    
+    const user = users[0];
+
+    // 1. Verify Current Password
+    const isValid = await bcrypt.compare(currentPassword, user.password_hash);
+    if (!isValid) {
+      return res.status(400).json({ success: false, message: "Current password is incorrect" });
+    }
+
+    // 2. Verify OTP
+    if (!user.otp_code || user.otp_code !== otpCode) {
+      return res.status(400).json({ success: false, message: "Invalid verification code" });
+    }
+
+    if (new Date() > new Date(user.otp_expiry)) {
+      return res.status(400).json({ success: false, message: "Verification code has expired" });
+    }
+
     const saltRounds = 12;
     const passwordHash = await bcrypt.hash(newPassword, saltRounds);
 
-    await db.execute("UPDATE users SET password_hash = ?, updated_at = NOW() WHERE id = ?", [passwordHash, userId]);
+    await db.execute(
+       "UPDATE users SET password_hash = ?, otp_code = NULL, otp_expiry = NULL, updated_at = NOW() WHERE id = ?", 
+       [passwordHash, userId]
+    );
 
     await sendPasswordChangedEmail(user.email, user.first_name);
 

@@ -212,27 +212,68 @@ export async function getFulfillmentPreview(address, items) {
   });
 }
 
+/**
+ * listInventory — Fetches FBA inventory from Amazon SP-API
+ * 
+ * IMPORTANT FIXES (March 2026):
+ * 1. Handles PAGINATION (nextToken) — Amazon returns paginated results
+ * 2. When skus=[] (empty), fetches ALL inventory (like view_mcf_stock.js does)
+ * 3. When specific SKUs given, fetches ALL then filters locally
+ *    (avoids URL length issues with SKUs containing spaces like "DIRT LOCK-SW180 BLACK")
+ */
 export async function listInventory(skus = []) {
   const marketplaceId = process.env.AMAZON_MARKETPLACE_ID_US || 'ATVPDKIKX0DER';
-  const qs = new URLSearchParams();
-  qs.append('granularityType', 'Marketplace');
-  qs.append('granularityId',   marketplaceId);
-  qs.append('marketplaceIds',  marketplaceId);
-  qs.append('details',         'true');
+  
+  // Always fetch ALL inventory (don't pass sellerSkus in URL)
+  // This avoids URL encoding issues with SKUs containing spaces
+  // and ensures we get complete results. We filter locally afterwards.
+  const allSummaries = [];
+  let nextToken = null;
+  let pageCount = 0;
+  const MAX_PAGES = 20; // Safety limit
 
-  if (skus.length) {
-    skus.forEach(sku => qs.append('sellerSkus', sku));
-  }
+  do {
+    const qs = new URLSearchParams();
+    qs.append('granularityType', 'Marketplace');
+    qs.append('granularityId',   marketplaceId);
+    qs.append('marketplaceIds',  marketplaceId);
+    qs.append('details',         'true');
 
-  const response = await spApiRequest('GET', `/fba/inventory/v1/summaries?${qs.toString()}`);
-  const summaries = response.data?.payload?.inventorySummaries || [];
+    if (nextToken) {
+      qs.append('nextToken', nextToken);
+    }
 
-  return summaries.map(s => ({
+    const response = await spApiRequest('GET', `/fba/inventory/v1/summaries?${qs.toString()}`);
+    const payload = response.data?.payload || {};
+    const summaries = payload.inventorySummaries || [];
+    
+    allSummaries.push(...summaries);
+    // CRITICAL: nextToken is at response.data.pagination.nextToken, NOT payload.nextToken
+    nextToken = response.data?.pagination?.nextToken || null;
+    pageCount++;
+
+    if (nextToken) {
+      logger.debug(`InventoryAPI: Page ${pageCount} fetched (${summaries.length} items). Fetching next page...`);
+    }
+  } while (nextToken && pageCount < MAX_PAGES);
+
+  logger.info(`InventoryAPI: Fetched ${allSummaries.length} total inventory summaries across ${pageCount} page(s).`);
+
+  // Map to simplified format
+  const mapped = allSummaries.map(s => ({
     sku:      s.sellerSku,
     quantity: s.inventoryDetails?.fulfillableQuantity || 0,
     asin:     s.asin,
     fnsku:    s.fnsku
   }));
+
+  // If specific SKUs were requested, filter to only those
+  if (skus.length > 0) {
+    const skuSet = new Set(skus.map(s => s.trim()));
+    return mapped.filter(item => skuSet.has(item.sku));
+  }
+
+  return mapped;
 }
 
 export default {

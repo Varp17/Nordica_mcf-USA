@@ -297,22 +297,55 @@ router.get("/slug/:slug", async (req, res) => {
 
     const product = products[0];
     
-    // Fetch variants for this product
+    // Fetch variants for this product with their images
     const [variants] = await db.execute(
-      `SELECT * FROM product_color_variants WHERE product_id = ? AND is_active = 1`,
+      `SELECT v.*, MAX(pi.image_url) as image
+       FROM product_color_variants v
+       LEFT JOIN product_images pi ON v.id = pi.color_variant_id AND (pi.image_type = 'color_variant' OR pi.is_primary = 1)
+       WHERE v.product_id = ? AND v.is_active = 1
+       GROUP BY v.id`,
       [product.id]
     );
+
+    // Fetch all variant-specific images to provide full local gallery for each variant
+    const [allVariantImages] = await db.execute(
+      `SELECT color_variant_id, image_url FROM product_images WHERE product_id = ? AND color_variant_id IS NOT NULL ORDER BY sort_order ASC`,
+      [product.id]
+    );
+
+    const variantsWithGalleries = variants.map(v => {
+      const vImgs = allVariantImages.filter(vi => vi.color_variant_id === v.id).map(vi => vi.image_url);
+      return { 
+        ...v, 
+        images: vImgs.length > 0 ? vImgs : (v.image ? [v.image] : [])
+      };
+    });
+
+    // Fetch all product-wide images (gallery)
+    const [allImages] = await db.execute(
+      `SELECT id, image_url, image_type, is_primary, color_variant_id FROM product_images WHERE product_id = ? ORDER BY sort_order ASC`,
+      [product.id]
+    );
+
     const formattedProduct = {
       ...product,
       category: product.cat_name || product.category || 'Uncategorized',
       brand: product.br_name || product.brand || 'Generic',
       color_options: typeof product.color_options === "string" ? JSON.parse(product.color_options) : (product.color_options || []),
-      variants: variants && variants.length > 0 ? variants : (typeof product.color_options === "string" ? JSON.parse(product.color_options) : (product.color_options || [])),
+      variants: variantsWithGalleries && variantsWithGalleries.length > 0 ? variantsWithGalleries : (typeof product.color_options === "string" ? JSON.parse(product.color_options) : (product.color_options || [])),
       keyFeatures: typeof product.key_features === "string" ? JSON.parse(product.key_features) : (product.key_features || []),
       specifications: typeof product.specifications === "string" ? JSON.parse(product.specifications) : (product.specifications || {}),
+      compatibility: typeof product.compatibility === "string" ? JSON.parse(product.compatibility) : (product.compatibility || []),
       aboutSection: typeof product.about_section === "string" ? JSON.parse(product.about_section) : (product.about_section || {}),
       videos: typeof product.videos === "string" ? JSON.parse(product.videos) : (product.videos || {}),
-      images: typeof product.images === "string" ? JSON.parse(product.images) : (product.images || []),
+      images: [
+        ...(allImages || []),
+        ...((typeof product.images === "string" ? JSON.parse(product.images) : (product.images || []))
+            .filter((img) => {
+              const url = typeof img === 'string' ? img : img.image_url;
+              return !(allImages || []).some((ai) => ai.image_url === url);
+            }))
+      ],
       variantImages: typeof product.variant_images === "string" ? JSON.parse(product.variant_images) : (product.variant_images || {}),
       reviews: typeof product.reviews === "string" ? JSON.parse(product.reviews) : (product.reviews || []),
       ratingBreakdown: typeof product.rating_breakdown === "string" ? JSON.parse(product.rating_breakdown) : (product.rating_breakdown || []),
@@ -320,6 +353,61 @@ router.get("/slug/:slug", async (req, res) => {
       originalPrice: product.original_price,
       imageUrl: product.image, // Standardized to match table column 'image'
       createdAt: product.created_at,
+    }
+
+    // --- ENRICHMENT LOGIC ---
+    // If aboutSection is empty or missing hero/features, try to find them by name in the gallery
+    if (formattedProduct.images && formattedProduct.images.length > 0) {
+      const getUrl = (img) => typeof img === 'string' ? img : img.image_url;
+      
+      // 1. Try to find Hero Image
+      if (!formattedProduct.aboutSection.heroImage || formattedProduct.aboutSection.heroImage === product.image) {
+        const heroImg = formattedProduct.images.find(img => getUrl(img).toLowerCase().includes('1. hero image'));
+        if (heroImg) formattedProduct.aboutSection.heroImage = getUrl(heroImg);
+      }
+      
+      // 2. Try to find/add detail features if aboutSection features are missing
+      const existingFeatures = formattedProduct.aboutSection.features || [];
+      if (existingFeatures.length === 0) {
+        const featureImgs = formattedProduct.images.filter(img => {
+          const url = getUrl(img).toLowerCase();
+          return url.includes('product features') || url.includes('how it works') || url.includes('product uses') || url.includes('dimensions');
+        });
+        
+        if (featureImgs.length > 0) {
+          formattedProduct.aboutSection.features = featureImgs.map(img => ({
+            title: "", // Title could be extracted from filename but keeping it clean
+            description: "",
+            image: getUrl(img)
+          }));
+        }
+      }
+    }
+
+    // --- VARIANT GALLERY ENRICHMENT ---
+    // Extract full galleries from variantImages JSON blob and attach them directly to variants
+    if (formattedProduct.variantImages && formattedProduct.variants) {
+      formattedProduct.variants = formattedProduct.variants.map(v => {
+        // Respect already populated galleries from the images table
+        if (v.images && Array.isArray(v.images) && v.images.length > 1) return v;
+        
+        const vName = (v.variant_name || v.name || "").toLowerCase();
+        if (!vName) return v;
+
+        // Find match in the legacy variantImages JSON blob (case-insensitive fuzzy match)
+        const matchedKey = Object.keys(formattedProduct.variantImages).find(k => {
+          const lowerK = k.toLowerCase();
+          return lowerK === vName || vName.includes(lowerK) || lowerK.includes(vName);
+        });
+
+        if (matchedKey && formattedProduct.variantImages[matchedKey]) {
+          return { 
+            ...v, 
+            images: formattedProduct.variantImages[matchedKey] 
+          };
+        }
+        return v;
+      });
     }
 
     res.json({ success: true, product: deepFormatImages(formattedProduct) })
@@ -351,9 +439,33 @@ router.get("/:id", async (req, res) => {
 
     const product = products[0]
     
-    // Fetch variants for this product
+    // Fetch variants for this product with their primary images
     const [variants] = await db.execute(
-      `SELECT * FROM product_color_variants WHERE product_id = ? AND is_active = 1`,
+      `SELECT v.*, MAX(pi.image_url) as image
+       FROM product_color_variants v
+       LEFT JOIN product_images pi ON v.id = pi.color_variant_id AND (pi.image_type = 'color_variant' OR pi.is_primary = 1)
+       WHERE v.product_id = ? AND v.is_active = 1
+       GROUP BY v.id`,
+      [product.id]
+    );
+
+    // Fetch all variant-specific images to provide full local gallery for each variant
+    const [allVariantImages] = await db.execute(
+      `SELECT color_variant_id, image_url FROM product_images WHERE product_id = ? AND color_variant_id IS NOT NULL ORDER BY sort_order ASC`,
+      [product.id]
+    );
+
+    const variantsWithGalleries = variants.map(v => {
+      const vImgs = allVariantImages.filter(vi => vi.color_variant_id === v.id).map(vi => vi.image_url);
+      return { 
+        ...v, 
+        images: vImgs.length > 0 ? vImgs : (v.image ? [v.image] : [])
+      };
+    });
+
+    // Fetch all product-wide images (gallery)
+    const [allImages] = await db.execute(
+      `SELECT id, image_url, image_type, is_primary, color_variant_id FROM product_images WHERE product_id = ? ORDER BY sort_order ASC`,
       [product.id]
     );
 
@@ -362,12 +474,13 @@ router.get("/:id", async (req, res) => {
       category: product.cat_name || product.category || 'Uncategorized',
       brand: product.br_name || product.brand || 'Generic',
       color_options: typeof product.color_options === "string" ? JSON.parse(product.color_options) : (product.color_options || []),
-      variants: variants && variants.length > 0 ? variants : (typeof product.color_options === "string" ? JSON.parse(product.color_options) : (product.color_options || [])),
+      variants: variantsWithGalleries && variantsWithGalleries.length > 0 ? variantsWithGalleries : (typeof product.color_options === "string" ? JSON.parse(product.color_options) : (product.color_options || [])),
       keyFeatures: typeof product.key_features === "string" ? JSON.parse(product.key_features) : (product.key_features || []),
       specifications: typeof product.specifications === "string" ? JSON.parse(product.specifications) : (product.specifications || {}),
+      compatibility: typeof product.compatibility === "string" ? JSON.parse(product.compatibility) : (product.compatibility || []),
       aboutSection: typeof product.about_section === "string" ? JSON.parse(product.about_section) : (product.about_section || {}),
       videos: typeof product.videos === "string" ? JSON.parse(product.videos) : (product.videos || {}),
-      images: typeof product.images === "string" ? JSON.parse(product.images) : (product.images || []),
+      images: allImages.length > 0 ? allImages : (typeof product.images === "string" ? JSON.parse(product.images) : (product.images || [])),
       variantImages: typeof product.variant_images === "string" ? JSON.parse(product.variant_images) : (product.variant_images || {}),
       reviews: typeof product.reviews === "string" ? JSON.parse(product.reviews) : (product.reviews || []),
       ratingBreakdown: typeof product.rating_breakdown === "string" ? JSON.parse(product.rating_breakdown) : (product.rating_breakdown || []),
@@ -375,6 +488,61 @@ router.get("/:id", async (req, res) => {
       originalPrice: product.original_price,
       imageUrl: product.image, // Changed from image_url to match table column 'image'
       createdAt: product.created_at,
+    }
+
+    // --- ENRICHMENT LOGIC ---
+    // If aboutSection is empty or missing hero/features, try to find them by name in the gallery
+    if (formattedProduct.images && formattedProduct.images.length > 0) {
+      const getUrl = (img) => typeof img === 'string' ? img : img.image_url;
+      
+      // 1. Try to find Hero Image
+      if (!formattedProduct.aboutSection.heroImage || formattedProduct.aboutSection.heroImage === product.image) {
+        const heroImg = formattedProduct.images.find(img => getUrl(img).toLowerCase().includes('1. hero image'));
+        if (heroImg) formattedProduct.aboutSection.heroImage = getUrl(heroImg);
+      }
+      
+      // 2. Try to find/add detail features if aboutSection features are missing
+      const existingFeatures = formattedProduct.aboutSection.features || [];
+      if (existingFeatures.length === 0) {
+        const featureImgs = formattedProduct.images.filter(img => {
+          const url = getUrl(img).toLowerCase();
+          return url.includes('product features') || url.includes('how it works') || url.includes('product uses') || url.includes('dimensions');
+        });
+        
+        if (featureImgs.length > 0) {
+          formattedProduct.aboutSection.features = featureImgs.map(img => ({
+            title: "", // Title could be extracted from filename but keeping it clean
+            description: "",
+            image: getUrl(img)
+          }));
+        }
+      }
+    }
+
+    // --- VARIANT GALLERY ENRICHMENT ---
+    // Extract full galleries from variantImages JSON blob and attach them directly to variants
+    if (formattedProduct.variantImages && formattedProduct.variants) {
+      formattedProduct.variants = formattedProduct.variants.map(v => {
+        // Respect already populated galleries from the images table
+        if (v.images && Array.isArray(v.images) && v.images.length > 1) return v;
+        
+        const vName = (v.variant_name || v.name || "").toLowerCase();
+        if (!vName) return v;
+
+        // Find match in the legacy variantImages JSON blob (case-insensitive fuzzy match)
+        const matchedKey = Object.keys(formattedProduct.variantImages).find(k => {
+          const lowerK = k.toLowerCase();
+          return lowerK === vName || vName.includes(lowerK) || lowerK.includes(vName);
+        });
+
+        if (matchedKey && formattedProduct.variantImages[matchedKey]) {
+          return { 
+            ...v, 
+            images: formattedProduct.variantImages[matchedKey] 
+          };
+        }
+        return v;
+      });
     }
 
     res.json({ success: true, product: deepFormatImages(formattedProduct) })

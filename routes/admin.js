@@ -7,6 +7,7 @@ import path from "path";
 import { upload as s3Upload } from "../services/s3Service.js";
 import { shippoClient } from "./shippo.js";
 import fetch from "node-fetch";
+import { deepFormatImages } from "../utils/helpers.js";
 
 
 const router = express.Router();
@@ -338,6 +339,38 @@ router.get("/analytics", authenticateToken, requireAdmin, async (req, res) => {
 });
 
 
+// GET /inventory - Dedicated Warehouse/SKU view
+router.get("/inventory", authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const [skus] = await db.execute(`
+      SELECT 
+        pcv.id,
+        pcv.product_id,
+        p.name as product_name,
+        pcv.color_name,
+        pcv.amazon_sku,
+        pcv.stock,
+        pcv.updated_at,
+        p.target_country,
+        COALESCE(SUM(oi.quantity), 0) as units_sold_all_time,
+        ANY_VALUE(pi.image_url) as image
+      FROM product_color_variants pcv
+      JOIN products p ON pcv.product_id = p.id
+      LEFT JOIN product_images pi ON pcv.id = pi.color_variant_id AND (pi.image_type = 'color_variant' OR pi.is_primary = 1)
+      LEFT JOIN order_items oi ON oi.product_id = pcv.product_id 
+        AND (oi.color = pcv.color_name OR oi.color = pcv.color_code)
+      GROUP BY pcv.id
+      ORDER BY pcv.stock ASC, p.name ASC
+    `);
+
+    res.json({ success: true, skus: deepFormatImages(skus) });
+  } catch (error) {
+    console.error("Inventory list error:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+
 // List products
 router.get("/products", authenticateToken, requireAdmin, async (req, res) => {
   try {
@@ -435,17 +468,39 @@ router.get(
       try { product.tags = typeof product.tags === 'string' ? JSON.parse(product.tags) : (product.tags || []); } catch(e) { product.tags = []; }
 
       // Get color variants with their images
-      const [variants] = await db.execute(
+      let [variants] = await db.execute(
           "SELECT * FROM product_color_variants WHERE product_id = ? ORDER BY sort_order ASC",
           [id]
       );
       
-      for (let v of variants) {
-          const [vImgs] = await db.execute(
-              "SELECT id, image_url, is_primary FROM product_images WHERE color_variant_id = ? ORDER BY sort_order ASC",
-              [v.id]
-          );
-          v.images = vImgs;
+      if (variants.length === 0 && product.color_options) {
+          // Fallback to legacy color_options JSON if the new table is empty
+          try {
+              const legacyColors = typeof product.color_options === 'string' 
+                  ? JSON.parse(product.color_options) 
+                  : product.color_options;
+              
+              if (Array.isArray(legacyColors)) {
+                  variants = legacyColors.map(c => ({
+                      id: `legacy-${Math.random().toString(36).substr(2, 9)}`,
+                      color_name: c.name || c.color_name || c.value,
+                      color_code: c.color || c.color_code || "#CCCCCC",
+                      amazon_sku: c.amazon_sku || c.sku || null,
+                      stock: c.stock || 0,
+                      price: c.price || product.price,
+                      is_active: 1,
+                      images: c.image ? [{ image_url: c.image, is_primary: 1 }] : []
+                  }));
+              }
+          } catch (e) { console.error("Legacy color parse error:", e); }
+      } else {
+          for (let v of variants) {
+              const [vImgs] = await db.execute(
+                  "SELECT id, image_url, is_primary FROM product_images WHERE color_variant_id = ? ORDER BY sort_order ASC",
+                  [v.id]
+              );
+              v.images = vImgs;
+          }
       }
       product.color_variants = variants;
 
@@ -596,9 +651,9 @@ router.post(
           availability, sku, in_stock,
           weight, dimensions, material, warranty, return_policy,
           key_features, specifications, tags,
-          target_country,
+          target_country, amazon_url,
           is_active, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
         [
           productId, name, rest.name_ar || null, parseFloat(price),
           rest.original_price ? parseFloat(rest.original_price) : null,
@@ -610,7 +665,7 @@ router.post(
           availability, sku || null, stock, 
           weight || null, dimensions || null, material || null, warranty || null, returnPolicy || null,
           features || "[]", specifications || "[]", tags || "[]",
-          targetCountry, 1,
+          targetCountry, req.body.amazon_url || null, 1,
         ]
       );
 
@@ -777,15 +832,34 @@ router.put(
 
       if (colorVariants) {
         await connection.execute("DELETE FROM product_color_variants WHERE product_id = ?", [id]);
-        await connection.execute("DELETE FROM product_images WHERE product_id = ? AND image_type = 'color_variant'", [id]);
+        // Note: we don't delete images if we want to preserve them, but current logic does it to refresh.
+        // The user wants SKU and Name editing specifically.
         const cvArray = typeof colorVariants === 'string' ? JSON.parse(colorVariants) : (colorVariants || []);
+        
+        // Prepare list for JSON column update
+        const colorOptionsList = [];
+
         for (let i = 0; i < cvArray.length; i++) {
           const v = cvArray[i];
           const vId = uuidv4();
+          
+          // Insert into separate table
           await connection.execute(
-            "INSERT INTO product_color_variants (id, product_id, color_name, color_code, stock, created_at) VALUES (?,?,?,?,?,NOW())",
-            [vId, id, v.color, v.colorCode, v.stock || 0]
+            "INSERT INTO product_color_variants (id, product_id, color_name, color_code, amazon_sku, stock, price, is_active, created_at) VALUES (?,?,?,?,?,?,?,1,NOW())",
+            [vId, id, v.color_name || v.color, v.color_code || v.colorCode, v.amazon_sku || null, parseInt(v.stock) || 0, parseFloat(v.price) || 0]
           );
+
+          // Add to JSON list for storefront synchronization
+          colorOptionsList.push({
+            name: v.color_name || v.color,
+            color: v.color_code || v.colorCode,
+            stock: parseInt(v.stock) || 0,
+            amazon_sku: v.amazon_sku || null,
+            in_stock: (parseInt(v.stock) || 0) > 0 ? 1 : 0,
+            price: v.price || 0
+          });
+
+          // Handle images if they exist in the request or were passed in
           const vFiles = filesByField[`colorVariantImages_${i}`] || [];
           for (let j = 0; j < vFiles.length; j++) {
             await connection.execute(
@@ -794,6 +868,20 @@ router.put(
             );
           }
         }
+
+        // Calculate total aggregate stock from all variants
+        const aggregateStock = colorOptionsList.reduce((sum, v) => sum + (parseInt(v.stock) || 0), 0);
+
+        // SYNC HOME: Update JSON, total stock, and availability status
+        await connection.execute(
+          "UPDATE products SET color_options = ?, in_stock = ?, availability = ?, updated_at = NOW() WHERE id = ?",
+          [
+            JSON.stringify(colorOptionsList), 
+            aggregateStock, 
+            aggregateStock > 0 ? "In Stock" : "Out of Stock",
+            id
+          ]
+        );
       }
 
       await connection.commit();
