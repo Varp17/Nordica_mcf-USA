@@ -53,24 +53,17 @@ router.post('/preview', async (req, res) => {
         };
       })
     });
+    // Throw the error for handle catch block to process
+    throw err;
   } catch (err) {
     logger.error(`POST /api/fulfillment/preview error: ${err.message}`, {
       stack: err.stack,
       requestItems: req.body?.items?.map(i => i.sku || i.id)
     });
     
-    // Return a fallback instead of error to keep checkout alive
     return res.status(200).json({ 
-      success: true, 
-      previews: [{
-        id: 'Standard',
-        name: 'Standard Shipping',
-        price: 9.99,
-        currency: 'USD',
-        estimation: 'Estimated 5-7 business days',
-        isFulfillable: true,
-        shippingSpeedCategory: 'Standard'
-      }]
+      success: false, 
+      message: err.message || 'Unable to fetch real-time shipping rates from Amazon. Please verify your address or contact support.'
     });
   }
 });
@@ -115,14 +108,10 @@ router.post('/rates', async (req, res) => {
     });
   } catch (err) {
     logger.error(`POST /api/fulfillment/rates error: ${err.message}`);
-    return res.json({ success: true, rates: [{
-        id: 'Standard',
-        name: 'Standard Shipping',
-        price: 15.00,
-        currency: 'CAD',
-        estimation: 'Estimated 6-10 business days',
-        isFulfillable: true
-    }]});
+    return res.json({ 
+        success: false, 
+        message: err.message || 'Unable to fetch shipping rates. Double check your postal code or contact support.'
+    });
   }
 });
 

@@ -25,30 +25,29 @@ let _transporter = null;
 function getTransporter() {
   if (_transporter) return _transporter;
 
-  const smtpPort = parseInt(process.env.SMTP_PORT || '465');
-  const isSecure = smtpPort === 465;
-
   _transporter = nodemailer.createTransport({
-    host:   process.env.SMTP_HOST || 'smtp.gmail.com',
-    port:   smtpPort,
-    secure: isSecure,
+    host:   process.env.SMTP_HOST || 'smtp.sendgrid.net',
+    port:   parseInt(process.env.SMTP_PORT || '587'),
+    secure: process.env.SMTP_PORT === '465',
     auth: {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS
     },
     pool: true,
-    maxConnections: 5,
-    connectionTimeout: 10000, // 10 seconds
+    maxConnections: 10,
+    connectionTimeout: 10000, 
     greetingTimeout: 5000,
     socketTimeout: 30000,
     tls: {
       rejectUnauthorized: false
-    }
+    },
+    // Force IPv4 to avoid ENETUNREACH in platforms without IPv6 support
+    family: 4 
   });
 
   _transporter.verify((err) => {
     if (err) logger.warn(`SMTP connection warning: ${err.message}`);
-    else     logger.info('SMTP transporter ready');
+    else     logger.info('SMTP transporter ready with Port 465 SSL (IPv4 forced)');
   });
 
   return _transporter;
