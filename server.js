@@ -4,6 +4,7 @@ import helmet from 'helmet';
 import cors from 'cors';
 import compression from 'compression';
 import morgan from 'morgan';
+import axios from 'axios';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
@@ -13,6 +14,7 @@ import logger from './utils/logger.js';
 import db from './config/database.js';
 import redisClient from './config/redis.js';
 import regionDetect from './middleware/regionDetect.js';
+import { initializeDatabase } from './utils/dbInit.js';
 
 // Get __dirname in ESM
 const __filename = fileURLToPath(import.meta.url);
@@ -138,9 +140,23 @@ app.get('/health', async (req, res) => {
   }
 });
 
-app.get('/api/geoip', (req, res) => {
-  const country = req.country || 'CA';
-  res.json({ success: true, country });
+app.get('/api/geoip', async (req, res) => {
+  let country = req.country;
+
+  // Enhance detection: If running locally or no region headers detected, 
+  // do a server-side lookup to bypass CORS and ad-blockers.
+  if (!country || country === 'CA') {
+    try {
+      const geoRes = await axios.get('https://ipapi.co/json/', { timeout: 2000 });
+      if (geoRes.data?.country_code) {
+        country = geoRes.data.country_code;
+      }
+    } catch (err) {
+      logger.warn(`Server-side GeoIP lookup failed: ${err.message}`);
+    }
+  }
+
+  res.json({ success: true, country: country || 'CA' });
 });
 
 // ── API Routes ────────────────────────────────────────────────────────────────
@@ -191,6 +207,10 @@ async function startServer() {
   try {
     await db.query('SELECT 1');
     logger.info('✅ MySQL database connected');
+
+    // Perform Schema Initialization and Admin Seeding
+    await initializeDatabase(db);
+    logger.info('✅ Database schema and admin synchronized.');
 
     // 2. Test Redis connection (Used for tracking poller, NOT required for inventorySync anymore)
     try {

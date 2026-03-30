@@ -17,7 +17,7 @@ const pool = mysql.createPool({
   dateStrings: false,
   timezone: '+00:00',
   // Auto-reconnect on connection loss
-  multipleStatements: false
+  multipleStatements: true
 });
 
 // Wrap pool.query so callers can do: db.query(sql, params)
