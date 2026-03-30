@@ -48,16 +48,16 @@ async function pollOrderNow(orderId) {
 async function processMCFUpdate(order, update) {
     // Map Amazon status to our statuses: RECEIVED, PLANNING, PROCESSING, SHIPPED, DELIVERED, CANCELLED, UNFULFILLABLE
     const statusMap = {
-        'RECEIVED': 'PROCESSING',
-        'PLANNING': 'PROCESSING',
-        'PROCESSING': 'PROCESSING',
-        'SHIPPED': 'SHIPPED',
-        'DELIVERED': 'DELIVERED',
-        'CANCELLED': 'CANCELLED',
-        'UNFULFILLABLE': 'ERROR'
+        'RECEIVED': 'processing',
+        'PLANNING': 'processing',
+        'PROCESSING': 'processing',
+        'SHIPPED': 'shipped',
+        'DELIVERED': 'delivered',
+        'CANCELLED': 'cancelled',
+        'UNFULFILLABLE': 'error'
     };
 
-    const newStatus = statusMap[update.status] || order.fulfillment_status;
+    const newStatus = statusMap[update.status] || order.fulfillment_status?.toLowerCase();
     const trackingNo = update.primaryTrackingNumber || order.tracking_number;
     const carrier = update.primaryCarrier || order.carrier;
     const allTrackingJson = JSON.stringify(update.tracking);
@@ -69,7 +69,7 @@ async function processMCFUpdate(order, update) {
         );
 
         // SHIPMENT TRIGGER
-        if (newStatus === 'SHIPPED' && !order.tracking_number && trackingNo) {
+        if (newStatus === 'shipped' && (order.fulfillment_status || '').toLowerCase() !== 'shipped' && trackingNo) {
             await emailService.sendOrderShippedEmail(order, { 
                 trackingNumber: trackingNo, 
                 carrier,
@@ -78,12 +78,12 @@ async function processMCFUpdate(order, update) {
         }
 
         // DELIVERY TRIGGER (New for US orders)
-        if (newStatus === 'DELIVERED' && order.fulfillment_status !== 'DELIVERED') {
+        if (newStatus === 'delivered' && (order.fulfillment_status || '').toLowerCase() !== 'delivered') {
             await emailService.sendOrderDeliveredEmail(order);
         }
 
         // ERROR ALERT (If order becomes unfulfillable after submission)
-        if (newStatus === 'ERROR' && order.fulfillment_status !== 'ERROR') {
+        if (newStatus === 'error' && (order.fulfillment_status || '').toLowerCase() !== 'error') {
             await emailService.sendFulfillmentErrorAlert(order, new Error('Amazon reported this order as UNFULFILLABLE.'));
         }
     }
@@ -92,15 +92,15 @@ async function processMCFUpdate(order, update) {
 async function processShippoUpdate(order, status) {
     // Map Shippo status: PRE_TRANSIT, TRANSIT, DELIVERED, RETURNED, FAILURE, UNKNOWN
     const statusMap = {
-        'PRE_TRANSIT': 'SHIPPED',
-        'TRANSIT': 'SHIPPED',
-        'DELIVERED': 'DELIVERED',
-        'RETURNED': 'RETURNED',
-        'FAILURE': 'ERROR'
+        'PRE_TRANSIT': 'shipped',
+        'TRANSIT': 'shipped',
+        'DELIVERED': 'delivered',
+        'RETURNED': 'returned',
+        'FAILURE': 'error'
     };
 
-    const newStatus = statusMap[status.status?.toUpperCase()] || order.fulfillment_status;
-    if (newStatus !== order.fulfillment_status) {
+    const newStatus = statusMap[status.status?.toUpperCase()] || order.fulfillment_status?.toLowerCase();
+    if (newStatus !== order.fulfillment_status?.toLowerCase()) {
         await db.execute(
             `UPDATE orders SET fulfillment_status = ?, updated_at = NOW() WHERE id = ?`,
             [newStatus, order.id]

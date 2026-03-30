@@ -21,13 +21,22 @@ import nodemailer from "nodemailer";
 /* Transporter                                         */
 /* ─────────────────────────────────────────────────── */
 const transporter = nodemailer.createTransport({
-  host:   process.env.SMTP_HOST,
-  port:   Number(process.env.SMTP_PORT) || 587,
-  secure: process.env.SMTP_SECURE === "true",   // true only for port 465
+  host:   process.env.SMTP_HOST || "smtp.gmail.com",
+  port:   Number(process.env.SMTP_PORT) || 465, // Prefer 465 for SSL or 587 for TLS
+  secure: (Number(process.env.SMTP_PORT) === 465), 
   auth: {
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
   },
+  // Reliability settings
+  connectionTimeout: 20000,
+  greetingTimeout: 10000,
+  socketTimeout: 30000,
+  family: 4, // Force IPv4 to prevent ENETUNREACH address resolving
+  tls: {
+    rejectUnauthorized: false,
+    minVersion: 'TLSv1.2'
+  }
 });
 
 /* ─────────────────────────────────────────────────── */

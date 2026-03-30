@@ -1,4 +1,5 @@
 import jwt from 'jsonwebtoken';
+import db from '../config/database.js';
 import logger from '../utils/logger.js';
 
 /**
@@ -70,6 +71,36 @@ export function optionalAuth(req, res, next) {
     req.user = null;
   }
   next();
+}
+
+/**
+ * requireVerified middleware (use after requireAuth)
+ * Blocks unverified users from sensitive actions (like checkout)
+ */
+export async function requireVerified(req, res, next) {
+  if (!req.user) {
+    return res.status(401).json({ success: false, message: 'Not authenticated' });
+  }
+
+  // We check the DB to ensure up-to-the-minute verification status
+  try {
+    const [rows] = await db.execute("SELECT is_email_verified FROM users WHERE id = ?", [req.user.id]);
+    if (rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    if (!rows[0].is_email_verified) {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Your email address is not verified. Please verify your email to continue.',
+        requiresVerification: true 
+      });
+    }
+    next();
+  } catch (err) {
+    logger.error(`requireVerified middleware error: ${err.message}`);
+    return res.status(500).json({ success: false, message: 'Internal server error' });
+  }
 }
 
 /** Legacy aliases **/

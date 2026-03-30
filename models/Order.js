@@ -136,7 +136,13 @@ export async function findByCustomer(customerId, { page = 1, limit = 20 } = {}) 
 
 export async function updatePaymentStatus(orderId, { paymentStatus, paymentReference, paymentMethod }) {
   await db.query(
-    `UPDATE orders SET payment_status = ?, payment_reference = COALESCE(?, payment_reference), payment_method = COALESCE(?, payment_method), paid_at = CASE WHEN ? = 'paid' THEN NOW() ELSE paid_at END, updated_at = NOW() WHERE id = ?`,
+    `UPDATE orders SET 
+       payment_status = ?, 
+       payment_reference = COALESCE(?, payment_reference), 
+       payment_method = COALESCE(?, payment_method), 
+       paid_at = CASE WHEN ? = 'paid' THEN NOW() ELSE paid_at END, 
+       updated_at = NOW() 
+     WHERE id = ?`,
     [
       paymentStatus, 
       paymentReference !== undefined ? paymentReference : null, 
@@ -145,6 +151,28 @@ export async function updatePaymentStatus(orderId, { paymentStatus, paymentRefer
       orderId
     ]
   );
+
+  // If order is paid, update user stats (total spent, total orders)
+  if (paymentStatus === 'paid') {
+    try {
+      const [orderRows] = await db.query('SELECT user_id, total FROM orders WHERE id = ?', [orderId]);
+      if (orderRows.length > 0 && orderRows[0].user_id) {
+        const userId = orderRows[0].user_id;
+        await db.execute(
+          `UPDATE users u
+           SET u.total_orders = (SELECT COUNT(*) FROM orders WHERE user_id = ? AND payment_status = 'paid'),
+               u.total_spent = (SELECT COALESCE(SUM(total), 0) FROM orders WHERE user_id = ? AND payment_status = 'paid'),
+               u.updated_at = NOW()
+           WHERE u.id = ?`,
+          [userId, userId, userId]
+        );
+        logger.info(`User stats updated for customer ${userId} after payment.`);
+      }
+    } catch (err) {
+      logger.error(`Failed to update customer stats: ${err.message}`);
+    }
+  }
+
   return findById(orderId);
 }
 

@@ -78,7 +78,8 @@ async function _fulfillUS(order, invoicePdf = null) {
   await _updateOrderStatus(order.id, { 
      fulfillment_status: 'submitted_to_amazon', 
      fulfillment_channel: 'amazon_mcf', 
-     amazon_fulfillment_id: mcfResult.sellerFulfillmentOrderId 
+     amazon_fulfillment_id: mcfResult.sellerFulfillmentOrderId,
+     mcf_order_id: mcfResult.sellerFulfillmentOrderId
   });
 
   logger.info(`US order ${order.order_number} submitted to Amazon MCF — ${mcfResult.sellerFulfillmentOrderId}`);

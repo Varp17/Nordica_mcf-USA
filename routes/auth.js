@@ -93,11 +93,19 @@ router.post("/register", async (req, res) => {
 
     await connection.commit();
 
-    // Fire and forget OTP email to optimize response time
-    // This removes the 2-5s delay from SMTP handshake while the user proceeds
-    sendOTPEmail(email, otpCode).catch(emailErr => {
-      console.error("Background OTP email failure:", emailErr);
-    });
+    // Send OTP email with explicit check (as requested for reliability)
+    try {
+      const emailResult = await sendOTPEmail(email, otpCode);
+      if (!emailResult.success) {
+        throw new Error(emailResult.error || "Failed to send OTP email");
+      }
+    } catch (emailErr) {
+      console.error("OTP email failure during registration:", emailErr);
+      return res.status(500).json({ 
+        success: false, 
+        message: "Registration created, but failed to send verification email. Please use the 'Resend OTP' button or try again later." 
+      });
+    }
 
     // Generate JWT token
     const token = jwt.sign({ userId, email, role: 'customer' }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRES_IN || "7d" })
@@ -138,12 +146,12 @@ router.post("/login", async (req, res) => {
 
     // Get user from database
     const [users] = await db.execute(
-      "SELECT id, email, password_hash, first_name, last_name, phone, role FROM users WHERE email = ?",
+      "SELECT id, email, password_hash, first_name, last_name, phone, role, is_email_verified FROM users WHERE email = ?",
       [email],
     )
 
     if (users.length === 0) {
-      return res.status(401).json({ error: "Invalid email or password" })
+      return res.status(401).json({ success: false, message: "Invalid email or password" })
     }
 
     const user = users[0]
@@ -151,16 +159,50 @@ router.post("/login", async (req, res) => {
     // Verify password
     const isValidPassword = await bcrypt.compare(password, user.password_hash)
     if (!isValidPassword) {
-      return res.status(401).json({ error: "Invalid email or password" })
+      return res.status(401).json({ success: false, message: "Invalid email or password" })
     }
-
-    // Update last login
-    await db.execute("UPDATE users SET last_login_at = NOW() WHERE id = ?", [user.id])
 
     // Generate JWT token
     const token = jwt.sign({ userId: user.id, email: user.email, role: user.role }, process.env.JWT_SECRET, {
       expiresIn: process.env.JWT_EXPIRES_IN || "7d",
     })
+
+    // Handle Unverified Case
+    if (!user.is_email_verified) {
+      // Refresh OTP for unverified user
+      const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+      const otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
+
+      await db.execute(
+        "UPDATE users SET otp_code = ?, otp_expiry = ?, last_login_at = NOW() WHERE id = ?",
+        [otpCode, otpExpiry, user.id]
+      );
+
+      // Try sending OTP email
+      try {
+        await sendOTPEmail(user.email, otpCode);
+      } catch (emailErr) {
+        console.error("Backgound OTP email failure during unverified login:", emailErr);
+      }
+
+      return res.json({
+        success: true,
+        message: "Please verify your email to access all features. A new code was sent to your inbox.",
+        token,
+        requiresVerification: true,
+        user: {
+          id: user.id,
+          email: user.email,
+          first_name: user.first_name,
+          last_name: user.last_name,
+          role: user.role,
+          is_email_verified: 0
+        }
+      });
+    }
+
+    // Update last login for verified users
+    await db.execute("UPDATE users SET last_login_at = NOW() WHERE id = ?", [user.id])
 
     res.json({
       success: true,
@@ -179,6 +221,7 @@ router.post("/login", async (req, res) => {
         zip: user.zip,
         country: user.country,
         role: user.role,
+        is_email_verified: 1
       },
     })
   } catch (error) {
@@ -258,10 +301,19 @@ router.post("/resend-otp", authenticateToken, async (req, res) => {
       [otpCode, otpExpiry, userId]
     );
 
-    // Fire and forget OTP email
-    sendOTPEmail(users[0].email, otpCode).catch(emailErr => {
-      console.error("Background Resend OTP email failure:", emailErr);
-    });
+    // Send OTP email with explicit check (as requested for reliability)
+    try {
+      const emailResult = await sendOTPEmail(users[0].email, otpCode);
+      if (!emailResult.success) {
+        throw new Error(emailResult.error || "Failed to send OTP email");
+      }
+    } catch (emailErr) {
+      console.error("OTP email failure during resend:", emailErr);
+      return res.status(500).json({ 
+        success: false, 
+        message: "Failed to send verification code. Please check your network or try again later." 
+      });
+    }
 
     res.json({
       success: true,

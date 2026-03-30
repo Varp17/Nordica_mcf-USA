@@ -39,15 +39,16 @@ function getTransporter() {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS
     },
-    pool: true,
-    maxConnections: 10,
-    connectionTimeout: 10000, 
-    greetingTimeout: 5000,
+    // Reliability settings
+    pool: false, // Disabling pool to avoid IPv6 issues in some environments
+    connectionTimeout: 20000, 
+    greetingTimeout: 10000,
     socketTimeout: 30000,
     tls: {
-      rejectUnauthorized: false
+      rejectUnauthorized: false,
+      minVersion: 'TLSv1.2'
     },
-    // CRITICAL: Forces IPv4 to bypass the ENETUNREACH errors in your production environment
+    // CRITICAL: Forces IPv4 to bypass the ENETUNREACH errors in production
     family: 4 
   });
 

@@ -203,9 +203,37 @@ app.use((err, req, res, next) => {
   });
 });
 
+/**
+ * PRODUCTION-LEVEL ENVIRONMENT VALIDATION
+ * Ensure all critical keys are present before starting
+ */
+function validateEnv() {
+  const required = [
+    'JWT_SECRET', 'DATABASE_URL' || 'DB_HOST', 
+    'SMTP_HOST', 'SMTP_USER', 'SMTP_PASS',
+    'AMAZON_SELLER_ID', 'LWA_CLIENT_ID', 'LWA_CLIENT_SECRET', 'LWA_REFRESH_TOKEN',
+    'PAYPAL_CLIENT_ID', 'PAYPAL_CLIENT_SECRET'
+  ];
+  
+  const missing = required.filter(key => {
+    if (key === 'DATABASE_URL' || key === 'DB_HOST') {
+      return !process.env.DATABASE_URL && !process.env.DB_HOST;
+    }
+    return !process.env[key];
+  });
+
+  if (missing.length > 0) {
+    logger.error(`❌ CRITICAL: Missing environment variables: ${missing.join(', ')}`);
+    if (process.env.NODE_ENV === 'production') {
+      process.exit(1);
+    }
+  }
+}
+
 // ── Boot ──────────────────────────────────────────────────────────────────────
 async function startServer() {
   try {
+    validateEnv();
     await db.query('SELECT 1');
     logger.info('✅ MySQL database connected');
 

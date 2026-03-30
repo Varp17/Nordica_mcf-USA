@@ -6,7 +6,7 @@ import Product from '../models/Product.js';
 import { fulfillOrder, retryFailedOrder } from '../services/fulfillmentService.js';
 import mcfService from '../services/mcfService.js';
 import shippoService from '../services/shippoService.js';
-import { authenticateToken as requireAuth, requireAdmin } from '../middleware/auth.js';
+import { authenticateToken as requireAuth, requireAdmin, requireVerified } from '../middleware/auth.js';
 import { validateCreateOrder, validateOrderId } from '../middleware/validation.js';
 import { detectCountryFromRequest } from '../utils/helpers.js';
 import logger from '../utils/logger.js';
@@ -55,7 +55,7 @@ const optionalAuth = (req, res, next) => next(); // Stub for now or use properly
 //    subtotal, tax, shippingCost, total, currency
 //  }
 // ─────────────────────────────────────────────────────────────────────────────
-router.post('/', requireAuth, validateCreateOrder, async (req, res) => {
+router.post('/', requireAuth, requireVerified, validateCreateOrder, async (req, res) => {
   try {
     const {
       country, email, items, shipping, shippingSpeed,

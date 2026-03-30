@@ -5,7 +5,7 @@ import Order from '../models/Order.js';
 import Product from '../models/Product.js';
 import { fulfillOrder } from '../services/fulfillmentService.js';
 import logger from '../utils/logger.js';
-import { optionalAuth } from '../middleware/auth.js';
+import { optionalAuth, requireVerified } from '../middleware/auth.js';
 
 const router = express.Router();
 
@@ -46,7 +46,13 @@ function getBaseUrl(req) {
  * 2. Deducts stock & creates internal order in 'pending' status
  * 3. Initiates PayPal order linked to internal order number
  */
-router.post('/create-order', optionalAuth, async (req, res) => {
+router.post('/create-order', optionalAuth, async (req, res, next) => {
+  // If user is logged in, they MUST be verified to place an order
+  if (req.headers['authorization']) {
+    return requireVerified(req, res, next);
+  }
+  next();
+}, async (req, res) => {
   try {
     const { country, currency, items, shipping, shippingCost, subtotal, tax, total, email, shippingSpeed } = req.body;
     
@@ -161,6 +167,7 @@ router.post('/create-order', optionalAuth, async (req, res) => {
  * 3. Finalizes internal order
  */
 router.post('/capture', async (req, res) => {
+  let order = null;
   try {
     const { paypalOrderId } = req.body;
     if (!paypalOrderId) throw new Error('paypalOrderId is required');
@@ -170,7 +177,7 @@ router.post('/capture', async (req, res) => {
     if (!orders.length) {
       return res.status(404).json({ success: false, message: 'Order not found for this payment reference.' });
     }
-    const order = orders[0];
+    order = orders[0];
 
     // 2. Idempotency: Check if already processed
     if (order.payment_status === 'paid') {
@@ -235,6 +242,15 @@ router.post('/capture', async (req, res) => {
   } catch (err) {
     const errorMsg = err.response?.data?.message || err.message;
     logger.error(`PayPal Capture Error: ${errorMsg}`);
+    
+    // Explicitly mark as failed if it's not already paid
+    if (order && order.id && order.payment_status !== 'paid') {
+      await Order.updatePaymentStatus(order.id, { 
+        paymentStatus: 'failed', 
+        notes: `Payment capture failed: ${errorMsg}` 
+      });
+    }
+
     res.status(500).json({ success: false, message: `Payment failed: ${errorMsg}` });
   }
 });
