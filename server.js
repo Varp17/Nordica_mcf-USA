@@ -52,6 +52,7 @@ import stockRecovery from './jobs/stockRecovery.js';
 import { startStockMonitoring } from './services/stockService.js';
 
 const app = express();
+app.set('trust proxy', 1); // Enable trusting headers from Render proxy
 const PORT = process.env.PORT || 5000;
 
 const allowedOrigins = process.env.FRONTEND_URL

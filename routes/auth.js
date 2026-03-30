@@ -93,14 +93,11 @@ router.post("/register", async (req, res) => {
 
     await connection.commit();
 
-    // Send OTP email (We can try-catch this to ensure we don't fail the whole request 
-    // if the user is already created, but for a new registration, it's better to know)
-    try {
-      await sendOTPEmail(email, otpCode);
-    } catch (emailErr) {
-      console.error("Failed to send OTP email during registration:", emailErr);
-      // We don't rollback here because the DB is already committed and the user can resend OTP
-    }
+    // Fire and forget OTP email to optimize response time
+    // This removes the 2-5s delay from SMTP handshake while the user proceeds
+    sendOTPEmail(email, otpCode).catch(emailErr => {
+      console.error("Background OTP email failure:", emailErr);
+    });
 
     // Generate JWT token
     const token = jwt.sign({ userId, email, role: 'customer' }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRES_IN || "7d" })
@@ -225,12 +222,10 @@ router.post("/verify-otp", authenticateToken, async (req, res) => {
       [userId]
     );
 
-    // Send Welcome Email
-    try {
-      await sendWelcomeEmail(user.email, user.first_name);
-    } catch (welcomeErr) {
-      console.error("Welcome email failed (non-blocking):", welcomeErr);
-    }
+    // Fire and forget welcome email
+    sendWelcomeEmail(user.email, user.first_name).catch(welcomeErr => {
+      console.error("Background Welcome email failure:", welcomeErr);
+    });
 
     res.json({
       success: true,
@@ -263,7 +258,10 @@ router.post("/resend-otp", authenticateToken, async (req, res) => {
       [otpCode, otpExpiry, userId]
     );
 
-    await sendOTPEmail(users[0].email, otpCode);
+    // Fire and forget OTP email
+    sendOTPEmail(users[0].email, otpCode).catch(emailErr => {
+      console.error("Background Resend OTP email failure:", emailErr);
+    });
 
     res.json({
       success: true,

@@ -25,16 +25,25 @@ let _transporter = null;
 function getTransporter() {
   if (_transporter) return _transporter;
 
+  const smtpPort = parseInt(process.env.SMTP_PORT || '465');
+  const isSecure = smtpPort === 465;
+
   _transporter = nodemailer.createTransport({
-    host:   process.env.SMTP_HOST || 'smtp.sendgrid.net',
-    port:   parseInt(process.env.SMTP_PORT || '587'),
-    secure: process.env.SMTP_PORT === '465',
+    host:   process.env.SMTP_HOST || 'smtp.gmail.com',
+    port:   smtpPort,
+    secure: isSecure,
     auth: {
-      user: process.env.SMTP_USER || 'apikey',
+      user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS
     },
     pool: true,
-    maxConnections: 5
+    maxConnections: 5,
+    connectionTimeout: 10000, // 10 seconds
+    greetingTimeout: 5000,
+    socketTimeout: 30000,
+    tls: {
+      rejectUnauthorized: false
+    }
   });
 
   _transporter.verify((err) => {
