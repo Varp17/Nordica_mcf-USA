@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import bcrypt from 'bcryptjs';
+import { v4 as uuidv4 } from 'uuid';
 import logger from './logger.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -84,24 +85,34 @@ export async function initializeDatabase(db) {
     const adminEmail = process.env.ADMIN_EMAIL || 'admin@detailguardz.com';
     const adminPass = process.env.ADMIN_SEED_PASSWORD || 'Admin@Secure123!';
     
+    logger.info('Adding admin user...');
     const saltRounds = 12;
     const passwordHash = await bcrypt.hash(adminPass, saltRounds);
 
-    const [adminRows] = await db.query("SELECT id FROM users WHERE email = ?", [adminEmail]);
+    await db.query(`
+      INSERT INTO users (id, email, password_hash, first_name, last_name, role, is_active)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON DUPLICATE KEY UPDATE password_hash = VALUES(password_hash), role = 'superadmin'
+    `, [uuidv4(), adminEmail, passwordHash, 'Admin', 'User', 'superadmin', 1]);
 
-    if (adminRows.length > 0) {
-      await db.execute(
-        "UPDATE users SET password_hash = ?, role = 'superadmin', is_active = 1 WHERE email = ?",
-        [passwordHash, adminEmail]
-      );
-      logger.info(`✅ Admin credentials synchronized from .env for ${adminEmail}`);
-    } else {
-      await db.execute(
-        "INSERT INTO users (id, email, password_hash, first_name, last_name, role, is_active) VALUES (UUID(), ?, ?, 'Admin', 'User', 'superadmin', 1)",
-        [adminEmail, passwordHash]
-      );
-      logger.info(`✨ New Admin account created: ${adminEmail}`);
+    // 3. Ensure we have at least one test customer for dummy orders
+    const [customers] = await db.query("SELECT id FROM users WHERE role = 'customer' LIMIT 1");
+    if (!customers.length) {
+       logger.info('Adding test customer...');
+       await db.query(`
+          INSERT INTO users (id, email, password_hash, first_name, last_name, role, is_active)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+       `, [uuidv4(), 'customer@example.com', passwordHash, 'Test', 'Customer', 'customer', 1]);
     }
+
+    // 4. Ensure customer1@test.com exists
+    await db.query(`
+      INSERT INTO users (id, email, password_hash, first_name, last_name, role, is_active, is_email_verified)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 1)
+      ON DUPLICATE KEY UPDATE email = email
+    `, [uuidv4(), 'customer1@test.com', passwordHash, 'Customer', 'One', 'customer', 1]);
+
+    logger.info('SUCCESS: Admin user and test customers setup complete.');
 
     return true;
   } catch (err) {
