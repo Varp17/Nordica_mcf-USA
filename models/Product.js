@@ -229,9 +229,12 @@ export async function restoreStock(items, connection = null) {
       if (cvRes.affectedRows > 0) continue;
     }
 
+    const pId = item.product_id || item.productId || item.variantId || item.product_variant_id || null;
+    const sku = item.sku || null;
+
     await dbConn.execute(
       `UPDATE products SET inventory_cache = inventory_cache + ? WHERE id = ? OR slug = ? OR sku = ?`,
-      [qty, item.productId || item.variantId || item.product_id, item.productId, item.sku]
+      [qty, pId, pId, sku]
     );
   }
 }
