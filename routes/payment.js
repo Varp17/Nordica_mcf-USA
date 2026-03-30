@@ -9,9 +9,7 @@ import { optionalAuth, requireVerified } from '../middleware/auth.js';
 
 const router = express.Router();
 
-const PAYPAL_API = process.env.PAYPAL_ENV === 'sandbox'
-  ? 'https://api-m.sandbox.paypal.com'
-  : 'https://api-m.paypal.com';
+const PAYPAL_API = 'https://api-m.paypal.com';
 
 /**
  * Get PayPal Access Token
@@ -91,51 +89,68 @@ router.post('/create-order', optionalAuth, async (req, res, next) => {
     }
 
     // 3. Create PayPal Order
-    const accessToken = await getPayPalAccessToken();
-    const frontendBase = getBaseUrl(req);
-    
-    const paypalOrder = {
-      intent: 'CAPTURE',
-      purchase_units: [{
-        reference_id: internalOrder.order_number, // Link internal order# to PayPal
-        amount: {
-          currency_code: internalOrder.currency,
-          value: parseFloat(total).toFixed(2),
-          breakdown: {
-            item_total: { currency_code: internalOrder.currency, value: parseFloat(subtotal).toFixed(2) },
-            shipping: { currency_code: internalOrder.currency, value: parseFloat(shippingCost || 0).toFixed(2) },
-            tax_total: { currency_code: internalOrder.currency, value: parseFloat(tax || 0).toFixed(2) }
+    let response;
+    try {
+      const accessToken = await getPayPalAccessToken();
+      const frontendBase = getBaseUrl(req);
+      
+      const paypalOrder = {
+        intent: 'CAPTURE',
+        purchase_units: [{
+          reference_id: internalOrder.order_number, // Link internal order# to PayPal
+          amount: {
+            currency_code: internalOrder.currency,
+            value: parseFloat(total).toFixed(2),
+            breakdown: {
+              item_total: { currency_code: internalOrder.currency, value: parseFloat(subtotal).toFixed(2) },
+              shipping: { currency_code: internalOrder.currency, value: parseFloat(shippingCost || 0).toFixed(2) },
+              tax_total: { currency_code: internalOrder.currency, value: parseFloat(tax || 0).toFixed(2) }
+            }
+          },
+          shipping: {
+            name: { full_name: `${shipping.firstName} ${shipping.lastName}` },
+            address: {
+              address_line_1: shipping.address1,
+              address_line_2: shipping.address2 || '',
+              admin_area_2: shipping.city,
+              admin_area_1: shipping.state || shipping.province,
+              postal_code: shipping.zip || shipping.postalCode,
+              country_code: country === 'CA' ? 'CA' : 'US'
+            }
           }
-        },
-        shipping: {
-          name: { full_name: `${shipping.firstName} ${shipping.lastName}` },
-          address: {
-            address_line_1: shipping.address1,
-            address_line_2: shipping.address2 || '',
-            admin_area_2: shipping.city,
-            admin_area_1: shipping.state || shipping.province,
-            postal_code: shipping.zip || shipping.postalCode,
-            country_code: country === 'CA' ? 'CA' : 'US'
-          }
+        }],
+        application_context: {
+          return_url: `${frontendBase}/payment-success?orderId=${internalOrder.id}`,
+          cancel_url: `${frontendBase}/checkout?cancelledOrder=${internalOrder.id}`,
+          shipping_preference: 'SET_PROVIDED_ADDRESS',
+          user_action: 'PAY_NOW'
         }
-      }],
-      application_context: {
-        return_url: `${frontendBase}/payment-success?orderId=${internalOrder.id}`,
-        cancel_url: `${frontendBase}/checkout?cancelledOrder=${internalOrder.id}`,
-        shipping_preference: 'SET_PROVIDED_ADDRESS',
-        user_action: 'PAY_NOW'
-      }
-    };
+      };
 
-    const response = await axios({
-      url: `${PAYPAL_API}/v2/checkout/orders`,
-      method: 'post',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-      data: paypalOrder,
-    });
+      response = await axios({
+        url: `${PAYPAL_API}/v2/checkout/orders`,
+        method: 'post',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        data: paypalOrder,
+      });
+    } catch (apiErr) {
+      // 🚨 CRITICAL: If PayPal fails, we MUST restore the stock we just deducted
+      logger.error(`PayPal order creation failed. Restoring stock for order ${internalOrder.order_number}`);
+      const [items] = await db.query('SELECT * FROM order_items WHERE order_id = ?', [internalOrder.id]);
+      await Product.restoreStock(items);
+      
+      // Mark internal order as failed
+      await Order.updateOrder(internalOrder.id, { 
+        status: 'cancelled', 
+        payment_status: 'failed',
+        notes: `PayPal API Error: ${apiErr.response?.data?.message || apiErr.message}`
+      });
+
+      throw apiErr; // Re-throw to be caught by outer catch and sent to client
+    }
 
     const paypalOrderId = response.data.id;
 
