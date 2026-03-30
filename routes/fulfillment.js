@@ -138,6 +138,7 @@ router.post('/validate-address', async (req, res) => {
             success: true, 
             valid: result.valid,
             fieldErrors: result.fieldErrors,
+            correctedAddress: result.correctedAddress,
             validation_results: result 
         });
     } catch (err) {

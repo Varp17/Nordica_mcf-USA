@@ -143,6 +143,13 @@ export async function getFulfillmentPreview(address, items) {
     throw new Error(`MCF: Cannot get preview. One or more items are missing a Seller SKU.`);
   }
 
+  const normalizedState = normalizeState(address.stateOrRegion);
+  const commonCanadianProvinces = ['ON', 'QC', 'BC', 'AB', 'MB', 'SK', 'NS', 'NB', 'NL', 'PE', 'NT', 'NU', 'YT'];
+  
+  if (commonCanadianProvinces.includes(normalizedState) && address.countryCode === 'US') {
+      throw new Error(`Amazon MCF (US) does not accept Canadian provinces (${normalizedState}). Please change to a US state or select Canada as your region.`);
+  }
+
   const payload = {
     marketplaceId: process.env.AMAZON_MARKETPLACE_ID_US || 'ATVPDKIKX0DER',
     address: {
@@ -150,7 +157,7 @@ export async function getFulfillmentPreview(address, items) {
       addressLine1:  address.line1,
       addressLine2:  address.line2 || '',
       city:          address.city,
-      stateOrRegion: normalizeState(address.stateOrRegion),
+      stateOrRegion: normalizedState,
       postalCode:    address.postalCode,
       countryCode:   'US',
       phone:         address.phone || ''

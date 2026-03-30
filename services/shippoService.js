@@ -98,7 +98,15 @@ export async function validateAddress(addressData) {
       valid: !!isValid, 
       messages, 
       fieldErrors,
-      addressId: address.objectId || address.id 
+      addressId: address.objectId || address.id,
+      correctedAddress: {
+        city: address.city,
+        state: address.state,
+        zip: address.zip,
+        country: address.country,
+        line1: address.street1,
+        line2: address.street2
+      }
     };
   } catch (err) {
     logger.error(`Shippo Address Validation Error: ${err.message}`);
