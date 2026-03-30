@@ -1,6 +1,3 @@
-import dns from 'dns';
-dns.setDefaultResultOrder('ipv4first'); // Force IPv4 on Render (no outbound IPv6 support)
-
 import 'dotenv/config';
 import express from 'express';
 import helmet from 'helmet';

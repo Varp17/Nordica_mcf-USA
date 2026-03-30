@@ -22,16 +22,14 @@ import { formatCurrency } from '../utils/helpers.js';
 // ── Transporter (singleton) ────────────────────────────────────────────────
 let _transporter = null;
 
-function getTransporter() {
-  if (_transporter) return _transporter;
-
+function createTransporter() {
   const smtpHost = process.env.SMTP_HOST || 'smtp.gmail.com';
   const smtpPort = parseInt(process.env.SMTP_PORT || '465');
   
   // Gmail on 465 requires secure: true
   const isSecure = (smtpPort === 465);
 
-  _transporter = nodemailer.createTransport({
+  const transport = nodemailer.createTransport({
     host:   smtpHost,
     port:   smtpPort,
     secure: isSecure,
@@ -39,47 +37,61 @@ function getTransporter() {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS
     },
-    // Reliability settings
-    pool: false, // Disabling pool to avoid IPv6 issues in some environments
-    connectionTimeout: 20000, 
-    greetingTimeout: 10000,
-    socketTimeout: 30000,
+    pool: false,
+    connectionTimeout: 30000,  // 30s — generous for Render cold-start
+    greetingTimeout: 15000,
+    socketTimeout: 45000,
     tls: {
       rejectUnauthorized: false,
       minVersion: 'TLSv1.2'
     },
-    // CRITICAL: Forces IPv4 to bypass the ENETUNREACH errors in production
-    family: 4 
+    // Force IPv4 at nodemailer level as well
+    family: 4
   });
 
-  _transporter.verify((err) => {
-    if (err) logger.warn(`SMTP connection warning (IPv4): ${err.message}`);
-    else     logger.info(`SMTP transporter ready on ${smtpHost}:${smtpPort} (IPv4)`);
-  });
+  logger.info(`SMTP transporter created: ${smtpHost}:${smtpPort} (IPv4-only, secure=${isSecure})`);
+  return transport;
+}
 
+function getTransporter() {
+  if (!_transporter) {
+    _transporter = createTransporter();
+  }
   return _transporter;
 }
 
-// ── Base send function ─────────────────────────────────────────────────────
+// ── Base send function with retry ──────────────────────────────────────────
 export async function sendEmail({ to, subject, html, text }) {
-  const transporter = getTransporter();
   const fromName    = process.env.EMAIL_FROM_NAME    || 'Your Store';
   const fromAddress = process.env.EMAIL_FROM_ADDRESS || 'noreply@yourstore.com';
+  const maxRetries  = 2;
 
-  try {
-    const info = await transporter.sendMail({
-      from:    `"${fromName}" <${fromAddress}>`,
-      to,
-      subject,
-      html,
-      text: text || html.replace(/<[^>]+>/g, ''),
-      attachments: arguments[0].attachments || []
-    });
-    logger.info(`Email sent: ${subject} → ${to} [${info.messageId}]`);
-    return { success: true, messageId: info.messageId };
-  } catch (err) {
-    logger.error(`Email send failed: ${err.message}`, { to, subject });
-    return { success: false, error: err.message };
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const transporter = getTransporter();
+      const info = await transporter.sendMail({
+        from:    `"${fromName}" <${fromAddress}>`,
+        to,
+        subject,
+        html,
+        text: text || html.replace(/<[^>]+>/g, ''),
+        attachments: arguments[0].attachments || []
+      });
+      logger.info(`Email sent: ${subject} → ${to} [${info.messageId}]`);
+      return { success: true, messageId: info.messageId };
+    } catch (err) {
+      logger.warn(`Email attempt ${attempt}/${maxRetries} failed: ${err.message}`, { to, subject });
+
+      if (attempt < maxRetries) {
+        // Kill stale transporter and recreate
+        _transporter = null;
+        logger.info('Recreating SMTP transporter for retry...');
+        await new Promise(r => setTimeout(r, 2000)); // brief pause before retry
+      } else {
+        logger.error(`Email send failed after ${maxRetries} attempts: ${err.message}`, { to, subject });
+        return { success: false, error: err.message };
+      }
+    }
   }
 }
 
