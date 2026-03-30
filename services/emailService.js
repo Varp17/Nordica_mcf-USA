@@ -25,10 +25,16 @@ let _transporter = null;
 function getTransporter() {
   if (_transporter) return _transporter;
 
+  const smtpHost = process.env.SMTP_HOST || 'smtp.gmail.com';
+  const smtpPort = parseInt(process.env.SMTP_PORT || '465');
+  
+  // Gmail on 465 requires secure: true
+  const isSecure = (smtpPort === 465);
+
   _transporter = nodemailer.createTransport({
-    host:   process.env.SMTP_HOST || 'smtp.sendgrid.net',
-    port:   parseInt(process.env.SMTP_PORT || '587'),
-    secure: process.env.SMTP_PORT === '465',
+    host:   smtpHost,
+    port:   smtpPort,
+    secure: isSecure,
     auth: {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS
@@ -41,13 +47,13 @@ function getTransporter() {
     tls: {
       rejectUnauthorized: false
     },
-    // Force IPv4 to avoid ENETUNREACH in platforms without IPv6 support
+    // CRITICAL: Forces IPv4 to bypass the ENETUNREACH errors in your production environment
     family: 4 
   });
 
   _transporter.verify((err) => {
-    if (err) logger.warn(`SMTP connection warning: ${err.message}`);
-    else     logger.info('SMTP transporter ready with Port 465 SSL (IPv4 forced)');
+    if (err) logger.warn(`SMTP connection warning (IPv4): ${err.message}`);
+    else     logger.info(`SMTP transporter ready on ${smtpHost}:${smtpPort} (IPv4)`);
   });
 
   return _transporter;
