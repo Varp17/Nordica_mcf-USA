@@ -12,25 +12,42 @@
  *   - Fulfillment Error   (internal alert to admin)
  */
 
-// const nodemailer = require('nodemailer');
-// const logger     = require('../utils/logger');
-// const { formatCurrency } = require('../utils/helpers');
+import dns from 'dns';
+import { resolve4 } from 'dns/promises';
 import nodemailer from 'nodemailer';
 import logger from '../utils/logger.js';
 import { formatCurrency } from '../utils/helpers.js';
 
+// ── CRITICAL: Force IPv4 DNS resolution globally ───────────────────────────
+// This runs at module evaluation time, before any SMTP connection.
+// Fixes ENETUNREACH on Render/cloud platforms without IPv6 networking.
+dns.setDefaultResultOrder('ipv4first');
+
 // ── Transporter (singleton) ────────────────────────────────────────────────
 let _transporter = null;
+let _resolvedHost = null;
 
-function createTransporter() {
+async function createTransporter() {
   const smtpHost = process.env.SMTP_HOST || 'smtp.gmail.com';
   const smtpPort = parseInt(process.env.SMTP_PORT || '465');
-  
-  // Gmail on 465 requires secure: true
   const isSecure = (smtpPort === 465);
 
+  // Manually resolve hostname to IPv4 — bypasses nodemailer's DNS entirely
+  let connectHost = smtpHost;
+  try {
+    const ipv4Addresses = await resolve4(smtpHost);
+    if (ipv4Addresses.length > 0) {
+      connectHost = ipv4Addresses[0];
+      logger.info(`DNS resolved ${smtpHost} → ${connectHost} (IPv4)`);
+    }
+  } catch (dnsErr) {
+    logger.warn(`DNS resolve4 failed for ${smtpHost}, using hostname directly: ${dnsErr.message}`);
+  }
+
+  _resolvedHost = connectHost;
+
   const transport = nodemailer.createTransport({
-    host:   smtpHost,
+    host:   connectHost,        // Use resolved IPv4 IP directly
     port:   smtpPort,
     secure: isSecure,
     auth: {
@@ -38,24 +55,24 @@ function createTransporter() {
       pass: process.env.SMTP_PASS
     },
     pool: false,
-    connectionTimeout: 30000,  // 30s — generous for Render cold-start
+    connectionTimeout: 30000,
     greetingTimeout: 15000,
     socketTimeout: 45000,
     tls: {
+      servername: smtpHost,     // Original hostname for TLS certificate validation
       rejectUnauthorized: false,
       minVersion: 'TLSv1.2'
     },
-    // Force IPv4 at nodemailer level as well
-    family: 4
+    family: 4                   // Belt-and-suspenders
   });
 
-  logger.info(`SMTP transporter created: ${smtpHost}:${smtpPort} (IPv4-only, secure=${isSecure})`);
+  logger.info(`SMTP transporter created: ${connectHost}:${smtpPort} (resolved from ${smtpHost}, secure=${isSecure})`);
   return transport;
 }
 
-function getTransporter() {
+async function getTransporter() {
   if (!_transporter) {
-    _transporter = createTransporter();
+    _transporter = await createTransporter();
   }
   return _transporter;
 }
@@ -68,7 +85,7 @@ export async function sendEmail({ to, subject, html, text }) {
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      const transporter = getTransporter();
+      const transporter = await getTransporter();
       const info = await transporter.sendMail({
         from:    `"${fromName}" <${fromAddress}>`,
         to,
@@ -83,10 +100,9 @@ export async function sendEmail({ to, subject, html, text }) {
       logger.warn(`Email attempt ${attempt}/${maxRetries} failed: ${err.message}`, { to, subject });
 
       if (attempt < maxRetries) {
-        // Kill stale transporter and recreate
         _transporter = null;
         logger.info('Recreating SMTP transporter for retry...');
-        await new Promise(r => setTimeout(r, 2000)); // brief pause before retry
+        await new Promise(r => setTimeout(r, 2000));
       } else {
         logger.error(`Email send failed after ${maxRetries} attempts: ${err.message}`, { to, subject });
         return { success: false, error: err.message };
