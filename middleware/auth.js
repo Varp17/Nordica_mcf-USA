@@ -66,7 +66,13 @@ export function optionalAuth(req, res, next) {
   }
   const token = authHeader.split(' ')[1];
   try {
-    req.user = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    // Normalize to always have 'id' — matches requireAuth behavior
+    req.user = {
+      ...decoded,
+      id: decoded.id || decoded.userId,
+      role: decoded.role || 'customer'
+    };
   } catch {
     req.user = null;
   }

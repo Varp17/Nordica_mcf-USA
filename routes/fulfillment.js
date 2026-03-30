@@ -53,8 +53,6 @@ router.post('/preview', async (req, res) => {
         };
       })
     });
-    // Throw the error for handle catch block to process
-    throw err;
   } catch (err) {
     logger.error(`POST /api/fulfillment/preview error: ${err.message}`, {
       stack: err.stack,

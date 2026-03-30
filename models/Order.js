@@ -1,6 +1,7 @@
 import db from '../config/database.js';
 import { generateOrderNumber, generateUUID } from '../utils/helpers.js';
 import Product from './Product.js';
+import logger from '../utils/logger.js';
 
 export async function createOrder(orderData) {
   const conn = await db.getConnection();

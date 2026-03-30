@@ -9,7 +9,9 @@ import { optionalAuth, requireVerified } from '../middleware/auth.js';
 
 const router = express.Router();
 
-const PAYPAL_API = 'https://api-m.paypal.com';
+const PAYPAL_API = process.env.PAYPAL_ENV === 'sandbox'
+  ? 'https://api-m.sandbox.paypal.com'
+  : 'https://api-m.paypal.com';
 
 /**
  * Get PayPal Access Token
@@ -220,7 +222,7 @@ router.post('/capture', async (req, res) => {
     }
 
     // 5. Success - Finalize internal order
-    await Order.updatePaymentStatus(order.id, {
+    const finalOrder = await Order.updatePaymentStatus(order.id, {
       paymentStatus: 'paid',
       paymentReference: captureId, // Update to actual Capture ID
       paymentMethod: 'paypal'
@@ -231,12 +233,7 @@ router.post('/capture', async (req, res) => {
 
     res.json({
       success: true,
-      order: {
-        id: order.id,
-        orderNumber: order.order_number,
-        total: order.total,
-        currency: order.currency
-      }
+      order: finalOrder
     });
 
   } catch (err) {
