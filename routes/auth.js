@@ -63,17 +63,17 @@ router.post("/register", async (req, res) => {
     const passwordHash = await bcrypt.hash(password, saltRounds)
 
     if (isExistingUnverified) {
-      // Update existing unverified user
+      // Update existing unverified user - now mark as verified automatically
       await connection.execute(
-        `UPDATE users SET password_hash = ?, first_name = ?, last_name = ?, phone = ?, updated_at = NOW() 
+        `UPDATE users SET password_hash = ?, first_name = ?, last_name = ?, phone = ?, is_email_verified = 1, updated_at = NOW() 
          WHERE id = ?`,
         [passwordHash, firstName, lastName, phoneNumber || null, userId]
       )
     } else {
-      // Create new user
+      // Create new user - now mark as verified automatically
       await connection.execute(
-        `INSERT INTO users (id, email, password_hash, first_name, last_name, phone) 
-         VALUES (?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO users (id, email, password_hash, first_name, last_name, phone, is_email_verified) 
+         VALUES (?, ?, ?, ?, ?, ?, 1)`,
         [userId, email, passwordHash, firstName, lastName, phoneNumber || null],
       )
 
@@ -82,7 +82,8 @@ router.post("/register", async (req, res) => {
       await connection.execute("INSERT INTO carts (id, user_id) VALUES (?, ?)", [cartId, userId])
     }
 
-    // Generate 6-digit OTP
+    // SKIP OTP FOR NOW (As requested)
+    /*
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
     const otpExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
@@ -90,31 +91,23 @@ router.post("/register", async (req, res) => {
       "UPDATE users SET otp_code = ?, otp_expiry = ? WHERE id = ?",
       [otpCode, otpExpiry, userId]
     );
+    */
 
     await connection.commit();
 
-    // Send OTP email with explicit check (as requested for reliability)
-    try {
-      const emailResult = await sendOTPEmail(email, otpCode);
-      if (!emailResult.success) {
-        throw new Error(emailResult.error || "Failed to send OTP email");
-      }
-    } catch (emailErr) {
-      console.error("OTP email failure during registration:", emailErr);
-      return res.status(500).json({ 
-        success: false, 
-        message: "Registration created, but failed to send verification email. Please use the 'Resend OTP' button or try again later." 
-      });
-    }
+    // Fire and forget welcome email since we're verified now
+    sendWelcomeEmail(email, firstName).catch(welcomeErr => {
+      console.error("Background Welcome email failure:", welcomeErr);
+    });
 
     // Generate JWT token
     const token = jwt.sign({ userId, email, role: 'customer' }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRES_IN || "7d" })
 
     res.status(201).json({
       success: true,
-      message: "User registered successfully. Please check your email for the verification code.",
+      message: "User registered successfully.",
       token,
-      requiresVerification: true,
+      requiresVerification: false,
       user: {
         id: userId,
         email,
@@ -122,7 +115,7 @@ router.post("/register", async (req, res) => {
         last_name: lastName,
         phone_number: phoneNumber,
         role: "customer",
-        is_email_verified: 0
+        is_email_verified: 1
       },
     })
   } catch (error) {
@@ -167,38 +160,9 @@ router.post("/login", async (req, res) => {
       expiresIn: process.env.JWT_EXPIRES_IN || "7d",
     })
 
-    // Handle Unverified Case
+    // Force verification on login for now (as requested)
     if (!user.is_email_verified) {
-      // Refresh OTP for unverified user
-      const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
-      const otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
-
-      await db.execute(
-        "UPDATE users SET otp_code = ?, otp_expiry = ?, last_login_at = NOW() WHERE id = ?",
-        [otpCode, otpExpiry, user.id]
-      );
-
-      // Try sending OTP email
-      try {
-        await sendOTPEmail(user.email, otpCode);
-      } catch (emailErr) {
-        console.error("Backgound OTP email failure during unverified login:", emailErr);
-      }
-
-      return res.json({
-        success: true,
-        message: "Please verify your email to access all features. A new code was sent to your inbox.",
-        token,
-        requiresVerification: true,
-        user: {
-          id: user.id,
-          email: user.email,
-          first_name: user.first_name,
-          last_name: user.last_name,
-          role: user.role,
-          is_email_verified: 0
-        }
-      });
+      await db.execute("UPDATE users SET is_email_verified = 1 WHERE id = ?", [user.id]);
     }
 
     // Update last login for verified users
@@ -342,7 +306,10 @@ router.get("/me", authenticateToken, async (req, res) => {
     
     res.json({
       success: true,
-      user: users[0]
+      user: {
+        ...users[0],
+        is_email_verified: 1
+      }
     });
 
     // const user = users[0]
