@@ -146,7 +146,7 @@ app.get('/api/geoip', async (req, res) => {
 
   // Enhance detection: If running locally or no region headers detected, 
   // do a server-side lookup to bypass CORS and ad-blockers.
-  if (!country || country === 'CA') {
+  if (!country || country === 'US') {
     try {
       const geoRes = await axios.get('https://ipapi.co/json/', { timeout: 2000 });
       if (geoRes.data?.country_code) {
@@ -157,7 +157,7 @@ app.get('/api/geoip', async (req, res) => {
     }
   }
 
-  res.json({ success: true, country: country || 'CA' });
+  res.json({ success: true, country: country || 'US' });
 });
 
 // ── API Routes ────────────────────────────────────────────────────────────────
