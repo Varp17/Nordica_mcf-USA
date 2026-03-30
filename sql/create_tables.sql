@@ -10,15 +10,13 @@
 
 SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
-
--- ------------------------------------------------------------
--- 1. DATABASE
--- ------------------------------------------------------------
-CREATE DATABASE IF NOT EXISTS nordica_ecomsun
-  CHARACTER SET utf8mb4
-  COLLATE utf8mb4_unicode_ci;
-USE nordica_ecomsun;
-
+-- -- ------------------------------------------------------------
+-- -- 1. DATABASE
+-- -- ------------------------------------------------------------
+-- CREATE DATABASE IF NOT EXISTS nordica_ecomsun
+--   CHARACTER SET utf8mb4
+--   COLLATE utf8mb4_unicode_ci;
+-- USE nordica_ecomsun;
 -- ------------------------------------------------------------
 -- 2. USERS (admin + customers)
 -- ------------------------------------------------------------
@@ -210,7 +208,8 @@ CREATE TABLE product_color_variants (
   created_at       DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at       DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
-  INDEX idx_pcv_product (product_id)
+  INDEX idx_pcv_product (product_id),
+  INDEX idx_pcv_amazon_sku (amazon_sku)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ------------------------------------------------------------

@@ -8,14 +8,52 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 /**
- * Production-ready Database Initializer
- * Ensures tables exist and admin is seeded/updated on every boot.
+ * Split SQL script into individual statements, handling DELIMITER blocks.
+ * This is necessary because MySQL drivers don't support the DELIMITER command.
  */
+function parseSqlStats(sql) {
+  const statements = [];
+  let currentDelimiter = ';';
+  let buffer = '';
+  
+  const lines = sql.split(/\r?\n/);
+  
+  for (let line of lines) {
+    const trimmedLine = line.trim();
+    
+    // Skip empty lines or pure comment lines for parsing, but keep content for the buffer
+    if (!trimmedLine || trimmedLine.startsWith('--')) continue;
+
+    // Handle DELIMITER change command
+    if (trimmedLine.toUpperCase().startsWith('DELIMITER')) {
+      const parts = trimmedLine.split(/\s+/);
+      if (parts.length > 1) {
+        currentDelimiter = parts[1];
+      }
+      continue;
+    }
+
+    buffer += line + '\n';
+
+    // If the line ends with the current delimiter, we've reached the end of a statement
+    if (trimmedLine.endsWith(currentDelimiter)) {
+      let stmt = buffer.trim();
+      // Remove trailing delimiter
+      if (stmt.endsWith(currentDelimiter)) {
+        stmt = stmt.slice(0, -currentDelimiter.length).trim();
+      }
+      if (stmt) statements.push(stmt);
+      buffer = '';
+    }
+  }
+  return statements;
+}
+
 export async function initializeDatabase(db) {
   try {
     logger.info('🛠️ Checking database health and schema...');
 
-    // 1. Check if 'users' table exists 
+    // 1. Check if tables exist
     const [tables] = await db.query("SHOW TABLES LIKE 'users'");
     
     if (tables.length === 0) {
@@ -23,10 +61,19 @@ export async function initializeDatabase(db) {
       const sqlPath = path.join(__dirname, '..', 'sql', 'create_tables.sql');
       
       if (fs.existsSync(sqlPath)) {
-        let sql = fs.readFileSync(sqlPath, 'utf8');
+        const rawSql = fs.readFileSync(sqlPath, 'utf8');
+        const statements = parseSqlStats(rawSql);
         
-        // Multi-statement SQL execution
-        await db.query(sql);
+        logger.info(`🚀 Executing ${statements.length} SQL statements sequentially...`);
+        
+        for (let i = 0; i < statements.length; i++) {
+          try {
+            await db.query(statements[i]);
+          } catch (stmtErr) {
+            logger.error(`❌ SQL Error in statement #${i + 1} near: "${statements[i].substring(0, 100)}..."`);
+            throw stmtErr;
+          }
+        }
         logger.info('✅ Database schema created successfully.');
       } else {
         logger.error(`❌ SQL file not found at ${sqlPath}`);
@@ -37,21 +84,18 @@ export async function initializeDatabase(db) {
     const adminEmail = process.env.ADMIN_EMAIL || 'admin@detailguardz.com';
     const adminPass = process.env.ADMIN_SEED_PASSWORD || 'Admin@Secure123!';
     
-    // Hash the password for the admin (from .env)
     const saltRounds = 12;
     const passwordHash = await bcrypt.hash(adminPass, saltRounds);
 
     const [adminRows] = await db.query("SELECT id FROM users WHERE email = ?", [adminEmail]);
 
     if (adminRows.length > 0) {
-      // Sync admin password and ensure role is superadmin
       await db.execute(
         "UPDATE users SET password_hash = ?, role = 'superadmin', is_active = 1 WHERE email = ?",
         [passwordHash, adminEmail]
       );
       logger.info(`✅ Admin credentials synchronized from .env for ${adminEmail}`);
     } else {
-      // Create new superadmin
       await db.execute(
         "INSERT INTO users (id, email, password_hash, first_name, last_name, role, is_active) VALUES (UUID(), ?, ?, 'Admin', 'User', 'superadmin', 1)",
         [adminEmail, passwordHash]
@@ -62,6 +106,6 @@ export async function initializeDatabase(db) {
     return true;
   } catch (err) {
     logger.error(`❌ DB Initialization failed: ${err.message}`);
-    throw err; // Fail hard in production if DB isn't ready
+    throw err; 
   }
 }

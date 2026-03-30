@@ -2,23 +2,29 @@ import mysql from 'mysql2/promise';
 import logger from '../utils/logger.js';
 
 // Create a connection pool — reused across all requests
-const pool = mysql.createPool({
-  host:               process.env.DB_HOST     || 'localhost',
-  port:               parseInt(process.env.DB_PORT || '3306'),
-  user:               process.env.DB_USER     || 'root',
-  password:           process.env.DB_PASSWORD || 'root',
-  database:           process.env.DB_NAME     || 'nordica_ecomsun',
-  waitForConnections: true,
-  connectionLimit:    parseInt(process.env.DB_POOL_MAX || '10'),
-  queueLimit:         0,
-  enableKeepAlive:    true,
-  keepAliveInitialDelay: 0,
-  // Return JS Date objects for DATETIME columns
-  dateStrings: false,
-  timezone: '+00:00',
-  // Auto-reconnect on connection loss
-  multipleStatements: true
-});
+// Support both individual variables and single connection URL (standard for Render/Railway)
+const rawPoolConfig = process.env.DATABASE_URL 
+  ? process.env.DATABASE_URL 
+  : {
+      host:     process.env.DB_HOST     || 'localhost',
+      port:     parseInt(process.env.DB_PORT || '3306', 10),
+      user:     process.env.DB_USER     || 'root',
+      password: process.env.DB_PASSWORD || 'root',
+      database: process.env.DB_NAME     || 'nordica_ecomsun',
+      waitForConnections: true,
+      connectionLimit:    parseInt(process.env.DB_POOL_MAX || '10', 10),
+      multipleStatements: true,
+      dateStrings: false,
+      timezone: '+00:00'
+    };
+
+// Automatically append multipleStatements=true to connection strings if missing
+let poolConfig = rawPoolConfig;
+if (typeof poolConfig === 'string' && !poolConfig.includes('multipleStatements=true')) {
+  poolConfig += poolConfig.includes('?') ? '&multipleStatements=true' : '?multipleStatements=true';
+}
+
+const pool = mysql.createPool(poolConfig);
 
 // Wrap pool.query so callers can do: db.query(sql, params)
 const db = {

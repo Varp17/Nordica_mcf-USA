@@ -43,6 +43,9 @@ async function runSync() {
   try {
     logger.info('🔄 InventorySync: Starting Amazon stock synchronization...');
 
+    // Disable safe updates for this session (Required for Railway/Managed DBs)
+    await db.query('SET SQL_SAFE_UPDATES = 0').catch(err => logger.warn(`Could not set SQL_SAFE_UPDATES: ${err.message}`));
+
     // 1. Collect all SKUs from US products only (Amazon FBA is US only)
     const [products] = await db.query(
       `SELECT id, name, amazon_sku, color_options FROM products 
