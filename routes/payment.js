@@ -9,9 +9,7 @@ import { optionalAuth } from '../middleware/auth.js';
 
 const router = express.Router();
 
-const PAYPAL_API = process.env.PAYPAL_ENV === 'production' 
-  ? 'https://api-m.paypal.com' 
-  : 'https://api-m.sandbox.paypal.com';
+const PAYPAL_API = 'https://api-m.paypal.com';
 
 /**
  * Get PayPal Access Token

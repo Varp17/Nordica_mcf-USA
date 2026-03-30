@@ -38,4 +38,19 @@ router.get('/skus', async (req, res) => {
   }
 });
 
+/**
+ * GET /api/debug/env
+ * Basic environment status
+ */
+router.get('/env', (req, res) => {
+  res.json({
+    success: true,
+    node_env: process.env.NODE_ENV,
+    paypal_env: process.env.PAYPAL_ENV || 'sandbox (default)',
+    has_paypal_client: !!process.env.PAYPAL_CLIENT_ID,
+    has_paypal_secret: !!process.env.PAYPAL_CLIENT_SECRET,
+    frontend_url: process.env.FRONTEND_URL ? 'set' : 'not set'
+  });
+});
+
 export default router;

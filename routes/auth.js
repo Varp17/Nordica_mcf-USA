@@ -25,6 +25,7 @@ const loginSchema = Joi.object({
 
 // Register
 router.post("/register", async (req, res) => {
+  const connection = await db.getConnection();
   try {
     const { error, value } = registerSchema.validate(req.body)
     if (error) {
@@ -33,44 +34,75 @@ router.post("/register", async (req, res) => {
 
     const { email, password, firstName, lastName, phoneNumber } = value
 
+    await connection.beginTransaction();
+
     // Check if user already exists
-    const [existingUsers] = await db.execute("SELECT id FROM users WHERE email = ?", [email])
+    const [existingUsers] = await connection.execute(
+      "SELECT id, is_email_verified FROM users WHERE email = ?", 
+      [email]
+    )
+
+    let userId;
+    let isExistingUnverified = false;
 
     if (existingUsers.length > 0) {
-      return res.status(400).json({ success: false, message: "User already exists with this email" })
+      const user = existingUsers[0];
+      if (user.is_email_verified) {
+        await connection.rollback();
+        return res.status(400).json({ success: false, message: "User already exists with this email" })
+      }
+      // User exists but is not verified - we'll update the record
+      userId = user.id;
+      isExistingUnverified = true;
+    } else {
+      userId = uuidv4();
     }
 
     // Hash password
     const saltRounds = 12
     const passwordHash = await bcrypt.hash(password, saltRounds)
 
-    // Create user
-    const userId = uuidv4()
-    const memberSince = new Date().toISOString().split("T")[0]
+    if (isExistingUnverified) {
+      // Update existing unverified user
+      await connection.execute(
+        `UPDATE users SET password_hash = ?, first_name = ?, last_name = ?, phone = ?, updated_at = NOW() 
+         WHERE id = ?`,
+        [passwordHash, firstName, lastName, phoneNumber || null, userId]
+      )
+    } else {
+      // Create new user
+      await connection.execute(
+        `INSERT INTO users (id, email, password_hash, first_name, last_name, phone) 
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [userId, email, passwordHash, firstName, lastName, phoneNumber || null],
+      )
 
-    await db.execute(
-      `INSERT INTO users (id, email, password_hash, first_name, last_name, phone) 
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [userId, email, passwordHash, firstName, lastName, phoneNumber || null],
-    )
-
-    // Create cart for user
-    const cartId = uuidv4()
-    await db.execute("INSERT INTO carts (id, user_id) VALUES (?, ?)", [cartId, userId])
+      // Create cart for user
+      const cartId = uuidv4()
+      await connection.execute("INSERT INTO carts (id, user_id) VALUES (?, ?)", [cartId, userId])
+    }
 
     // Generate 6-digit OTP
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
     const otpExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
-    await db.execute(
+    await connection.execute(
       "UPDATE users SET otp_code = ?, otp_expiry = ? WHERE id = ?",
       [otpCode, otpExpiry, userId]
     );
 
-    // Send OTP email
-    await sendOTPEmail(email, otpCode);
+    await connection.commit();
 
-    // Generate JWT token (might be limited until verified)
+    // Send OTP email (We can try-catch this to ensure we don't fail the whole request 
+    // if the user is already created, but for a new registration, it's better to know)
+    try {
+      await sendOTPEmail(email, otpCode);
+    } catch (emailErr) {
+      console.error("Failed to send OTP email during registration:", emailErr);
+      // We don't rollback here because the DB is already committed and the user can resend OTP
+    }
+
+    // Generate JWT token
     const token = jwt.sign({ userId, email, role: 'customer' }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRES_IN || "7d" })
 
     res.status(201).json({
@@ -89,8 +121,11 @@ router.post("/register", async (req, res) => {
       },
     })
   } catch (error) {
+    if (connection) await connection.rollback();
     console.error("Registration error:", error)
-    res.status(500).json({ error: "Internal server error" })
+    res.status(500).json({ success: false, message: "Internal server error" })
+  } finally {
+    if (connection) connection.release();
   }
 })
 
