@@ -3,13 +3,11 @@
 /**
  * Email Notification Service
  * ───────────────────────────
- * Sends transactional emails via SMTP (SendGrid / SES / Mailgun compatible).
- * Templates:
- *   - Order Confirmation  (after payment)
- *   - Order Shipped       (after fulfillment + tracking number)
- *   - Out for Delivery
- *   - Order Delivered
- *   - Fulfillment Error   (internal alert to admin)
+ * PRIMARY: SendGrid HTTP API (port 443 — works on Render/all cloud platforms)
+ * FALLBACK: SMTP via nodemailer (for local dev or platforms with open SMTP ports)
+ *
+ * Set SENDGRID_API_KEY env var to use HTTP API.
+ * If not set, falls back to SMTP_HOST/SMTP_PORT/SMTP_USER/SMTP_PASS.
  */
 
 import dns from 'dns';
@@ -19,20 +17,64 @@ import logger from '../utils/logger.js';
 import { formatCurrency } from '../utils/helpers.js';
 
 // ── CRITICAL: Force IPv4 DNS resolution globally ───────────────────────────
-// This runs at module evaluation time, before any SMTP connection.
-// Fixes ENETUNREACH on Render/cloud platforms without IPv6 networking.
 dns.setDefaultResultOrder('ipv4first');
 
-// ── Transporter (singleton) ────────────────────────────────────────────────
+// ── SendGrid HTTP API sender ───────────────────────────────────────────────
+async function sendViaSendGrid({ to, subject, html, text, attachments }) {
+  const apiKey = process.env.SENDGRID_API_KEY;
+  const fromName    = process.env.EMAIL_FROM_NAME    || 'Your Store';
+  const fromAddress = process.env.EMAIL_FROM_ADDRESS || 'noreply@yourstore.com';
+
+  const payload = {
+    personalizations: [{ to: [{ email: to }] }],
+    from: { email: fromAddress, name: fromName },
+    subject,
+    content: [
+      { type: 'text/plain', value: text || html.replace(/<[^>]+>/g, '') },
+      { type: 'text/html',  value: html }
+    ]
+  };
+
+  // Add attachments if present
+  if (attachments && attachments.length > 0) {
+    const fs = await import('fs');
+    const path = await import('path');
+    payload.attachments = attachments.map(att => {
+      const content = att.content || fs.readFileSync(att.path);
+      return {
+        content: Buffer.from(content).toString('base64'),
+        filename: att.filename,
+        type: att.contentType || 'application/octet-stream',
+        disposition: 'attachment'
+      };
+    });
+  }
+
+  const res = await fetch('https://api.sendgrid.com/v3/mail/send', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(payload)
+  });
+
+  if (!res.ok) {
+    const errBody = await res.text();
+    throw new Error(`SendGrid API error ${res.status}: ${errBody}`);
+  }
+
+  return { success: true, messageId: res.headers.get('x-message-id') || 'sg-sent' };
+}
+
+// ── SMTP Transporter (fallback for local dev) ──────────────────────────────
 let _transporter = null;
-let _resolvedHost = null;
 
 async function createTransporter() {
   const smtpHost = process.env.SMTP_HOST || 'smtp.gmail.com';
   const smtpPort = parseInt(process.env.SMTP_PORT || '465');
   const isSecure = (smtpPort === 465);
 
-  // Manually resolve hostname to IPv4 — bypasses nodemailer's DNS entirely
   let connectHost = smtpHost;
   try {
     const ipv4Addresses = await resolve4(smtpHost);
@@ -44,26 +86,17 @@ async function createTransporter() {
     logger.warn(`DNS resolve4 failed for ${smtpHost}, using hostname directly: ${dnsErr.message}`);
   }
 
-  _resolvedHost = connectHost;
-
   const transport = nodemailer.createTransport({
-    host:   connectHost,        // Use resolved IPv4 IP directly
-    port:   smtpPort,
+    host: connectHost,
+    port: smtpPort,
     secure: isSecure,
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS
-    },
+    auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
     pool: false,
     connectionTimeout: 30000,
     greetingTimeout: 15000,
     socketTimeout: 45000,
-    tls: {
-      servername: smtpHost,     // Original hostname for TLS certificate validation
-      rejectUnauthorized: false,
-      minVersion: 'TLSv1.2'
-    },
-    family: 4                   // Belt-and-suspenders
+    tls: { servername: smtpHost, rejectUnauthorized: false, minVersion: 'TLSv1.2' },
+    family: 4
   });
 
   logger.info(`SMTP transporter created: ${connectHost}:${smtpPort} (resolved from ${smtpHost}, secure=${isSecure})`);
@@ -71,37 +104,46 @@ async function createTransporter() {
 }
 
 async function getTransporter() {
-  if (!_transporter) {
-    _transporter = await createTransporter();
-  }
+  if (!_transporter) _transporter = await createTransporter();
   return _transporter;
 }
 
-// ── Base send function with retry ──────────────────────────────────────────
+// ── Base send function ─────────────────────────────────────────────────────
 export async function sendEmail({ to, subject, html, text }) {
-  const fromName    = process.env.EMAIL_FROM_NAME    || 'Your Store';
-  const fromAddress = process.env.EMAIL_FROM_ADDRESS || 'noreply@yourstore.com';
+  const useSendGrid = !!process.env.SENDGRID_API_KEY;
   const maxRetries  = 2;
+  const emailAttachments = arguments[0].attachments || [];
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      const transporter = await getTransporter();
-      const info = await transporter.sendMail({
-        from:    `"${fromName}" <${fromAddress}>`,
-        to,
-        subject,
-        html,
-        text: text || html.replace(/<[^>]+>/g, ''),
-        attachments: arguments[0].attachments || []
-      });
-      logger.info(`Email sent: ${subject} → ${to} [${info.messageId}]`);
-      return { success: true, messageId: info.messageId };
+      let result;
+
+      if (useSendGrid) {
+        // ── SendGrid HTTP API (port 443 — never blocked) ──
+        result = await sendViaSendGrid({ to, subject, html, text, attachments: emailAttachments });
+      } else {
+        // ── SMTP fallback (local dev) ──
+        const transporter = await getTransporter();
+        const fromName    = process.env.EMAIL_FROM_NAME    || 'Your Store';
+        const fromAddress = process.env.EMAIL_FROM_ADDRESS || 'noreply@yourstore.com';
+        const info = await transporter.sendMail({
+          from: `"${fromName}" <${fromAddress}>`,
+          to, subject, html,
+          text: text || html.replace(/<[^>]+>/g, ''),
+          attachments: emailAttachments
+        });
+        result = { success: true, messageId: info.messageId };
+      }
+
+      logger.info(`Email sent via ${useSendGrid ? 'SendGrid API' : 'SMTP'}: ${subject} → ${to} [${result.messageId}]`);
+      return result;
+
     } catch (err) {
-      logger.warn(`Email attempt ${attempt}/${maxRetries} failed: ${err.message}`, { to, subject });
+      logger.warn(`Email attempt ${attempt}/${maxRetries} failed (${useSendGrid ? 'SendGrid' : 'SMTP'}): ${err.message}`, { to, subject });
 
       if (attempt < maxRetries) {
-        _transporter = null;
-        logger.info('Recreating SMTP transporter for retry...');
+        if (!useSendGrid) { _transporter = null; }
+        logger.info('Retrying email send...');
         await new Promise(r => setTimeout(r, 2000));
       } else {
         logger.error(`Email send failed after ${maxRetries} attempts: ${err.message}`, { to, subject });
@@ -110,6 +152,7 @@ export async function sendEmail({ to, subject, html, text }) {
     }
   }
 }
+
 
 // ── Shared CSS ─────────────────────────────────────────────────────────────
 const baseStyle = `
