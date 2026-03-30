@@ -200,10 +200,11 @@ export async function deductStock(items, connection = null) {
       if (cvRes.affectedRows > 0) continue;
     }
 
-    // 3. Fallback to main products table
+    const pId = item.product_id || item.productId || item.variantId || null;
+    const sku = item.sku || null;
     await dbConn.execute(
       `UPDATE products SET inventory_cache = GREATEST(0, inventory_cache - ?) WHERE id = ? OR slug = ? OR sku = ?`,
-      [qty, item.productId || item.variantId, item.productId, item.sku]
+      [qty, pId, pId, sku]
     );
   }
 }

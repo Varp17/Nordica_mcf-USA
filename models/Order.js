@@ -20,15 +20,15 @@ export async function createOrder(orderData) {
     const shippingAddressJson = JSON.stringify({
       firstName:  s.firstName,
       lastName:   s.lastName,
-      company:    s.company   || null,
-      address1:   s.address1,
-      address2:   s.address2  || null,
+      company:    s.company      || null,
+      address1:   s.address1     || s.address,
+      address2:   s.address2     || s.apartment || null,
       city:       s.city,
-      state:      s.state     || null,
-      province:   s.province  || null,
-      zip:        s.zip       || null,
-      postalCode: s.postalCode|| null,
-      phone:      s.phone     || null,
+      state:      s.state        || s.province  || null,
+      province:   s.province     || s.state     || null,
+      zip:        s.zip          || s.postalCode|| null,
+      postalCode: s.postalCode   || s.zip       || null,
+      phone:      s.phone        || null,
       country:    orderData.country
     });
 
@@ -59,15 +59,15 @@ export async function createOrder(orderData) {
          ?, NOW(), NOW()
        )`,
       [
-        orderId, orderNumber, orderData.customerId || null, orderData.customer_email, orderData.country,
-        s.firstName, s.lastName, s.company || null,
-        s.address1, s.address2 || null,
-        s.city,
-        isUS ? (s.state  || null) : null, !isUS ? (s.province || null) : null,
-        isUS ? (s.zip    || null) : null, !isUS ? (s.postalCode || null) : null,
+        orderId, orderNumber, orderData.customerId || null, orderData.customer_email || null, orderData.country || null,
+        s.firstName || null, s.lastName || null, s.company || null,
+        s.address1 || s.address || null, s.address2 || s.apartment || null,
+        s.city || null,
+        (s.state || s.province || null), (s.province || s.state || null),
+        (s.zip || s.postalCode || null), (s.postalCode || s.zip || null),
         s.phone || null,
         orderData.shippingSpeed || 'standard', shippingAddressJson,
-        orderData.subtotal, orderData.tax || 0, orderData.shippingCost || 0, orderData.total,
+        orderData.subtotal || 0, orderData.tax || 0, orderData.shippingCost || 0, orderData.total || 0,
         orderData.currency || (orderData.country === 'CA' ? 'CAD' : 'USD'),
         orderData.paymentStatus || 'pending',
         orderData.paymentMethod || null, orderData.paymentReference || null,
@@ -83,10 +83,10 @@ export async function createOrder(orderData) {
            weight_kg, created_at
          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
         [
-          generateUUID(), orderId, item.variantId || null, item.productId || null,
-          item.sku, item.fnsku || null, item.productName, item.quantity,
-          item.unitPrice, item.unitPrice * item.quantity,
-          item.weightKg || 0.5
+          generateUUID(), orderId, item.variantId || item.product_variant_id || null, item.productId || item.product_id || null,
+          item.sku || null, item.fnsku || null, item.productName || item.product_name || 'Product', item.quantity || 1,
+          parseFloat(item.unitPrice || item.unit_price || 0), parseFloat(item.totalPrice || item.total_price || 0),
+          item.weightKg || item.weight_kg || 0.5
         ]
       );
     }

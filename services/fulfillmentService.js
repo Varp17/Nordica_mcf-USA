@@ -54,8 +54,8 @@ async function _fulfillUS(order, invoicePdf = null) {
       line1:   order.shipping_address1,
       line2:   order.shipping_address2,
       city:    order.shipping_city,
-      stateOrRegion: order.shipping_state,
-      postalCode:    order.shipping_zip,
+      stateOrRegion: order.shipping_state || order.shipping_province,
+      postalCode:    order.shipping_zip   || order.shipping_postal_code,
       phone:         order.shipping_phone
     }, order.items.map(i => ({ sku: i.sku, quantity: i.quantity })));
 

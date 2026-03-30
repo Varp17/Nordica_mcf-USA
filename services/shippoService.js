@@ -125,8 +125,8 @@ export async function getShippingRates(order) {
       street1: order.shipping_address1,
       street2: order.shipping_address2 || '',
       city:    order.shipping_city,
-      state:   order.shipping_province,
-      zip:     (order.shipping_postal_code || '').replace(/\s+/g, '').toUpperCase(),
+      state:   order.shipping_province || order.shipping_state,
+      zip:     (order.shipping_postal_code || order.shipping_zip || '').replace(/\s+/g, '').toUpperCase(),
       country: 'CA',
       phone:   order.shipping_phone || ''
     })),
@@ -182,8 +182,8 @@ export async function createShipment(order) {
       street1: order.shipping_address1,
       street2: order.shipping_address2 || '',
       city:    order.shipping_city,
-      state:   order.shipping_province,
-      zip:     (order.shipping_postal_code || '').replace(/\s+/g, '').toUpperCase(),
+      state:   order.shipping_province || order.shipping_state,
+      zip:     (order.shipping_postal_code || order.shipping_zip || '').replace(/\s+/g, '').toUpperCase(),
       country: 'CA',
       phone:   order.shipping_phone || '',
       email:   order.customer_email || ''
