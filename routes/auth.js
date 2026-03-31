@@ -63,17 +63,17 @@ router.post("/register", async (req, res) => {
     const passwordHash = await bcrypt.hash(password, saltRounds)
 
     if (isExistingUnverified) {
-      // Update existing unverified user - now mark as verified automatically
+      // Update existing unverified user
       await connection.execute(
-        `UPDATE users SET password_hash = ?, first_name = ?, last_name = ?, phone = ?, is_email_verified = 1, updated_at = NOW() 
+        `UPDATE users SET password_hash = ?, first_name = ?, last_name = ?, phone = ?, updated_at = NOW() 
          WHERE id = ?`,
         [passwordHash, firstName, lastName, phoneNumber || null, userId]
       )
     } else {
-      // Create new user - now mark as verified automatically
+      // Create new user (defaults to unverified)
       await connection.execute(
-        `INSERT INTO users (id, email, password_hash, first_name, last_name, phone, is_email_verified) 
-         VALUES (?, ?, ?, ?, ?, ?, 1)`,
+        `INSERT INTO users (id, email, password_hash, first_name, last_name, phone) 
+         VALUES (?, ?, ?, ?, ?, ?)`,
         [userId, email, passwordHash, firstName, lastName, phoneNumber || null],
       )
 
@@ -82,8 +82,7 @@ router.post("/register", async (req, res) => {
       await connection.execute("INSERT INTO carts (id, user_id) VALUES (?, ?)", [cartId, userId])
     }
 
-    // SKIP OTP FOR NOW (As requested)
-    /*
+    // GENERATE OTP
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
     const otpExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
@@ -91,23 +90,29 @@ router.post("/register", async (req, res) => {
       "UPDATE users SET otp_code = ?, otp_expiry = ? WHERE id = ?",
       [otpCode, otpExpiry, userId]
     );
-    */
 
     await connection.commit();
 
-    // Fire and forget welcome email since we're verified now
-    sendWelcomeEmail(email, firstName).catch(welcomeErr => {
-      console.error("Background Welcome email failure:", welcomeErr);
-    });
+    // Send OTP email
+    try {
+      await sendOTPEmail(email, otpCode);
+    } catch (emailErr) {
+      console.error("Registration OTP email failure:", emailErr);
+      // We don't roll back here because the user is created; they can resend later
+    }
+
+
+
+    // Welcome email will be sent after OTP is verified.
 
     // Generate JWT token
     const token = jwt.sign({ userId, email, role: 'customer' }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRES_IN || "7d" })
 
     res.status(201).json({
       success: true,
-      message: "User registered successfully.",
+      message: "Registration successful. Please check your email for a verification code.",
       token,
-      requiresVerification: false,
+      requiresVerification: true,
       user: {
         id: userId,
         email,
@@ -115,7 +120,7 @@ router.post("/register", async (req, res) => {
         last_name: lastName,
         phone_number: phoneNumber,
         role: "customer",
-        is_email_verified: 1
+        is_email_verified: 0
       },
     })
   } catch (error) {
@@ -160,9 +165,36 @@ router.post("/login", async (req, res) => {
       expiresIn: process.env.JWT_EXPIRES_IN || "7d",
     })
 
-    // Force verification on login for now (as requested)
+    // If not verified, generate new OTP and redirect
     if (!user.is_email_verified) {
-      await db.execute("UPDATE users SET is_email_verified = 1 WHERE id = ?", [user.id]);
+      const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+      const otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
+
+      await db.execute(
+        "UPDATE users SET otp_code = ?, otp_expiry = ? WHERE id = ?",
+        [otpCode, otpExpiry, user.id]
+      );
+
+      try {
+        await sendOTPEmail(user.email, otpCode);
+      } catch (emailErr) {
+        console.error("Login OTP email failure:", emailErr);
+      }
+
+      return res.json({
+        success: true,
+        message: "Account not verified. A verification code has been sent to your email.",
+        token,
+        requiresVerification: true,
+        user: {
+           id: user.id,
+           email: user.email,
+           first_name: user.first_name,
+           last_name: user.last_name,
+           role: user.role,
+           is_email_verified: 0
+        }
+      });
     }
 
     // Update last login for verified users
@@ -185,7 +217,7 @@ router.post("/login", async (req, res) => {
         zip: user.zip,
         country: user.country,
         role: user.role,
-        is_email_verified: 1
+        is_email_verified: user.is_email_verified || 0
       },
     })
   } catch (error) {
@@ -308,7 +340,7 @@ router.get("/me", authenticateToken, async (req, res) => {
       success: true,
       user: {
         ...users[0],
-        is_email_verified: 1
+        is_email_verified: users[0].is_email_verified || 0
       }
     });
 
