@@ -17,6 +17,7 @@ import { spApiRequest } from './spApiClient.js';
 import { generateMCFOrderId } from '../utils/helpers.js';
 import logger from '../utils/logger.js';
 import { normalizeState } from '../utils/state-normalization.js';
+import { calculateMCFShipping } from '../utils/shippingCalculator.js';
 
 
 const MCF_BASE = '/fba/outbound/2020-07-01';
@@ -135,17 +136,159 @@ export async function cancelFulfillmentOrder(sellerFulfillmentOrderId) {
   return { success: true };
 }
 
+export async function getProductDimensionsFromMCF(sku, asin = null) {
+  logger.debug(`MCF: Fetching dimensions for SKU: ${sku}, ASIN: ${asin || 'not provided'}`);
+
+  try {
+    let targetAsin = asin;
+
+    // 1. If we don't have an ASIN, try to resolve SKU -> ASIN using Listings Items API
+    if (!targetAsin) {
+      try {
+        const sellerId = process.env.AMAZON_SELLER_ID;
+        const marketplaceId = process.env.AMAZON_MARKETPLACE_ID_US || 'ATVPDKIKX0DER';
+        
+        logger.debug(`MCF: Resolving SKU ${sku} to ASIN via Listings API...`);
+        const listingsRes = await spApiRequest(
+          'GET', 
+          `/listings/2021-08-01/items/${sellerId}/${sku}`, 
+          null, 
+          { marketplaceIds: marketplaceId }
+        );
+        
+        targetAsin = listingsRes.data?.summaries?.[0]?.asin;
+        if (targetAsin) {
+          logger.debug(`MCF: Resolved ${sku} to ASIN: ${targetAsin}`);
+        }
+      } catch (e) {
+        logger.warn(`MCF: Failed to resolve SKU to ASIN via Listings API: ${e.message}`);
+        // Fallback to trying SKU in Catalog anyway (will likely fail if Listings API failed, but worth a shot)
+      }
+    }
+
+    // 2. Use Amazon Catalog API to get item details
+    const catalogParams = {
+      marketplaceIds: process.env.AMAZON_MARKETPLACE_ID_US || 'ATVPDKIKX0DER',
+      includedData: 'attributes'
+    };
+
+    if (targetAsin) {
+      catalogParams.identifiers = targetAsin;
+      catalogParams.identifiersType = 'ASIN';
+    } else {
+      // Note: Catalog API v2022-04-01 technically does NOT support SKU type for identifiers, 
+      // but we keep this as a last-ditch effort/standard pattern.
+      catalogParams.identifiers = sku;
+      catalogParams.identifiersType = 'SKU'; 
+    }
+
+    const response = await spApiRequest('GET', '/catalog/2022-04-01/items', null, catalogParams);
+    const item = response.data?.items?.[0]; // Note: Catalog API v2022-04-01 has items at root, not payload.items
+
+    if (!item) {
+      throw new Error(`Product not found in Amazon catalog: ${targetAsin || sku}`);
+    }
+
+    // Extract package dimensions and weight
+    const attributes = item.attributes || {};
+    // Attributes in v2022-04-01 are often returned as arrays or objects depending on the attribute
+    const pkgDim = attributes.item_package_dimensions?.[0];
+    const pkgWeight = attributes.item_package_weight?.[0];
+
+    if (!pkgDim || !pkgWeight) {
+      logger.warn(`MCF: Dimensions or weight missing in catalog for ${targetAsin || sku}`);
+      return { dimensions: null, weight_kg: null };
+    }
+
+    // Amazon returns inches & pounds for North America catalog items by default
+    const dimUnit = pkgDim.length.unit?.toLowerCase() || 'inches';
+    const weightUnit = pkgWeight.unit?.toLowerCase() || 'pounds';
+
+    let lengthIn, widthIn, heightIn, weightLb, lengthCm, widthCm, heightCm, weightKg;
+
+    if (dimUnit === 'inches') {
+      lengthIn = pkgDim.length.value;
+      widthIn = pkgDim.width.value;
+      heightIn = pkgDim.height.value;
+      lengthCm = lengthIn * 2.54;
+      widthCm = widthIn * 2.54;
+      heightCm = heightIn * 2.54;
+    } else {
+      lengthCm = pkgDim.length.value;
+      widthCm = pkgDim.width.value;
+      heightCm = pkgDim.height.value;
+      lengthIn = lengthCm / 2.54;
+      widthIn = widthCm / 2.54;
+      heightIn = heightCm / 2.54;
+    }
+
+    if (weightUnit === 'pounds') {
+      weightLb = pkgWeight.value;
+      weightKg = weightLb * 0.453592;
+    } else {
+      weightKg = pkgWeight.value;
+      weightLb = weightKg / 0.453592;
+    }
+
+    return {
+      dimensions: `${lengthCm.toFixed(2)}x${widthCm.toFixed(2)}x${heightCm.toFixed(2)} cm`,
+      dimensions_imperial: `${lengthIn.toFixed(2)}x${widthIn.toFixed(2)}x${heightIn.toFixed(2)} in`,
+      weight_kg: Number(weightKg.toFixed(3)),
+      weight_lb: Number(weightLb.toFixed(3)),
+      asin: targetAsin
+    };
+
+  } catch (err) {
+    const errorBody = err.response?.data || err.spApiError;
+    logger.error(`MCF: Failed to get dimensions for SKU ${sku}:`, {
+      message: err.message,
+      amazonError: errorBody ? JSON.stringify(errorBody) : 'No detail'
+    });
+    throw new Error(`Unable to fetch product dimensions from Amazon: ${err.message}`);
+  }
+}
+
+export async function batchFetchProductDimensions(skus) {
+  logger.info(`MCF: Batch fetching dimensions for ${skus.length} SKUs`);
+
+  const results = [];
+  const errors = [];
+
+  for (const sku of skus) {
+    try {
+      const dimensionData = await getProductDimensionsFromMCF(sku);
+      results.push(dimensionData);
+
+      // Rate limiting - Amazon allows ~1 request per second
+      await new Promise(resolve => setTimeout(resolve, 1200));
+
+    } catch (err) {
+      logger.error(`Failed to fetch dimensions for ${sku}:`, err.message);
+      errors.push({ sku, error: err.message });
+    }
+  }
+
+  return { results, errors };
+}
+
 export async function getFulfillmentPreview(address, items) {
-  logger.debug(`MCF: Preview request for items: ${JSON.stringify(items.map(i => i.sellerSku || i.sku))} to ${address.stateOrRegion}, ${address.postalCode}`);
-  
+
   const invalidItems = items.filter(i => !(i.sellerSku || i.sku));
   if (invalidItems.length > 0) {
     throw new Error(`MCF: Cannot get preview. One or more items are missing a Seller SKU.`);
   }
 
+  // Check if items have dimensions in our database
+  const itemsWithoutDimensions = items.filter(i => !i.dimensions || !i.weight_kg);
+  if (itemsWithoutDimensions.length > 0) {
+    logger.warn(`MCF: ${itemsWithoutDimensions.length} items missing dimensions. Shipping estimates may be inaccurate.`);
+    logger.warn(`Missing dimensions for SKUs: ${itemsWithoutDimensions.map(i => i.sellerSku || i.sku).join(', ')}`);
+    logger.warn(`MCF: Consider running: node scripts/fetch-dimensions-from-amazon.js`);
+  }
+
   const normalizedState = normalizeState(address.stateOrRegion);
   const commonCanadianProvinces = ['ON', 'QC', 'BC', 'AB', 'MB', 'SK', 'NS', 'NB', 'NL', 'PE', 'NT', 'NU', 'YT'];
-  
+
   if (commonCanadianProvinces.includes(normalizedState) && address.countryCode === 'US') {
       throw new Error(`Amazon MCF (US) does not accept Canadian provinces (${normalizedState}). Please change to a US state or select Canada as your region.`);
   }
@@ -181,7 +324,7 @@ export async function getFulfillmentPreview(address, items) {
   } catch (err) {
     const apiErrors = err.response?.data?.errors || err.spApiError?.errors;
     const errorDetail = apiErrors && apiErrors.length > 0 ? apiErrors[0].message : (err.message || 'Unknown SP-API Error');
-    
+
     logger.error('MCF: Preview request failed', {
       message: err.message,
       status: err.response?.status || err.spApiStatus,
@@ -192,7 +335,8 @@ export async function getFulfillmentPreview(address, items) {
     throw new Error(`Amazon MCF Error: ${errorDetail}`);
   }
 
-  return previews.map((p) => {
+  // Process and validate shipping estimates
+  const processedPreviews = previews.map((p) => {
     const fees = (p.estimatedFees || []).map((fee) => ({
       name:   fee.name,
       amount: fee.amount
@@ -200,6 +344,15 @@ export async function getFulfillmentPreview(address, items) {
 
     const totalFee = fees.reduce((sum, f) => sum + parseFloat(f.amount.value || 0), 0);
     const currency = fees.length > 0 ? fees[0].amount.currencyCode : 'USD';
+
+    // Log warning for suspiciously high shipping costs
+    const totalItemValue = items.reduce((sum, item) => sum + (item.price || 0) * item.quantity, 0);
+    if (totalItemValue > 0) {
+      const shippingRatio = totalFee / totalItemValue;
+      if (shippingRatio > 0.5) { // Shipping > 50% of item value
+        logger.warn(`MCF: High shipping cost detected - $${totalFee.toFixed(2)} for $${totalItemValue.toFixed(2)} items (${(shippingRatio * 100).toFixed(1)}% ratio)`);
+      }
+    }
 
     return {
       shippingSpeedCategory: p.shippingSpeedCategory,
@@ -217,6 +370,26 @@ export async function getFulfillmentPreview(address, items) {
       }))
     };
   });
+
+  return processedPreviews;
+}
+
+/**
+ * calculateManualEstimate — Fallback offline calculation
+ * ONLY used when Amazon MCF Preview API is completely unavailable.
+ */
+export function calculateManualEstimate(items) {
+    const totalFee = calculateMCFShipping(items);
+    
+    return [{
+        shippingSpeedCategory: 'Standard',
+        isFulfillable: true,
+        totalFee,
+        currency: 'USD',
+        name: 'Standard Shipping',
+        price: totalFee,
+        estimation: 'Estimated 5-7 business days (offline estimate)'
+    }];
 }
 
 /**
@@ -288,5 +461,7 @@ export default {
   getFulfillmentOrder,
   cancelFulfillmentOrder,
   getFulfillmentPreview,
-  listInventory
+  listInventory,
+  getProductDimensionsFromMCF,
+  calculateManualEstimate
 };

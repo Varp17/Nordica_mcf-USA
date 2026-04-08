@@ -248,32 +248,70 @@ function itemsTableHtml(items = [], subtotal, shipping, tax, total) {
 
 export async function sendOrderConfirmationEmail(order, invoicePdf = null) {
   const firstName = order.shipping_first_name || 'Customer';
-  const table     = itemsTableHtml(order.items, order.subtotal, order.shipping_cost, order.tax, order.total);
+  const orderNumber = order.order_number || order.id;
+  const email = order.customer_email || order.email;
+  const storeWebsite = process.env.STORE_WEBSITE || 'https://detailguardz.com';
+  
+  // Tracking URL for guests and regular users
+  const trackingLink = `${storeWebsite}/order-tracking?number=${orderNumber}&email=${encodeURIComponent(email)}`;
+
+  const table = itemsTableHtml(order.items, order.subtotal, order.shipping_cost, order.tax_amount || order.tax, order.total);
 
   const body = `
-    <p>Hi ${firstName},</p>
-    <p>Thank you for your order! We've received your payment and your order is now being processed.</p>
-    <div class="highlight-box">
-      <p><span class="label">Order Number:</span> ${order.order_number}</p>
-      <p><span class="label">Order Date:</span> ${new Date(order.created_at).toLocaleDateString('en-US', { dateStyle: 'long' })}</p>
-      <p><span class="label">Ship To:</span> ${order.shipping_first_name} ${order.shipping_last_name},
-         ${order.shipping_address1}, ${order.shipping_city}, ${order.shipping_state || order.shipping_province} ${order.shipping_zip || order.shipping_postal_code}</p>
+    <div style="text-align: center; margin-bottom: 30px;">
+      <h3 style="color: #2E86AB; margin: 0; font-size: 24px;">Thank you for your order!</h3>
+      <p style="color: #666; margin: 8px 0 0; font-size: 16px;">We've received your payment and are getting your items ready for shipment.</p>
     </div>
-    <p><strong>Order Summary:</strong></p>
+    
+    <div style="text-align: center; margin: 25px 0;">
+      <a href="${trackingLink}" class="btn" style="background: #2E86AB; padding: 16px 32px; font-size: 16px;">📦 View Your Order Status</a>
+      <p style="font-size: 13px; color: #94a3b8; margin-top: 10px;">Click the button above to track your order details any time.</p>
+    </div>
+
+    <div class="highlight-box">
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+        <div>
+          <p class="label" style="text-transform: uppercase; font-size: 11px; margin-bottom: 5px;">Order Number</p>
+          <p style="font-weight: 700; font-size: 16px; margin: 0;">#${orderNumber}</p>
+        </div>
+        <div style="text-align: right;">
+          <p class="label" style="text-transform: uppercase; font-size: 11px; margin-bottom: 5px;">Order Date</p>
+          <p style="font-weight: 500; font-size: 14px; margin: 0;">${new Date(order.created_at).toLocaleDateString('en-US', { dateStyle: 'long' })}</p>
+        </div>
+      </div>
+      <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #e0e6ed;">
+        <p class="label" style="text-transform: uppercase; font-size: 11px; margin-bottom: 5px;">Shipping To</p>
+        <p style="font-size: 14px; margin: 0; line-height: 1.4;">
+          <strong>${order.shipping_first_name} ${order.shipping_last_name}</strong><br>
+          ${order.shipping_address1}${order.shipping_address2 ? ', ' + order.shipping_address2 : ''}<br>
+          ${order.shipping_city}, ${order.shipping_state || order.shipping_province} ${order.shipping_zip || order.shipping_postal_code}
+        </p>
+      </div>
+    </div>
+
+    <p style="font-weight: 700; color: #1E3A5F; margin-bottom: 10px; border-bottom: 2px solid #f0f4f8; padding-bottom: 5px; font-size: 16px;">Order Summary</p>
     ${table}
-    <p>We'll send you another email as soon as your order ships with your tracking information.</p>
-    <p>If you have any questions, reply to this email or contact <a href="mailto:${process.env.STORE_SUPPORT_EMAIL}">${process.env.STORE_SUPPORT_EMAIL}</a>.</p>
+
+    <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px; margin: 25px 0;">
+      <p style="margin: 0; font-size: 13px; color: #475569; line-height: 1.5;">
+        <strong>Guest Checkout Note:</strong> Since you checked out as a guest, please keep this email for your records. You can track your order using the link above or by entering your order number and email on our tracking page.
+      </p>
+    </div>
+
+    <p style="font-size: 14px; color: #64748b;">
+      If you have any questions, simply reply to this email or visit our <a href="${storeWebsite}/support">Support Center</a>.
+    </p>
   `;
 
   const mailOptions = {
-    to:      order.customer_email,
-    subject: `Order Confirmed — #${order.order_number}`,
-    html:    wrapEmail('Order Confirmed! 🎉', `Order #${order.order_number}`, body)
+    to:      order.customer_email || order.email,
+    subject: `Order Confirmation — #${orderNumber}`,
+    html:    wrapEmail('Order Confirmed! 🎉', `Order #${orderNumber}`, body)
   };
 
   if (invoicePdf) {
     mailOptions.attachments = [{
-      filename: `invoice-${order.order_number}.pdf`,
+      filename: `invoice-${orderNumber}.pdf`,
       path: invoicePdf
     }];
   }
@@ -283,35 +321,48 @@ export async function sendOrderConfirmationEmail(order, invoicePdf = null) {
 
 export async function sendOrderShippedEmail(order, tracking) {
   const firstName = order.shipping_first_name || 'Customer';
+  const orderNumber = order.order_number || order.id;
   const estDelivery = tracking.estimatedDelivery
-    ? new Date(tracking.estimatedDelivery).toLocaleDateString('en-US', { dateStyle: 'long' })
-    : 'Check tracking link';
+    ? new Date(tracking.estimatedDelivery).toLocaleDateString('en-US', { dateStyle: 'long', weekday: 'long' })
+    : 'Pending update';
+
+  // Specific logic for Amazon tracking links if available
+  const trackingUrl = tracking.trackingUrl || `https://www.amazon.com/progress-tracker/package-tracking/${tracking.trackingNumber}`;
 
   const body = `
     <p>Hi ${firstName},</p>
-    <p>Great news! Your order <strong>#${order.order_number}</strong> has been shipped and is on its way to you.</p>
-    <div class="highlight-box">
-      <p><span class="label">Carrier:</span> ${tracking.carrier || 'Carrier'}</p>
-      <p><span class="label">Tracking Number:</span> <strong>${tracking.trackingNumber}</strong></p>
-      <p><span class="label">Estimated Delivery:</span> ${estDelivery}</p>
+    <p>Great news! Your order <strong>#${orderNumber}</strong> has been shipped and is on its way.</p>
+    
+    <div class="highlight-box" style="background: #f0f9ff; border-left: 5px solid #0ea5e9;">
+      <div style="display: grid; grid-template-columns: 1fr; gap: 10px;">
+        <p style="margin: 0;"><span class="label">Status:</span> <strong style="color: #0369a1;">SHIPPED</strong></p>
+        <p style="margin: 0;"><span class="label">Carrier:</span> ${tracking.carrier || 'Amazon Logistics'}</p>
+        <p style="margin: 0;"><span class="label">Tracking ID:</span> <strong>${tracking.trackingNumber}</strong></p>
+        <p style="margin: 0;"><span class="label">Est. Delivery:</span> <strong style="color: #1e40af;">${estDelivery}</strong></p>
+      </div>
     </div>
-    ${tracking.trackingUrl ? `
-    <p style="text-align:center; margin:24px 0;">
-      <a href="${tracking.trackingUrl}" class="btn">📦 Track My Package</a>
-    </p>` : ''}
-    <p>Your package is being shipped to:<br>
+
+    <div style="text-align: center; margin: 30px 0;">
+      <a href="${trackingUrl}" class="btn" style="background: #0ea5e9; padding: 16px 32px; font-size: 16px;">📦 Track Your Package</a>
+      <p style="font-size: 12px; color: #94a3b8; margin-top: 10px;">Click the button above to see real-time updates via Amazon Tracking</p>
+    </div>
+
+    <p style="font-weight: 700; color: #1E3A5F; border-bottom: 1px solid #f0f4f8; padding-bottom: 5px;">Shipping Address</p>
+    <p style="font-size: 14px; color: #64748b; line-height: 1.5;">
        ${order.shipping_first_name} ${order.shipping_last_name}<br>
        ${order.shipping_address1}${order.shipping_address2 ? ', ' + order.shipping_address2 : ''}<br>
-       ${order.shipping_city}, ${order.shipping_state || order.shipping_province}
-       ${order.shipping_zip || order.shipping_postal_code}</p>
-    <p>If you have any questions about your shipment, please contact us at
-       <a href="mailto:${process.env.STORE_SUPPORT_EMAIL}">${process.env.STORE_SUPPORT_EMAIL}</a>.</p>
+       ${order.shipping_city}, ${order.shipping_state || order.shipping_province} ${order.shipping_zip || order.shipping_postal_code}
+    </p>
+
+    <p style="font-size: 13px; color: #64748b; margin-top: 30px;">
+      Please note that it may take 24-48 hours for the tracking information to update.
+    </p>
   `;
 
   return sendEmail({
-    to:      order.customer_email,
-    subject: `Your Order Has Shipped! Tracking: ${tracking.trackingNumber}`,
-    html:    wrapEmail('Your Order Is On Its Way! 🚚', `Order #${order.order_number}`, body)
+    to:      order.customer_email || order.email,
+    subject: `Your Order #${orderNumber} Has Shipped! 🚚`,
+    html:    wrapEmail('Your Package is Moving! 🚚', `Order #${orderNumber}`, body)
   });
 }
 
@@ -371,21 +422,34 @@ ${error.stack || String(error)}</pre>
 export async function sendOTPEmail(email, otp) {
   const storeName = process.env.STORE_NAME || 'Detail Guardz';
   const body = `
-    <p>Welcome to ${storeName}!</p>
-    <p>To complete your registration, please use the following verification code:</p>
+    <div style="text-align: center; margin-bottom: 25px;">
+      <h3 style="color: #1E3A5F; margin: 0; font-size: 20px;">Email Verification</h3>
+      <p style="color: #666; margin: 8px 0 0; font-size: 15px;">Please use the following code to authenticate your email address and continue with your request.</p>
+    </div>
+    
     <div style="text-align: center; margin: 30px 0;">
-      <span style="font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #1E3A5F; background: #f0f6ff; padding: 10px 20px; border-radius: 4px; border: 1px dashed #2E86AB;">
+      <span style="font-size: 36px; font-weight: 800; letter-spacing: 8px; color: #1E3A5F; background: #f8fafc; padding: 16px 32px; border-radius: 12px; border: 2px solid #e2e8f0; display: inline-block;">
         ${otp}
       </span>
     </div>
-    <p>This code will expire in 10 minutes. If you did not request this code, please ignore this email.</p>
-    <p>Best regards,<br>The ${storeName} Team</p>
+    
+    <div class="highlight-box">
+      <p style="margin: 0; font-size: 13px; color: #475569; line-height: 1.5;">
+        <strong>Why did I receive this?</strong> This code is required to verify your identity for actions like account creation, guest checkout, or security updates. This code will expire in 10 minutes.
+      </p>
+    </div>
+
+    <p style="font-size: 14px; color: #64748b; margin-top: 20px;">
+      If you did not request this code, please ignore this email. No changes have been made to your account.
+    </p>
+    
+    <p style="font-size: 14px; color: #64748b;">Best regards,<br>The ${storeName} Team</p>
   `;
 
   return sendEmail({
     to: email,
-    subject: `Verify Your Email — ${otp}`,
-    html: wrapEmail('Email Verification', 'Verification Code', body)
+    subject: `Your Verification Code: ${otp}`,
+    html: wrapEmail('Security Verification', 'Action Required', body)
   });
 }
 
@@ -524,22 +588,52 @@ export async function sendContactChangeOTPEmail(email, otp, type = 'email') {
   });
 }
 
+export async function sendBackInStockEmail(email, productName, currentStock, productId) {
+  const storeUrl = process.env.STORE_WEBSITE || 'https://detailguardz.com';
+  const productUrl = `${storeUrl}/products/${productId}`; // Assuming ID works or we can use slug
+
+  const body = `
+    <div style="text-align: center; margin-bottom: 25px;">
+      <span style="background: #dcfce7; color: #166534; padding: 6px 16px; border-radius: 20px; font-size: 12px; font-weight: 700; text-transform: uppercase;">Back In Stock</span>
+    </div>
+    <p>Hi there,</p>
+    <p>Good news! The item you've been waiting for is back in stock and ready to ship.</p>
+    
+    <div class="highlight-box" style="text-align: center;">
+      <h3 style="margin: 0; color: #1E3A5F;">${productName}</h3>
+      <p style="color: #666; margin: 10px 0;">We currently have <strong>${currentStock}</strong> available in our warehouse.</p>
+      <a href="${productUrl}" class="btn" style="margin-top: 10px;">✨ Shop Now Before It Sells Out Again</a>
+    </div>
+
+    <p style="font-size: 13px; color: #64748b;">
+      You received this because you signed up to be notified when this item became available.
+    </p>
+  `;
+
+  return sendEmail({
+    to: email,
+    subject: `${productName} is Back in Stock! 🎉`,
+    html: wrapEmail('It\'s Back! 🎉', 'Restock Notification', body)
+  });
+}
+
 export async function sendPasswordChangedEmail(email, firstName) {
   const storeName = process.env.STORE_NAME || 'Detail Guardz';
   const body = `
-    <p>Hi ${firstName || 'Value Customer'},</p>
-    <p>This is a confirmation that the password for your ${storeName} account has been successfully changed.</p>
+    <p>Hi ${firstName},</p>
+    <p>This is a confirmation that the password for your <strong>${storeName}</strong> account has been successfully changed.</p>
     <div class="highlight-box">
       <p>If you made this change, you can safely ignore this email.</p>
-      <p><strong>If you did NOT make this change, please contact our support team immediately.</strong></p>
+      <p><strong>If you did NOT change your password</strong>, please contact our support team immediately at 
+         <a href="mailto:${process.env.STORE_SUPPORT_EMAIL || 'support@detailguardz.com'}">${process.env.STORE_SUPPORT_EMAIL || 'support@detailguardz.com'}</a>.</p>
     </div>
     <p>Best regards,<br>The ${storeName} Team</p>
   `;
 
   return sendEmail({
     to: email,
-    subject: `Your ${storeName} Password has been changed`,
-    html: wrapEmail('Password Changed', 'Security Notification', body)
+    subject: `Password Changed Successfully — ${storeName}`,
+    html: wrapEmail('Password Updated', 'Security Notification', body)
   });
 }
 
@@ -552,6 +646,7 @@ export default {
   sendOTPEmail,
   sendWelcomeEmail,
   sendStockAlertEmail,
+  sendBackInStockEmail,
   sendPasswordResetOTPEmail,
   sendPasswordChangedEmail
 };

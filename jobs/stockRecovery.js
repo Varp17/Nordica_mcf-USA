@@ -1,5 +1,5 @@
 import db from '../config/database.js';
-import Product from '../models/Product.js';
+import * as Product from '../models/Product.js';
 import logger from '../utils/logger.js';
 
 /**

@@ -131,50 +131,96 @@ export async function findVariantById(identifier) {
 export async function validateCartItems(cartItems, country = 'US') {
   const errors = [];
   const validItems = [];
+
   for (const cartItem of (cartItems || [])) {
     let idValue = cartItem.variantId || cartItem.id || cartItem.sku;
     let baseProductId = idValue;
     let colorValue = null;
-    if (typeof idValue === 'string' && idValue.includes('::')) [baseProductId, colorValue] = idValue.split('::');
+    if (typeof idValue === 'string' && idValue.includes('::')) {
+      [baseProductId, colorValue] = idValue.split('::');
+    }
+
     const product = await findVariantById(baseProductId);
     if (!product) {
-      logger.warn(`Cart validation failed: Item ${idValue} not found at all (id, sku or amazon_sku checked)`);
+      logger.warn(`Cart validation: Item ${idValue} not found`);
       errors.push(`Product ${idValue} not found or inactive`);
       continue;
     }
-    // Prioritize amazon_sku (Seller SKU) for US MCF fulfillment, auto-correcting poisoned cache payload
-    let sku = null;
 
+    // Stock check — works for both US and CA (uses inventory_cache or stock column)
+    const stockCheck = await checkStock(idValue, cartItem.quantity || 1);
+    if (!stockCheck.available) {
+      errors.push(`Insufficient stock for ${product.name}: requested ${cartItem.quantity || 1}, available ${stockCheck.currentStock}`);
+      continue;
+    }
+
+    // ── CANADA: Local fulfillment — no amazon_sku required ────────────────────
+    if (country === 'CA') {
+      // Use any available identifier as the SKU for label/order reference
+      const sku = product.sku || product.amazon_sku || idValue;
+
+      validItems.push({
+        variantId:   idValue,
+        productId:   product.id,
+        sku:         sku,
+        productName: product.name,
+        product_name: product.name,
+        quantity:    cartItem.quantity || 1,
+        unitPrice:   parseFloat(cartItem.price || product.price),
+        weightKg:    parseFloat(product.weight_kg || 0.5),
+        weight_kg:   parseFloat(product.weight_kg || 0.5),
+        dimensions:  product.dimensions || null,
+        country:     product.country
+      });
+      continue;
+    }
+
+    // ── USA: Amazon MCF fulfillment — amazon_sku is required ─────────────────
+    let sku = null;
     let variantName = product.name;
 
-    // Priority 1: variant-level SKU
+    // Priority 1: variant-level amazon_sku from color_options
     if (colorValue && Array.isArray(product.color_options)) {
       const searchColor = colorValue.trim().toLowerCase();
       const option = product.color_options.find(o =>
         (o.value && o.value.toLowerCase() === searchColor) ||
-        (o.name && o.name.toLowerCase() === searchColor) ||
-        (o.name && o.name.toLowerCase().includes(searchColor))
+        (o.name  && o.name.toLowerCase()  === searchColor) ||
+        (o.name  && o.name.toLowerCase().includes(searchColor))
       );
-
       if (option?.amazon_sku) {
         sku = option.amazon_sku;
         variantName = `${product.name} (${option.name})`;
       }
     }
 
-    // Priority 2: product-level SKU (only if valid)
+    // Priority 2: product-level amazon_sku
     if (!sku && product.amazon_sku) {
       sku = product.amazon_sku;
     }
 
-    // 🚨 HARD FAIL (NO FALLBACKS)
     if (!sku) {
-      logger.error(`❌ No valid amazon_sku found for ${product.name}`);
-      errors.push(`Product ${product.name} is unavailable`);
+      logger.error(`No valid amazon_sku for US product: ${product.name}`);
+      errors.push(`Product ${product.name} is unavailable for US fulfillment`);
       continue;
     }
-    validItems.push({ variantId: idValue, productId: product.id, sku: sku, productName: variantName, quantity: cartItem.quantity || 1, unitPrice: parseFloat(cartItem.price || product.price), weightKg: 0.5, country: product.country });
+
+    validItems.push({
+      variantId:   idValue,
+      productId:   product.id,
+      sku:         sku,
+      sellerSku:   sku,
+      productName: variantName,
+      product_name: variantName,
+      quantity:    cartItem.quantity || 1,
+      unitPrice:   parseFloat(cartItem.price || product.price),
+      weightKg:    parseFloat(product.weight_kg || 0.5),
+      weight_kg:   parseFloat(product.weight_kg || 0.5),
+      dimensions:  product.dimensions || null,
+      country:     product.country,
+      sellerFulfillmentOrderItemId: `item-${validItems.length + 1}`
+    });
   }
+
   return { valid: errors.length === 0, errors, items: validItems };
 }
 
@@ -308,4 +354,15 @@ export async function checkStock(identifier, quantity = 1) {
   };
 }
 
-export default { findAll, findById, findBySlug, findBySku, findVariantById, validateCartItems, deductStock, restoreStock, checkStock };
+export default {
+  findAll,
+  findById,
+  findBySlug,
+  findBySku,
+  findVariantById,
+  validateCartItems,
+  deductStock,
+  restoreStock,
+  checkStock
+};
+

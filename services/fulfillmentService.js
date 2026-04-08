@@ -89,6 +89,36 @@ async function _fulfillUS(order, invoicePdf = null) {
 
 async function _fulfillCA(order, invoicePdf = null) {
   logger.info(`Fulfilling CA order ${order.order_number} via Shippo`);
+
+  // ── 1. Pre-fulfillment Address Validation ──────────────────────────
+  try {
+    const validation = await shippoService.validateAddress({
+      firstName: order.shipping_first_name,
+      lastName:  order.shipping_last_name,
+      address1:  order.shipping_address1,
+      address2:  order.shipping_address2,
+      city:      order.shipping_city,
+      province:  order.shipping_province || order.shipping_state,
+      postalCode: order.shipping_postal_code || order.shipping_zip,
+      country:   'CA',
+      phone:     order.shipping_phone,
+      email:     order.cust_email
+    });
+
+    if (!validation.valid) {
+      const errorMsg = Object.values(validation.fieldErrors).join(', ') || 'Invalid shipping address';
+      throw new Error(`Shippo: Address validation failed — ${errorMsg}`);
+    }
+  } catch (valErr) {
+    logger.error(`Shippo: Validation failed for order ${order.order_number}: ${valErr.message}`);
+    await _updateOrderStatus(order.id, { 
+       fulfillment_status: 'fulfillment_error', 
+       fulfillment_error: valErr.message 
+    });
+    return { success: false, status: 'fulfillment_error', error: valErr.message };
+  }
+
+  // ── 2. Create Shipment & Buy Label ─────────────────────────────────
   const shipResult = await shippoService.createShipment(order);
   await _updateOrderStatus(order.id, {
     fulfillment_status: 'label_created',
@@ -101,11 +131,34 @@ async function _fulfillCA(order, invoicePdf = null) {
     estimated_delivery: shipResult.estimatedDays ? new Date(Date.now() + shipResult.estimatedDays * 86400000).toISOString().split('T')[0] : null,
     shippo_transaction_id: shipResult.shippoTransactionId
   });
+
   logger.info(`CA order ${order.order_number} label created — tracking: ${shipResult.trackingNumber}`);
-  try { await shippoService.registerTracking(shipResult.carrier, shipResult.trackingNumber); } catch (trackErr) { logger.warn(`Shippo tracking registration failed (non-critical): ${trackErr.message}`); }
+
+  // ── 3. Register for tracking webhooks ─────────────────────────────
+  try { 
+    await shippoService.registerTracking(shipResult.carrier, shipResult.trackingNumber); 
+  } catch (trackErr) { 
+    logger.warn(`Shippo tracking registration failed (non-critical): ${trackErr.message}`); 
+  }
+
+  // ── 4. Customer Notifications ─────────────────────────────────────
   await emailService.sendOrderConfirmationEmail(order, invoicePdf);
-  await emailService.sendOrderShippedEmail(order, { carrier: shipResult.carrier, trackingNumber: shipResult.trackingNumber, trackingUrl: shipResult.trackingUrl, estimatedDelivery: shipResult.estimatedDays ? new Date(Date.now() + shipResult.estimatedDays * 86400000).toLocaleDateString() : null });
-  return { success: true, fulfillmentChannel: 'shippo', status: 'label_created', trackingNumber: shipResult.trackingNumber, trackingUrl: shipResult.trackingUrl, labelUrl: shipResult.labelUrl, carrier: shipResult.carrier };
+  await emailService.sendOrderShippedEmail(order, { 
+    carrier: shipResult.carrier, 
+    trackingNumber: shipResult.trackingNumber, 
+    trackingUrl: shipResult.trackingUrl, 
+    estimatedDelivery: shipResult.estimatedDays ? new Date(Date.now() + shipResult.estimatedDays * 86400000).toLocaleDateString() : null 
+  });
+
+  return { 
+    success: true, 
+    fulfillmentChannel: 'shippo', 
+    status: 'label_created', 
+    trackingNumber: shipResult.trackingNumber, 
+    trackingUrl: shipResult.trackingUrl, 
+    labelUrl: shipResult.labelUrl, 
+    carrier: shipResult.carrier 
+  };
 }
 
 export async function retryFailedOrder(orderId) {
@@ -118,10 +171,31 @@ export async function retryFailedOrder(orderId) {
 }
 
 async function _loadOrderWithItems(orderId) {
-  const [orderRows] = await db.query(`SELECT o.*, u.email AS cust_email, u.first_name AS cust_first_name, u.last_name AS cust_last_name FROM orders o LEFT JOIN users u ON u.id = o.user_id WHERE o.id = ?`, [orderId]);
+  // 1. Fetch Order Metadata
+  const [orderRows] = await db.query(`
+    SELECT o.*, 
+           u.email AS cust_email, 
+           u.first_name AS cust_first_name, 
+           u.last_name AS cust_last_name 
+    FROM orders o 
+    LEFT JOIN users u ON u.id = o.user_id 
+    WHERE o.id = ?`, [orderId]);
+  
   if (!orderRows.length) return null;
   const order = orderRows[0];
-  const [itemRows] = await db.query(`SELECT * FROM order_items WHERE order_id = ?`, [orderId]);
+
+  // 2. Fetch Order Items with Product Metadata (Weight & Dimensions)
+  // We join with products and variants to ensure accurate fulfillment (Shippo/MCF)
+  const [itemRows] = await db.query(`
+    SELECT oi.*, 
+           COALESCE(v.weight_kg, p.weight_kg, 0.5) as weight_kg,
+           COALESCE(v.dimensions, p.dimensions, '20x15x10') as dimensions,
+           COALESCE(v.sku, oi.sku) as actual_sku
+    FROM order_items oi
+    LEFT JOIN products p ON oi.product_id = p.id
+    LEFT JOIN product_variants v ON oi.product_variant_id = v.id
+    WHERE oi.order_id = ?`, [orderId]);
+
   order.items = itemRows;
   return order;
 }

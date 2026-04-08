@@ -2,11 +2,11 @@ import express from 'express';
 import db from '../config/database.js';
 import Order from '../models/Order.js';
 import Customer from '../models/Customer.js';
-import Product from '../models/Product.js';
+import * as Product from '../models/Product.js';
 import { fulfillOrder, retryFailedOrder } from '../services/fulfillmentService.js';
 import mcfService from '../services/mcfService.js';
 import shippoService from '../services/shippoService.js';
-import { authenticateToken as requireAuth, requireAdmin, requireVerified } from '../middleware/auth.js';
+import { authenticateToken as requireAuth, requireAdmin, requireVerified, optionalAuth } from '../middleware/auth.js';
 import { validateCreateOrder, validateOrderId } from '../middleware/validation.js';
 import { detectCountryFromRequest } from '../utils/helpers.js';
 import logger from '../utils/logger.js';
@@ -15,7 +15,7 @@ const router = express.Router();
 
 // Compatibility: requireRole('admin') -> requireAdmin
 const requireRole = (role) => (role === 'admin' ? requireAdmin : (req, res, next) => next());
-const optionalAuth = (req, res, next) => next(); // Stub for now or use properly if implemented
+const optionalAuthStub = (req, res, next) => next(); // Deprecated, using real optionalAuth
 
 /**
  * Order Routes
@@ -55,14 +55,42 @@ const optionalAuth = (req, res, next) => next(); // Stub for now or use properly
 //    subtotal, tax, shippingCost, total, currency
 //  }
 // ─────────────────────────────────────────────────────────────────────────────
-router.post('/', requireAuth, requireVerified, validateCreateOrder, async (req, res) => {
+router.post('/', optionalAuth, validateCreateOrder, async (req, res) => {
   try {
     const {
       country, email, items, shipping, shippingSpeed,
       paymentMethod, paymentReference,
       subtotal, tax, shippingCost, total, currency,
-      notes
+      notes, guestOtpCode
     } = req.body;
+
+    // ── 0. Security: Guest vs Auth Check ────────────────────────────────────
+    let customerId = null;
+    if (!req.user) {
+      if (!guestOtpCode) {
+        return res.status(401).json({ success: false, message: 'Verification code required for guest checkout' });
+      }
+
+      const [otpRows] = await db.execute(
+        "SELECT id FROM guest_verifications WHERE email = ? AND otp_code = ? AND otp_expiry > NOW() ORDER BY created_at DESC LIMIT 1",
+        [email, guestOtpCode]
+      );
+
+      if (otpRows.length === 0) {
+        return res.status(401).json({ success: false, message: 'Invalid or expired verification code' });
+      }
+
+      // Cleanup OTP
+      await db.execute("DELETE FROM guest_verifications WHERE email = ?", [email]);
+      logger.info(`Guest verified for order: ${email}`);
+    } else {
+      customerId = req.user.id;
+      // Ensure verified
+      const [vRows] = await db.execute("SELECT is_email_verified FROM users WHERE id = ?", [customerId]);
+      if (!vRows[0]?.is_email_verified) {
+        return res.status(403).json({ success: false, message: 'Account must be verified to place orders' });
+      }
+    }
 
     // ── 1. Validate & price cart items ────────────────────────────────────────
     const { valid, errors, items: validatedItems } = await Product.validateCartItems(items, country);
@@ -89,6 +117,9 @@ router.post('/', requireAuth, requireVerified, validateCreateOrder, async (req, 
       phone: shipping.phone,
       country
     });
+
+    // Use the found/created customer ID
+    customerId = customer.id;
 
     // ── 3. Create order in DB ─────────────────────────────────────────────────
     const order = await Order.createOrder({
@@ -169,6 +200,7 @@ router.post('/shipping-rates', async (req, res) => {
 
     // 2. Fetch rates based on country
     if (country === 'US') {
+      // ── MCF Preview is the PRIMARY pricing authority ──
       try {
         const address = {
           name: `${shipping?.firstName || ''} ${shipping?.lastName || ''}`.trim() || 'Valued Customer',
@@ -181,47 +213,44 @@ router.post('/shipping-rates', async (req, res) => {
 
         const previews = await mcfService.getFulfillmentPreview(address, validatedItems);
         
-        rates = previews.map(p => {
-          const earliest = p.fulfillmentPreviewShipments?.[0]?.earliestArrival;
-          const latest = p.fulfillmentPreviewShipments?.[0]?.latestArrival;
-          
-          let estDays = '';
-          if (earliest && latest) {
-            const daysStart = Math.max(1, Math.ceil((new Date(earliest) - new Date()) / (1000 * 60 * 60 * 24)));
-            const daysEnd = Math.max(1, Math.ceil((new Date(latest) - new Date()) / (1000 * 60 * 60 * 24)));
-            estDays = `Estimated ${daysStart}-${daysEnd} business days`;
-          }
+        // Use ALL fulfillable rates from Amazon directly — no markup
+        rates = previews
+          .filter(p => p.isFulfillable)
+          .map(p => {
+            const earliest = p.fulfillmentPreviewShipments?.[0]?.earliestArrival;
+            const latest = p.fulfillmentPreviewShipments?.[0]?.latestArrival;
+            
+            let estDays = '';
+            if (earliest && latest) {
+              const daysStart = Math.max(1, Math.ceil((new Date(earliest) - new Date()) / (1000 * 60 * 60 * 24)));
+              const daysEnd = Math.max(1, Math.ceil((new Date(latest) - new Date()) / (1000 * 60 * 60 * 24)));
+              estDays = `Estimated ${daysStart}-${daysEnd} business days`;
+            }
 
-          return {
-            id: p.shippingSpeedCategory.toLowerCase(),
-            name: `${p.shippingSpeedCategory} Shipping`,
-            price: p.totalFee || 0,
-            currency: p.currency || 'USD',
-            estimation: estDays,
-            isFulfillable: p.isFulfillable
-          };
-        });
+            return {
+              id: p.shippingSpeedCategory.toLowerCase(),
+              name: `${p.shippingSpeedCategory} Shipping`,
+              price: p.totalFee,    // Amazon's exact price — no buffer
+              currency: p.currency || 'USD',
+              estimation: estDays || 'Fast & Reliable Delivery',
+              isFulfillable: true
+            };
+          });
 
-        // Ensure we have a "Standard" option if not returned by Amazon
-        if (!rates.some(r => r.id === 'standard')) {
-            rates.unshift({
-                id: 'standard',
-                name: 'Standard Shipping',
-                price: 9.99,
-                currency: 'USD',
-                estimation: 'Estimated 5-7 business days',
-                isFulfillable: true
-            });
-        }
       } catch (mcfErr) {
         logger.error(`MCF Preview Error: ${mcfErr.message}`);
-        // Fallback for US
+      }
+
+      // FALLBACK: Manual calculator only if MCF returned nothing
+      if (rates.length === 0) {
+        logger.info('shipping-rates: MCF unavailable, using manual fallback');
+        const manualResult = mcfService.calculateManualEstimate(validatedItems);
         rates = [{
           id: 'standard',
           name: 'Standard Shipping',
-          price: 9.99,
+          price: manualResult[0]?.totalFee || 9.99,
           currency: 'USD',
-          estimation: 'Estimated 5-7 business days',
+          estimation: 'Estimated 5-7 business days (offline estimate)',
           isFulfillable: true
         }];
       }
@@ -374,6 +403,66 @@ router.post('/:orderId/retry', requireAuth, requireRole('admin'), validateOrderI
     return res.json({ success: true, result });
   } catch (err) {
     return res.status(400).json({ success: false, message: err.message });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  POST /api/orders/:orderId/cancel
+//  Cancel an order, refund Shippo label if exists, restore stock.
+// ─────────────────────────────────────────────────────────────────────────────
+router.post('/:orderId/cancel', requireAuth, validateOrderId, async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const order = await Order.findById(orderId);
+
+    if (!order) {
+      return res.status(404).json({ success: false, message: 'Order not found' });
+    }
+
+    // Authorization: Admin or the customer who owns the order
+    if (req.user.role !== 'admin' && req.user.id !== order.user_id) {
+      return res.status(403).json({ success: false, message: 'Access denied' });
+    }
+
+    // Check if order can be cancelled
+    if (['shipped', 'delivered', 'cancelled', 'returned'].includes(order.fulfillment_status)) {
+      return res.status(400).json({ success: false, message: `Order cannot be cancelled in current state: ${order.fulfillment_status}` });
+    }
+
+    // 1. Refund Shippo Label if it was already created (Canada orders)
+    if (order.shippo_transaction_id) {
+       try {
+         await shippoService.refundLabel(order.shippo_transaction_id);
+         logger.info(`Shippo label refund requested for order ${order.order_number}`);
+       } catch (refundErr) {
+         logger.error(`Shippo refund request failed for order ${order.order_number}: ${refundErr.message}`);
+         // Non-blocking: we continue with order cancellation
+       }
+    }
+
+    // 2. Restore Stock
+    if (order.items && order.items.length > 0) {
+      const restoreItems = order.items.map(i => ({
+        product_id: i.product_id,
+        variantId: i.product_variant_id,
+        sku: i.sku,
+        quantity: i.quantity
+      }));
+      await Product.restoreStock(restoreItems);
+    }
+
+    // 3. Update Order Status
+    await Order.updateOrder(orderId, {
+      status: 'cancelled',
+      fulfillment_status: 'cancelled',
+      payment_status: order.payment_status === 'paid' ? 'refunded_pending' : 'cancelled',
+      notes: (order.notes || '') + `\nOrder cancelled by ${req.user.role === 'admin' ? 'Admin' : 'Customer'} on ${new Date().toLocaleDateString()}`
+    });
+
+    return res.json({ success: true, message: 'Order cancelled successfully' });
+  } catch (err) {
+    logger.error(`POST /api/orders/:orderId/cancel error: ${err.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to cancel order' });
   }
 });
 

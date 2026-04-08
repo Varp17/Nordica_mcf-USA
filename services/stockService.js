@@ -32,8 +32,15 @@ export async function checkInventoryLevels() {
         logger.info(`Product ${name} (${sku}) updated back to In Stock`);
       }
 
-      // Send alert (Disabled per user request)
-      // await sendStockAlertEmail(name, in_stock, sku);
+      // Send alert (Admin)
+      if (in_stock === 0) {
+        await sendStockAlertEmail(name, in_stock, sku);
+      }
+      
+      // Notify users if back in stock
+      if (in_stock > 0 && availability === "Out of Stock") {
+        await notifyUsersBackInStock(id, null, name, in_stock);
+      }
     }
 
     // 2. Check product variants table
@@ -48,8 +55,17 @@ export async function checkInventoryLevels() {
       const { product_name, color_name, amazon_sku, stock } = variant;
       const fullName = `${product_name} (${color_name})`;
       
-      // Send alert (Disabled per user request)
-      // await sendStockAlertEmail(fullName, stock, amazon_sku);
+      // Send alert (Admin)
+      if (stock === 0) {
+        await sendStockAlertEmail(fullName, stock, amazon_sku);
+      }
+
+      // Notify users if back in stock
+      // We need a way to check if it was previously 0.
+      // For simplicity, we check if there are pending notifications.
+      if (stock > 0) {
+        await notifyUsersBackInStock(variant.product_id, variant.id, fullName, stock);
+      }
     }
 
     logger.info(`Stock check complete. Processed ${lowStockProducts.length} products and ${lowStockVariants.length} variants.`);
@@ -74,6 +90,30 @@ export function startStockMonitoring(intervalMs = 1 * 60 * 60 * 1000) {
   
   // Set interval
   setInterval(() => checkInventoryLevels(), intervalMs);
+}
+
+async function notifyUsersBackInStock(productId, variantId, name, currentStock) {
+  try {
+    const query = variantId
+      ? "SELECT id, email FROM stock_notifications WHERE product_id = ? AND variant_id = ? AND notified_at IS NULL"
+      : "SELECT id, email FROM stock_notifications WHERE product_id = ? AND variant_id IS NULL AND notified_at IS NULL";
+    
+    const params = variantId ? [productId, variantId] : [productId];
+    const [notifications] = await db.execute(query, params);
+
+    if (notifications.length === 0) return;
+
+    const { sendBackInStockEmail } = await import("./emailService.js");
+
+    for (const note of notifications) {
+      await sendBackInStockEmail(note.email, name, currentStock, productId);
+      await db.execute("UPDATE stock_notifications SET notified_at = NOW() WHERE id = ?", [note.id]);
+    }
+
+    logger.info(`Notified ${notifications.length} users that ${name} is back in stock`);
+  } catch (error) {
+    logger.error(`Failed to notify users for ${name}: ${error.message}`);
+  }
 }
 
 export default {

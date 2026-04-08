@@ -676,7 +676,10 @@ router.put("/:id", authenticateToken, requireAdmin, async (req, res) => {
 })
 
 router.delete("/:id", authenticateToken, requireAdmin, async (req, res) => {
-  // FIX #2: Implement soft delete instead of a hard delete.
+  // FIX- [x] Implement Guest OTP verification in `auth.js`
+  // - [x] Update `orderRoutes.js` to support guest orders with OTP check
+  // - [x] Create `restock_subscriptions` table and `notify-me` endpoint
+  // - [/] Improve Email Templates in `emailService.js`
   try {
     const [result] = await db.execute(
       "UPDATE products SET is_active = FALSE WHERE id = ?",
@@ -694,5 +697,35 @@ router.delete("/:id", authenticateToken, requireAdmin, async (req, res) => {
   }
 });
 
+
+// POST /api/products/notify-me - Subscribe to restock alerts
+router.post("/notify-me", async (req, res) => {
+  try {
+    const { email, productId, variantId } = req.body;
+    if (!email || !productId) {
+      return res.status(400).json({ success: false, message: "Email and Product ID are required" });
+    }
+
+    // Check if subscription already exists
+    const [existing] = await db.execute(
+      "SELECT id FROM restock_subscriptions WHERE email = ? AND product_id = ? AND (variant_id = ? OR (variant_id IS NULL AND ? IS NULL))",
+      [email, productId, variantId || null, variantId || null]
+    );
+
+    if (existing.length > 0) {
+      return res.json({ success: true, message: "You are already subscribed to this product's restock alerts." });
+    }
+
+    await db.execute(
+      "INSERT INTO restock_subscriptions (email, product_id, variant_id) VALUES (?, ?, ?)",
+      [email, productId, variantId || null]
+    );
+
+    res.json({ success: true, message: "Subscription successful! We will notify you when this item is back in stock." });
+  } catch (error) {
+    _log.error("Notify-me error:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
 
 export default router;

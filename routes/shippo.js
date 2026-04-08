@@ -2083,6 +2083,72 @@ router.put(
 );
 
 /* ══════════════════════════════════════════════════════════ */
+/* Packaging Presets                                        */
+/* GET /api/admin/shippo/presets                            */
+/* ══════════════════════════════════════════════════════════ */
+router.get("/presets", authenticateToken, requireAdmin, (req, res) => {
+  try {
+    const { SHIPPING_PRESETS } = shippoService;
+    res.json({ success: true, presets: SHIPPING_PRESETS });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch presets" });
+  }
+});
+
+/* ══════════════════════════════════════════════════════════ */
+/* Fetch rates for a specific order with custom packaging    */
+/* POST /api/admin/shippo/order-rates/:id                   */
+/* ══════════════════════════════════════════════════════════ */
+router.post(
+  "/order-rates/:id",
+  authenticateToken,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const { parcelSize, customDimensions } = req.body;
+      
+      // 1. Load order
+      const [orderRows] = await db.execute(
+        `SELECT o.*, u.email as cust_email FROM orders o 
+         JOIN users u ON o.user_id = u.id 
+         WHERE o.id = ?`, [req.params.id]
+      );
+      
+      if (!orderRows.length) return res.status(404).json({ error: "Order not found" });
+      const order = orderRows[0];
+      
+      // 2. Load items (enriched)
+      const [items] = await db.execute(
+        `SELECT oi.*, 
+                COALESCE(v.weight_kg, p.weight_kg, 0.5) as weight_kg,
+                COALESCE(v.dimensions, p.dimensions, '20x15x10') as dimensions
+         FROM order_items oi
+         LEFT JOIN products p ON oi.product_id = p.id
+         LEFT JOIN product_variants v ON oi.product_variant_id = v.id
+         WHERE oi.order_id = ?`, [order.id]
+      );
+      order.items = items;
+
+      // 3. Get rates from Shippo
+      const rates = await shippoService.getShippingRates(order, parcelSize || customDimensions);
+
+      res.json({ 
+        success: true, 
+        rates: rates.map(r => ({
+          ...r,
+          id: r.rateId,
+          name: r.serviceName,
+          price: r.amount
+        }))
+      });
+    } catch (err) {
+      console.error("❌ Comparison rates error:", err);
+      res.status(500).json({ error: err.message || "Failed to fetch comparison rates" });
+    }
+  }
+);
+
+/* ══════════════════════════════════════════════════════════ */
 /* Live tracking refresh (admin manual pull)                */
 /* GET /api/admin/shippo/orders/:id/track                   */
 /* ══════════════════════════════════════════════════════════ */
@@ -2154,9 +2220,79 @@ router.get(
   }
 );
 
+router.get(
+  "/trackings",
+  authenticateToken,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const page = Number(req.query.page || 1);
+      const { results } = await shippoClient.transactions.list({ page, results: 20 });
+      
+      const detailed = await Promise.all(
+        (results || []).map(async (t) => {
+          const trackingNumber = t.tracking_number;
+          
+          // ── 1. Robust Carrier Detection ──
+          // Fallback sequence: tracking_carrier -> carrier (slug) -> provider -> metadata
+          let carrier = t.tracking_carrier || t.carrier || t.provider || null;
+          
+          // ── 2. Robust Order ID Detection ──
+          let orderId = t.order || '—';
+          
+          // Case A: Shippo Order URL (common in API)
+          if (typeof orderId === 'string' && orderId.includes('http')) {
+            const parts = orderId.split('/').filter(Boolean);
+            orderId = parts[parts.length - 1] || orderId; 
+          }
+          
+          // Case B: Metadata extraction (labels often store order info here)
+          if (t.metadata && (orderId === '—' || !orderId)) {
+            try {
+              const meta = typeof t.metadata === 'string' ? JSON.parse(t.metadata) : t.metadata;
+              orderId = meta.order_number || meta.orderNumber || meta.id || meta.order_id || orderId;
+            } catch {
+              // If not JSON, use raw metadata string if it looks like an ID
+              if (t.metadata.length < 50) orderId = t.metadata;
+            }
+          }
+
+          let live = null;
+          if (trackingNumber && carrier) {
+            try {
+              // Standardizing on shippoService for reliable axios-based fetch
+              live = await shippoService.getTrackingStatus(carrier, trackingNumber);
+            } catch (e) { 
+              console.warn(`Admin trackings detail fetch failed for ${carrier}/${trackingNumber}:`, e.message);
+            }
+          }
+
+          return {
+            id: t.object_id, // Unique Transaction ID for React Keys
+            orderId: orderId,
+            shippo_tracking_number: trackingNumber || '—',
+            shippo_carrier: carrier || '—',
+            shippo_tracking_status: live?.status || t.tracking_status || 'UNKNOWN',
+            tracking: {
+              status: live?.status || t.tracking_status || 'UNKNOWN',
+              location: live?.tracking_status?.location || '—',
+              statusDate: live?.tracking_status?.status_date || t.object_created,
+              history: live?.tracking_history || []
+            }
+          };
+        })
+      );
+
+      res.json({ success: true, data: detailed });
+    } catch (err) {
+      console.error("❌ List trackings error:", err);
+      res.status(500).json({ error: "Failed to list Shippo trackings" });
+    }
+  }
+);
+
 /* ══════════════════════════════════════════════════════════ */
-/* Shippo transactions list                                 */
-/* GET /api/admin/shippo/transactions                       */
+/* Transactions List                                        */
 /* ══════════════════════════════════════════════════════════ */
 router.get(
   "/transactions",
@@ -2164,18 +2300,19 @@ router.get(
   requireAdmin,
   async (req, res) => {
     try {
-      const txns = await shippo.transactions.list({ page: Number(req.query.page || 1), results: 50 });
+      const page = Number(req.query.page || 1);
+      const txns = await shippoClient.transactions.list({ page, results: 50 });
 
       res.json({
         success: true,
         data: (txns.results || []).map((t) => ({
           transactionId: t.object_id,
           orderId: t.order || null,
-          trackingNumber: t.tracking_number || t.trackingNumber || null,
-          carrier: t.tracking_carrier || t.trackingCarrier || t.carrier || null,
-          trackingStatus: t.tracking_status || t.trackingStatus || null,
-          labelUrl: t.label_url || t.labelUrl || null,
-          serviceLevel: t.servicelevel_name || t.servicelevelName || null,
+          trackingNumber: t.tracking_number || null,
+          carrier: t.tracking_carrier || t.carrier || null,
+          trackingStatus: t.tracking_status || null,
+          labelUrl: t.label_url || null,
+          serviceLevel: t.servicelevel_name || null,
           price: t.rate || null,
           currency: t.currency || null,
           createdAt: t.object_created || null,
@@ -2185,46 +2322,6 @@ router.get(
     } catch (err) {
       console.error("❌ List transactions error:", err);
       res.status(500).json({ error: "Failed to list Shippo transactions" });
-    }
-  }
-);
-
-/* ══════════════════════════════════════════════════════════ */
-/* Customer order history                                   */
-/* GET /api/admin/shippo/customers/:id/orders               */
-/* ══════════════════════════════════════════════════════════ */
-router.get(
-  "/customers/:id/orders",
-  authenticateToken,
-  requireAdmin,
-  async (req, res) => {
-    try {
-      const pageNum = Math.max(1, parseInt(req.query.page || "1", 10));
-      const limitNum = Math.min(100, parseInt(req.query.limit || "10", 10));
-      const offset = (pageNum - 1) * limitNum;
-
-      const [orders] = await db.execute(
-        `SELECT o.*,
-                JSON_UNQUOTE(JSON_EXTRACT(o.shipping_address, '$.country')) AS shipping_country
-         FROM orders o WHERE o.user_id = ?
-         ORDER BY o.order_date DESC LIMIT ? OFFSET ?`,
-        [req.params.id, limitNum, offset]
-      );
-
-      const [[{ total }]] = await db.execute(
-        "SELECT COUNT(*) AS total FROM orders WHERE user_id = ?",
-        [req.params.id]
-      );
-
-      orders.forEach((o) => { o.shipping_address = safeJson(o.shipping_address); });
-
-      res.json({
-        orders,
-        pagination: { page: pageNum, limit: limitNum, total, pages: Math.ceil(total / limitNum) },
-      });
-    } catch (err) {
-      console.error("❌ Customer orders error:", err);
-      res.status(500).json({ error: "Failed to fetch customer orders" });
     }
   }
 );

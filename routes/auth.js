@@ -651,4 +651,76 @@ router.post("/verify-contact-update", authenticateToken, async (req, res) => {
   }
 });
 
+// Send OTP to a Guest (no account required)
+router.post("/guest-otp", async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ success: false, message: "Email is required" });
+
+    // Generate 6-digit OTP
+    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+    
+    // Store expiry as UTC string to avoid DB timezone mismatch with Node's Date
+    const otpExpiryUTC = new Date(Date.now() + 10 * 60 * 1000)
+      .toISOString()
+      .slice(0, 19)
+      .replace('T', ' '); // Format: 'YYYY-MM-DD HH:MM:SS' in UTC
+
+    // Clean up old codes for this email first
+    await db.execute("DELETE FROM guest_verifications WHERE email = ?", [email]);
+
+    // Store in guest_verifications
+    await db.execute(
+      "INSERT INTO guest_verifications (email, otp_code, otp_expiry) VALUES (?, ?, ?)",
+      [email, otpCode, otpExpiryUTC]
+    );
+
+    // Send the email
+    await sendOTPEmail(email, otpCode);
+
+    res.json({ success: true, message: "Verification code sent to your email." });
+  } catch (error) {
+    console.error("Guest OTP error:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Verify Guest OTP (no account required)
+router.post("/guest-verify", async (req, res) => {
+  try {
+    const { email, otpCode } = req.body;
+    if (!email || !otpCode) {
+      return res.status(400).json({ success: false, message: "Email and OTP code are required" });
+    }
+
+    // Check the OTP exists (ignore expiry first to distinguish "wrong code" vs "expired")
+    const [anyRows] = await db.execute(
+      "SELECT id, otp_expiry, otp_code FROM guest_verifications WHERE email = ? ORDER BY created_at DESC LIMIT 1",
+      [email]
+    );
+
+    if (anyRows.length === 0) {
+      return res.status(400).json({ success: false, message: "No verification code found for this email. Please request a new one." });
+    }
+
+    const record = anyRows[0];
+
+    if (record.otp_code !== otpCode) {
+      return res.status(400).json({ success: false, message: "Invalid verification code. Please check and try again." });
+    }
+
+    // Check expiry — mysql2 returns DATETIME as a JS Date object (timezone: UTC)
+    const now = new Date();
+    const expiry = new Date(record.otp_expiry); // already a Date, just ensure it's wrapped
+    if (now > expiry) {
+      return res.status(400).json({ success: false, message: "Verification code has expired. Please request a new one." });
+    }
+
+    res.json({ success: true, message: "Email authenticated successfully" });
+  } catch (error) {
+    console.error("Guest verify error:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 export default router;

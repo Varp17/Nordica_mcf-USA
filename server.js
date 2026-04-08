@@ -67,9 +67,11 @@ app.use(cors({
 }));
 
 // ── Rate Limiting ─────────────────────────────────────────────────────────────
+const isDev = process.env.NODE_ENV === 'development';
+
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,  // 15 minutes
-  max: 200,
+  max: isDev ? 10000 : 500,  // Significantly higher for local dev
   message: { success: false, message: 'Too many requests, please try again later.' },
   standardHeaders: true,
   legacyHeaders: false
@@ -77,7 +79,7 @@ const apiLimiter = rateLimit({
 
 const orderLimiter = rateLimit({
   windowMs: 60 * 1000,  // 1 minute
-  max: 30,
+  max: isDev ? 200 : 30,     // Higher for local dev
   message: { success: false, message: 'Too many order requests.' }
 });
 

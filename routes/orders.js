@@ -1,7 +1,7 @@
 import express from "express";
 import { v4 as uuidv4 } from "uuid";
 import db from "../config/database.js";
-import { authenticateToken } from "../middleware/auth.js";
+import { authenticateToken, optionalAuth } from "../middleware/auth.js";
 
 const router = express.Router()
 
@@ -166,33 +166,64 @@ router.get("/",authenticateToken, async (req, res) => {
 //     res.status(500).json({ error: "Failed to create order" })
 //   }
 // })
-router.post("/", authenticateToken, async (req, res, next) => {
+router.post("/", optionalAuth, async (req, res, next) => {
   // We only need the shipping address and payment method from the frontend.
   // All calculations will be done securely on the backend.
-  const { shipping_address, payment_method } = req.body;
+  const { shipping_address, payment_method, guest_email } = req.body;
 
   if (!shipping_address || !payment_method) {
     return res.status(400).json({ error: "Shipping address and payment method are required" });
+  }
+
+  const userId = req.user ? req.user.id : null;
+  const email = req.user ? req.user.email : guest_email;
+
+  if (!userId && !email) {
+    return res.status(400).json({ error: "Authentication or guest email is required" });
   }
 
   const connection = await db.getConnection(); // Use a transaction for data safety
   try {
     await connection.beginTransaction();
 
-    // 1. Get the user's cart
-    const [carts] = await connection.execute("SELECT id FROM carts WHERE user_id = ?", [req.user.id]);
-    if (carts.length === 0) {
-      throw new Error("Cart not found for this user.");
-    }
-    const cartId = carts[0].id;
+    let cartId = null;
 
-    // 2. Get cart items to calculate totals and create order items
-    const [cartItems] = await connection.execute(
-      `SELECT ci.product_id, ci.quantity, p.name, p.price, p.image, p.in_stock 
-       FROM cart_items ci JOIN products p ON ci.product_id = p.id 
-       WHERE ci.cart_id = ?`,
-      [cartId]
-    );
+    if (userId) {
+      // 1. Get the user's cart
+      const [carts] = await connection.execute("SELECT id FROM carts WHERE user_id = ?", [userId]);
+      if (carts.length > 0) {
+        cartId = carts[0].id;
+      }
+    }
+
+    // If no user cart, we expect cart items to be passed in the body for guests (or we could use a guest cart system)
+    // However, looking at the existing code, it assumes a cart in the database.
+    // For now, let's stick to the current logic but allow guests to have a cart_id if we implement guest carts.
+    // Re-reading the task: "order details need to be saved for that email in backend"
+    
+    // Support for guest cart items in the request body if cartId is null
+    let cartItems = [];
+    if (cartId) {
+      [cartItems] = await connection.execute(
+        `SELECT ci.product_id, ci.quantity, p.name, p.price, p.image, p.in_stock 
+         FROM cart_items ci JOIN products p ON ci.product_id = p.id 
+         WHERE ci.cart_id = ?`,
+        [cartId]
+      );
+    } else if (req.body.items) {
+      // Guest items provided in request
+      const itemIds = req.body.items.map(i => i.product_id);
+      if (itemIds.length > 0) {
+        const [products] = await connection.execute(
+          `SELECT id as product_id, name, price, image, in_stock FROM products WHERE id IN (${itemIds.map(() => '?').join(',')})`,
+          itemIds
+        );
+        cartItems = req.body.items.map(item => {
+          const p = products.find(prod => prod.product_id === item.product_id);
+          return { ...p, quantity: item.quantity };
+        });
+      }
+    }
 
     if (cartItems.length === 0) {
       throw new Error("Cart is empty.");
@@ -213,9 +244,9 @@ router.post("/", authenticateToken, async (req, res, next) => {
     // 4. Create the main order record
     const newOrderId = uuidv4();
     await connection.execute(
-      `INSERT INTO orders (id, user_id, created_at, subtotal, shipping_cost, tax_amount, total, status, payment_method, payment_status, shipping_address) 
-       VALUES (?, ?, NOW(), ?, ?, ?, ?, 'processing', ?, 'pending', ?)`,
-      [newOrderId, req.user.id, subtotal, shipping_cost, tax_amount, total_amount, payment_method, JSON.stringify(shipping_address)]
+      `INSERT INTO orders (id, user_id, guest_email, created_at, subtotal, shipping_cost, tax_amount, total, status, payment_method, payment_status, shipping_address) 
+       VALUES (?, ?, ?, NOW(), ?, ?, ?, ?, 'processing', ?, 'pending', ?)`,
+      [newOrderId, userId, userId ? null : email, subtotal, shipping_cost, tax_amount, total_amount, payment_method, JSON.stringify(shipping_address)]
     );
 
     // 5. Create the associated order_items records
@@ -243,8 +274,10 @@ router.post("/", authenticateToken, async (req, res, next) => {
     });
     await Promise.all(orderItemPromises);
 
-    // 6. Clear the user's cart
-    await connection.execute("DELETE FROM cart_items WHERE cart_id = ?", [cartId]);
+    // 6. Clear the user's cart if it exists
+    if (cartId) {
+      await connection.execute("DELETE FROM cart_items WHERE cart_id = ?", [cartId]);
+    }
 
     // 7. Commit the transaction
     await connection.commit();
@@ -265,18 +298,16 @@ router.post("/", authenticateToken, async (req, res, next) => {
   }
 });
 
-router.get("/:orderId", authenticateToken, async (req, res) => {
+router.get("/:orderId", optionalAuth, async (req, res) => {
   try {
     const { orderId } = req.params;
-    const userId = req.user.id;
+    const { email } = req.query; // For guest tracking
 
-    // A query similar to your "get all orders" query, but for a single ID.
-    // It's crucial to also check for user_id to ensure a user can only access their own orders.
-    const query = `
+    let query = `
       SELECT 
         o.id, o.created_at, o.total, o.status, o.subtotal, 
         o.shipping_cost, o.tax_amount, o.payment_method, o.payment_status,
-        o.shipping_address,
+        o.shipping_address, o.user_id, o.guest_email,
         (SELECT JSON_ARRAYAGG(
           JSON_OBJECT(
             'id', oi.id, 
@@ -290,10 +321,22 @@ router.get("/:orderId", authenticateToken, async (req, res) => {
         FROM order_items oi WHERE oi.order_id = o.id
         ) as items
       FROM orders o
-      WHERE o.id = ? AND o.user_id = ?
+      WHERE o.id = ?
     `;
 
-    const [orders] = await db.execute(query, [orderId, userId]);
+    const params = [orderId];
+
+    if (req.user) {
+      query += " AND (o.user_id = ? OR o.guest_email = ?)";
+      params.push(req.user.id, req.user.email);
+    } else if (email) {
+      query += " AND o.guest_email = ?";
+      params.push(email);
+    } else {
+      return res.status(401).json({ error: "Authentication or email required to view order" });
+    }
+
+    const [orders] = await db.execute(query, params);
 
     // If no order is found (or it belongs to another user), return a 404
     if (orders.length === 0) {

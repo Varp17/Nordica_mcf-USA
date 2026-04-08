@@ -20,8 +20,7 @@ router.get("/analytics", authenticateToken, requireAdmin, async (req, res) => {
     const { country, range = "LAST_30", startDate, endDate, _cb } = req.query;
 
     console.log(
-      `📊 Analytics request: ${country || "ALL"}/${range}${
-        _cb ? " (FORCE FRESH)" : ""
+      `📊 Analytics request: ${country || "ALL"}/${range}${_cb ? " (FORCE FRESH)" : ""
       }`
     );
 
@@ -409,7 +408,7 @@ router.get("/products", authenticateToken, requireAdmin, async (req, res) => {
     const [countResults] = await db.execute(`
         SELECT COUNT(*) as total FROM products p ${whereClause}
       `, params);
-    
+
     const total = countResults[0]?.total || 0;
 
     res.json({
@@ -460,47 +459,47 @@ router.get(
       }
 
       const product = products[0];
-      
+
       // Parse JSON fields
-      try { product.key_features = typeof product.key_features === 'string' ? JSON.parse(product.key_features) : (product.key_features || []); } catch(e) { product.key_features = []; }
-      try { product.specifications = typeof product.specifications === 'string' ? JSON.parse(product.specifications) : (product.specifications || {}); } catch(e) { product.specifications = {}; }
-      try { product.images = typeof product.images === 'string' ? JSON.parse(product.images) : (product.images || []); } catch(e) { product.images = []; }
-      try { product.tags = typeof product.tags === 'string' ? JSON.parse(product.tags) : (product.tags || []); } catch(e) { product.tags = []; }
+      try { product.key_features = typeof product.key_features === 'string' ? JSON.parse(product.key_features) : (product.key_features || []); } catch (e) { product.key_features = []; }
+      try { product.specifications = typeof product.specifications === 'string' ? JSON.parse(product.specifications) : (product.specifications || {}); } catch (e) { product.specifications = {}; }
+      try { product.images = typeof product.images === 'string' ? JSON.parse(product.images) : (product.images || []); } catch (e) { product.images = []; }
+      try { product.tags = typeof product.tags === 'string' ? JSON.parse(product.tags) : (product.tags || []); } catch (e) { product.tags = []; }
 
       // Get color variants with their images
       let [variants] = await db.execute(
-          "SELECT * FROM product_color_variants WHERE product_id = ? ORDER BY sort_order ASC",
-          [id]
+        "SELECT * FROM product_color_variants WHERE product_id = ? ORDER BY sort_order ASC",
+        [id]
       );
-      
+
       if (variants.length === 0 && product.color_options) {
-          // Fallback to legacy color_options JSON if the new table is empty
-          try {
-              const legacyColors = typeof product.color_options === 'string' 
-                  ? JSON.parse(product.color_options) 
-                  : product.color_options;
-              
-              if (Array.isArray(legacyColors)) {
-                  variants = legacyColors.map(c => ({
-                      id: `legacy-${Math.random().toString(36).substr(2, 9)}`,
-                      color_name: c.name || c.color_name || c.value,
-                      color_code: c.color || c.color_code || "#CCCCCC",
-                      amazon_sku: c.amazon_sku || c.sku || null,
-                      stock: c.stock || 0,
-                      price: c.price || product.price,
-                      is_active: 1,
-                      images: c.image ? [{ image_url: c.image, is_primary: 1 }] : []
-                  }));
-              }
-          } catch (e) { console.error("Legacy color parse error:", e); }
-      } else {
-          for (let v of variants) {
-              const [vImgs] = await db.execute(
-                  "SELECT id, image_url, is_primary FROM product_images WHERE color_variant_id = ? ORDER BY sort_order ASC",
-                  [v.id]
-              );
-              v.images = vImgs;
+        // Fallback to legacy color_options JSON if the new table is empty
+        try {
+          const legacyColors = typeof product.color_options === 'string'
+            ? JSON.parse(product.color_options)
+            : product.color_options;
+
+          if (Array.isArray(legacyColors)) {
+            variants = legacyColors.map(c => ({
+              id: `legacy-${Math.random().toString(36).substr(2, 9)}`,
+              color_name: c.name || c.color_name || c.value,
+              color_code: c.color || c.color_code || "#CCCCCC",
+              amazon_sku: c.amazon_sku || c.sku || null,
+              stock: c.stock || 0,
+              price: c.price || product.price,
+              is_active: 1,
+              images: c.image ? [{ image_url: c.image, is_primary: 1 }] : []
+            }));
           }
+        } catch (e) { console.error("Legacy color parse error:", e); }
+      } else {
+        for (let v of variants) {
+          const [vImgs] = await db.execute(
+            "SELECT id, image_url, is_primary FROM product_images WHERE color_variant_id = ? ORDER BY sort_order ASC",
+            [v.id]
+          );
+          v.images = vImgs;
+        }
       }
       product.color_variants = variants;
 
@@ -523,7 +522,7 @@ router.post(
     try {
       await connection.beginTransaction();
       const { id, variantId } = req.params;
-      
+
       if (!req.file) {
         throw new Error("No image file provided.");
       }
@@ -600,7 +599,7 @@ router.post(
       }
 
       const { category, brand } = req.body;
-      
+
       // Get or create category/brand ... (logic remains)
       let categoryId;
       if (category) {
@@ -638,7 +637,7 @@ router.post(
 
       const heroImage = filesByField.heroImage?.[0] || filesByField.image?.[0] || req.body.image_url || req.body.image || null;
       let gallery = [];
-      try { gallery = typeof images === 'string' ? JSON.parse(images) : (images || []); } catch(e) {}
+      try { gallery = typeof images === 'string' ? JSON.parse(images) : (images || []); } catch (e) { }
       if (filesByField.gallery) gallery = [...gallery, ...filesByField.gallery];
 
       const productId = uuidv4();
@@ -662,7 +661,7 @@ router.post(
           rest.description_ar || null, fullDescription || null,
           heroImage, JSON.stringify(gallery), youtubeUrl || null,
           rest.rating || 0, rest.reviews || 0, brand, category, categoryId, brandId,
-          availability, sku || null, stock, 
+          availability, sku || null, stock,
           weight || null, dimensions || null, material || null, warranty || null, returnPolicy || null,
           features || "[]", specifications || "[]", tags || "[]",
           targetCountry, req.body.amazon_url || null, 1,
@@ -672,19 +671,19 @@ router.post(
       // Color Variants & Images
       const colorVariantsArray = typeof colorVariants === 'string' ? JSON.parse(colorVariants) : (colorVariants || []);
       for (let i = 0; i < colorVariantsArray.length; i++) {
-          const variant = colorVariantsArray[i];
-          const variantId = uuidv4();
+        const variant = colorVariantsArray[i];
+        const variantId = uuidv4();
+        await connection.execute(
+          "INSERT INTO product_color_variants (id, product_id, color_name, color_code, stock, created_at) VALUES (?,?,?,?,?,NOW())",
+          [variantId, productId, variant.color, variant.colorCode, variant.stock || 0]
+        );
+        const vFiles = filesByField[`colorVariantImages_${i}`] || [];
+        for (let j = 0; j < vFiles.length; j++) {
           await connection.execute(
-              "INSERT INTO product_color_variants (id, product_id, color_name, color_code, stock, created_at) VALUES (?,?,?,?,?,NOW())",
-              [variantId, productId, variant.color, variant.colorCode, variant.stock || 0]
+            "INSERT INTO product_images (id, product_id, image_url, image_type, color_variant_id, display_order, created_at) VALUES (?,?,?,?,?,?,NOW())",
+            [uuidv4(), productId, vFiles[j], 'color_variant', variantId, j + 1]
           );
-          const vFiles = filesByField[`colorVariantImages_${i}`] || [];
-          for (let j = 0; j < vFiles.length; j++) {
-              await connection.execute(
-                  "INSERT INTO product_images (id, product_id, image_url, image_type, color_variant_id, display_order, created_at) VALUES (?,?,?,?,?,?,NOW())",
-                  [uuidv4(), productId, vFiles[j], 'color_variant', variantId, j+1]
-              );
-          }
+        }
       }
 
       await connection.commit();
@@ -692,9 +691,9 @@ router.post(
     } catch (error) {
       await connection.rollback();
       console.error("❌ Create product error:", error);
-      res.status(500).json({ 
-        error: "Failed to create product", 
-        details: error.message 
+      res.status(500).json({
+        error: "Failed to create product",
+        details: error.message
       });
     } finally {
       connection.release();
@@ -728,21 +727,22 @@ router.put(
         name, price, category, brand, description, image_url, image,
         shortDescription, fullDescription, youtubeUrl,
         features, specifications, tags, colorVariants, images,
-        sku, weight, dimensions, material, warranty, returnPolicy,
+        sku, weight_kg, weight_lb, dimensions, dimensions_imperial,
+        material, warranty, returnPolicy,
         in_stock, target_country, amazon_url, ...rest
       } = req.body;
 
       const body = req.body;
       const updates = {};
-      
+
       const setUpdate = (field, key) => {
-          if (body[field] !== undefined) updates[key] = body[field];
-          else if (body[key] !== undefined) updates[key] = body[key];
+        if (body[field] !== undefined) updates[key] = body[field];
+        else if (body[key] !== undefined) updates[key] = body[key];
       };
 
       if (body.name) updates.name = body.name;
       if (body.price) updates.price = parseFloat(body.price);
-      
+
       setUpdate('description', 'description');
       setUpdate('short_description', 'short_description');
       setUpdate('shortDescription', 'short_description');
@@ -753,8 +753,10 @@ router.put(
       setUpdate('youtube_url', 'youtube_url');
       setUpdate('youtubeUrl', 'youtube_url');
       setUpdate('sku', 'sku');
-      setUpdate('weight', 'weight');
+      setUpdate('weight_kg', 'weight_kg');
+      setUpdate('weight_lb', 'weight_lb');
       setUpdate('dimensions', 'dimensions');
+      setUpdate('dimensions_imperial', 'dimensions_imperial');
       setUpdate('material', 'material');
       setUpdate('warranty', 'warranty');
       setUpdate('return_policy', 'return_policy');
@@ -763,32 +765,32 @@ router.put(
       setUpdate('original_price', 'original_price');
 
       if (body.features || body.key_features) {
-          const f = body.features || body.key_features;
-          updates.features = typeof f === 'string' ? f : JSON.stringify(f);
+        const f = body.features || body.key_features;
+        updates.features = typeof f === 'string' ? f : JSON.stringify(f);
       }
       if (body.specifications) {
-          updates.specifications = typeof body.specifications === 'string' ? body.specifications : JSON.stringify(body.specifications);
+        updates.specifications = typeof body.specifications === 'string' ? body.specifications : JSON.stringify(body.specifications);
       }
       if (body.about_section || body.aboutSection) {
-          const a = body.about_section || body.aboutSection;
-          updates.about_section = typeof a === 'string' ? a : JSON.stringify(a);
+        const a = body.about_section || body.aboutSection;
+        updates.about_section = typeof a === 'string' ? a : JSON.stringify(a);
       }
       if (body.videos) {
-          updates.videos = typeof body.videos === 'string' ? body.videos : JSON.stringify(body.videos);
+        updates.videos = typeof body.videos === 'string' ? body.videos : JSON.stringify(body.videos);
       }
       if (body.tags) {
-          updates.tags = typeof body.tags === 'string' ? body.tags : JSON.stringify(body.tags);
+        updates.tags = typeof body.tags === 'string' ? body.tags : JSON.stringify(body.tags);
       }
 
       // image update
       if (filesByField.heroImage || filesByField.image) {
-          updates.image = filesByField.heroImage?.[0] || filesByField.image?.[0];
+        updates.image = filesByField.heroImage?.[0] || filesByField.image?.[0];
       } else if (image_url || image) {
-          updates.image = image_url || image;
+        updates.image = image_url || image;
       }
 
       let gallery = [];
-      try { gallery = typeof images === 'string' ? JSON.parse(images) : (images || []); } catch(e) {}
+      try { gallery = typeof images === 'string' ? JSON.parse(images) : (images || []); } catch (e) { }
       if (filesByField.gallery) gallery = [...gallery, ...filesByField.gallery];
       updates.images = JSON.stringify(gallery);
 
@@ -835,14 +837,14 @@ router.put(
         // Note: we don't delete images if we want to preserve them, but current logic does it to refresh.
         // The user wants SKU and Name editing specifically.
         const cvArray = typeof colorVariants === 'string' ? JSON.parse(colorVariants) : (colorVariants || []);
-        
+
         // Prepare list for JSON column update
         const colorOptionsList = [];
 
         for (let i = 0; i < cvArray.length; i++) {
           const v = cvArray[i];
           const vId = uuidv4();
-          
+
           // Insert into separate table
           await connection.execute(
             "INSERT INTO product_color_variants (id, product_id, color_name, color_code, amazon_sku, stock, price, is_active, created_at) VALUES (?,?,?,?,?,?,?,1,NOW())",
@@ -864,7 +866,7 @@ router.put(
           for (let j = 0; j < vFiles.length; j++) {
             await connection.execute(
               "INSERT INTO product_images (id, product_id, image_url, image_type, color_variant_id, display_order, created_at) VALUES (?,?,?,?,?,?,NOW())",
-              [uuidv4(), id, vFiles[j], 'color_variant', vId, j+1]
+              [uuidv4(), id, vFiles[j], 'color_variant', vId, j + 1]
             );
           }
         }
@@ -876,8 +878,8 @@ router.put(
         await connection.execute(
           "UPDATE products SET color_options = ?, in_stock = ?, availability = ?, updated_at = NOW() WHERE id = ?",
           [
-            JSON.stringify(colorOptionsList), 
-            aggregateStock, 
+            JSON.stringify(colorOptionsList),
+            aggregateStock,
             aggregateStock > 0 ? "In Stock" : "Out of Stock",
             id
           ]
@@ -896,7 +898,204 @@ router.put(
   }
 );
 
+// ─────────────────────────────────────────────────────────────────────────────
+// STOCK MANAGEMENT — Production-Grade Endpoints (Canada & US)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * PATCH /api/admin/products/:id/stock
+ * Update base product stock (in_stock / inventory_cache).
+ * Body: { stock: number, reason?: string }
+ */
+router.patch("/products/:id/stock", authenticateToken, requireAdmin, async (req, res) => {
+  const connection = await db.getConnection();
+  try {
+    await connection.beginTransaction();
+    const { id } = req.params;
+    const stock = parseInt(req.body.stock);
+    const reason = req.body.reason || 'Admin CRM update';
+
+    if (isNaN(stock) || stock < 0) {
+      return res.status(400).json({ success: false, error: 'stock must be a non-negative integer' });
+    }
+
+    // Verify product exists
+    const [rows] = await connection.execute("SELECT id, name, in_stock FROM products WHERE id = ? AND is_active = 1", [id]);
+    if (rows.length === 0) return res.status(404).json({ success: false, error: 'Product not found' });
+
+    const prev = rows[0].in_stock;
+    const availability = stock > 0 ? 'In Stock' : 'Out of Stock';
+
+    await connection.execute(
+      "UPDATE products SET in_stock = ?, inventory_cache = ?, availability = ?, updated_at = NOW() WHERE id = ?",
+      [stock, stock, availability, id]
+    );
+
+    await connection.commit();
+    logger.info(`[STOCK] ${rows[0].name} base stock: ${prev} → ${stock} (${reason})`);
+
+    res.json({ success: true, productId: id, stock, availability, previous: prev });
+  } catch (err) {
+    await connection.rollback();
+    logger.error(`PATCH /products/:id/stock error: ${err.message}`);
+    res.status(500).json({ success: false, error: err.message });
+  } finally {
+    connection.release();
+  }
+});
+
+/**
+ * PATCH /api/admin/products/:id/variants/stock
+ * Bulk update multiple variant stocks in a single atomic transaction.
+ * Body: { variants: [{ id, stock, price?, color_name?, amazon_sku? }] }
+ * After update: recalculates and syncs parent product in_stock aggregate.
+ */
+router.patch("/products/:id/variants/stock", authenticateToken, requireAdmin, async (req, res) => {
+  const connection = await db.getConnection();
+  try {
+    await connection.beginTransaction();
+    const { id } = req.params;
+    const { variants } = req.body;
+
+    if (!Array.isArray(variants) || variants.length === 0) {
+      return res.status(400).json({ success: false, error: 'variants must be a non-empty array' });
+    }
+
+    // Verify product exists
+    const [pRows] = await connection.execute("SELECT id, name FROM products WHERE id = ? AND is_active = 1", [id]);
+    if (pRows.length === 0) return res.status(404).json({ success: false, error: 'Product not found' });
+
+    const results = [];
+
+    for (const v of variants) {
+      const stock = parseInt(v.stock);
+      if (isNaN(stock) || stock < 0) {
+        throw new Error(`Invalid stock value for variant ${v.id}: ${v.stock}`);
+      }
+
+      // Build dynamic update for optional fields
+      const fields = ['stock = ?', 'is_active = 1', 'updated_at = NOW()'];
+      const values = [stock];
+
+      if (v.price !== undefined) { fields.push('price = ?'); values.push(parseFloat(v.price) || 0); }
+      if (v.color_name !== undefined) { fields.push('color_name = ?'); values.push(v.color_name); }
+      if (v.color_code !== undefined) { fields.push('color_code = ?'); values.push(v.color_code); }
+      if (v.amazon_sku !== undefined) { fields.push('amazon_sku = ?'); values.push(v.amazon_sku || null); }
+
+      values.push(v.id, id); // for WHERE clause
+
+      const [upd] = await connection.execute(
+        `UPDATE product_color_variants SET ${fields.join(', ')} WHERE id = ? AND product_id = ?`,
+        values
+      );
+
+      if (upd.affectedRows === 0) {
+        // Variant not found — log warning but don't fail the whole batch
+        logger.warn(`[STOCK] Variant ${v.id} not found for product ${id}, skipped`);
+        results.push({ variantId: v.id, status: 'not_found' });
+      } else {
+        results.push({ variantId: v.id, stock, status: 'updated' });
+      }
+    }
+
+    // Re-aggregate total stock and sync JSON color_options on the parent product
+    const [allVariants] = await connection.execute(
+      "SELECT id, color_name, color_code, amazon_sku, stock, price FROM product_color_variants WHERE product_id = ? AND is_active = 1",
+      [id]
+    );
+
+    const aggregateStock = allVariants.reduce((sum, v) => sum + (parseInt(v.stock) || 0), 0);
+    const colorOptionsList = allVariants.map(v => ({
+      name: v.color_name,
+      color: v.color_code,
+      stock: parseInt(v.stock) || 0,
+      amazon_sku: v.amazon_sku || null,
+      in_stock: (parseInt(v.stock) || 0) > 0 ? 1 : 0,
+      price: v.price || 0
+    }));
+
+    await connection.execute(
+      "UPDATE products SET color_options = ?, in_stock = ?, inventory_cache = ?, availability = ?, updated_at = NOW() WHERE id = ?",
+      [
+        JSON.stringify(colorOptionsList),
+        aggregateStock,
+        aggregateStock,
+        aggregateStock > 0 ? 'In Stock' : 'Out of Stock',
+        id
+      ]
+    );
+
+    await connection.commit();
+    logger.info(`[STOCK] ${pRows[0].name}: bulk variant update — ${results.filter(r => r.status === 'updated').length}/${variants.length} updated. Total: ${aggregateStock}`);
+
+    res.json({
+      success: true,
+      productId: id,
+      aggregateStock,
+      availability: aggregateStock > 0 ? 'In Stock' : 'Out of Stock',
+      results
+    });
+  } catch (err) {
+    await connection.rollback();
+    logger.error(`PATCH /products/:id/variants/stock error: ${err.message}`);
+    res.status(500).json({ success: false, error: err.message });
+  } finally {
+    connection.release();
+  }
+});
+
+/**
+ * PATCH /api/admin/products/:id/variants/:variantId/stock
+ * Update a single variant's stock — for inline CRM row edits.
+ * Body: { stock: number }
+ */
+router.patch("/products/:id/variants/:variantId/stock", authenticateToken, requireAdmin, async (req, res) => {
+  const connection = await db.getConnection();
+  try {
+    await connection.beginTransaction();
+    const { id, variantId } = req.params;
+    const stock = parseInt(req.body.stock);
+
+    if (isNaN(stock) || stock < 0) {
+      return res.status(400).json({ success: false, error: 'stock must be a non-negative integer' });
+    }
+
+    const [upd] = await connection.execute(
+      "UPDATE product_color_variants SET stock = ?, is_active = 1, updated_at = NOW() WHERE id = ? AND product_id = ?",
+      [stock, variantId, id]
+    );
+
+    if (upd.affectedRows === 0) {
+      await connection.rollback();
+      return res.status(404).json({ success: false, error: 'Variant not found' });
+    }
+
+    // Re-aggregate parent product stock
+    const [allVariants] = await connection.execute(
+      "SELECT stock FROM product_color_variants WHERE product_id = ? AND is_active = 1", [id]
+    );
+    const aggregateStock = allVariants.reduce((sum, v) => sum + (parseInt(v.stock) || 0), 0);
+
+    await connection.execute(
+      "UPDATE products SET in_stock = ?, inventory_cache = ?, availability = ?, updated_at = NOW() WHERE id = ?",
+      [aggregateStock, aggregateStock, aggregateStock > 0 ? 'In Stock' : 'Out of Stock', id]
+    );
+
+    await connection.commit();
+    logger.info(`[STOCK] Variant ${variantId} → ${stock}. Product ${id} aggregate: ${aggregateStock}`);
+
+    res.json({ success: true, variantId, stock, productId: id, aggregateStock });
+  } catch (err) {
+    await connection.rollback();
+    logger.error(`PATCH /products/:id/variants/:variantId/stock error: ${err.message}`);
+    res.status(500).json({ success: false, error: err.message });
+  } finally {
+    connection.release();
+  }
+});
+
 // Delete product (soft delete)
+
 router.delete(
   "/products/:id",
   authenticateToken,
@@ -1877,7 +2076,7 @@ router.get(
 
       const order = orders[0];
       if (order.shipping_address && typeof order.shipping_address === "string") {
-        try { order.shipping_address = JSON.parse(order.shipping_address); } catch(e) {}
+        try { order.shipping_address = JSON.parse(order.shipping_address); } catch (e) { }
       }
       order.items = order.items || [];
 
@@ -2192,11 +2391,11 @@ router.delete("/banners/:id", authenticateToken, requireAdmin, async (req, res) 
   try {
     const { id } = req.params;
     const [result] = await db.execute("DELETE FROM banners WHERE id = ?", [id]);
-    
+
     if (result.affectedRows === 0) {
       return res.status(404).json({ error: "Banner not found" });
     }
-    
+
     res.json({ success: true, message: "Banner deleted" });
   } catch (error) {
     console.error("Delete banner error:", error);
@@ -2213,7 +2412,7 @@ router.post('/create-dummy-order', authenticateToken, requireAdmin, async (req, 
 
     const orderId = uuidv4();
     const orderNumber = `ORD-DUMMY-${Date.now().toString().slice(-6)}`;
-    
+
     // Get a random customer
     const [users] = await connection.query("SELECT id, email, first_name, last_name FROM users WHERE role = 'customer' LIMIT 1");
     if (!users.length) throw new Error("No customers found to attach order to.");
@@ -2224,7 +2423,7 @@ router.post('/create-dummy-order', authenticateToken, requireAdmin, async (req, 
       `INSERT INTO orders (id, order_number, user_id, customer_email, shipping_first_name, shipping_last_name, shipping_address, subtotal, tax, shipping_cost, total, status, payment_status, country)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        orderId, orderNumber, user.id, user.email, user.first_name, user.last_name, 
+        orderId, orderNumber, user.id, user.email, user.first_name, user.last_name,
         JSON.stringify({ address1: '123 Dummy St', city: 'Toronto', country: 'CA' }),
         100.00, 13.00, 15.00, 128.00, 'pending', 'paid', 'CA'
       ]
@@ -2254,14 +2453,14 @@ router.post("/debug/recalibrate-regions", authenticateToken, requireAdmin, async
   try {
     const [all] = await db.query("SELECT id FROM products WHERE is_active = 1 LIMIT 21");
     if (all.length === 0) return res.json({ message: "No products found" });
-    
+
     // Assign top 6 to US
     for (let i = 0; i < Math.min(6, all.length); i++) {
-        await db.query("UPDATE products SET target_country = 'us' WHERE id = ?", [all[i].id]);
+      await db.query("UPDATE products SET target_country = 'us' WHERE id = ?", [all[i].id]);
     }
     // Assign next 15 to Canada
     for (let i = 6; i < Math.min(21, all.length); i++) {
-        await db.query("UPDATE products SET target_country = 'canada' WHERE id = ?", [all[i].id]);
+      await db.query("UPDATE products SET target_country = 'canada' WHERE id = ?", [all[i].id]);
     }
     res.json({ success: true, message: `Market split complete: ${all.length} products categorized.` });
   } catch (e) {

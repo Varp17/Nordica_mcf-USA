@@ -1,7 +1,7 @@
 import express from "express";
 import { v4 as uuidv4 } from "uuid";
 import db from "../config/database.js";
-import Product from "../models/Product.js";
+import * as Product from "../models/Product.js";
 import { authenticateToken } from "../middleware/auth.js";
 
 const router = express.Router()

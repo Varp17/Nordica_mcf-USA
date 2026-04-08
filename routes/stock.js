@@ -174,4 +174,54 @@ router.get('/sync-status', async (req, res) => {
   });
 });
 
+/**
+ * POST /api/stock/notify
+ * 
+ * Register a user for stock notifications.
+ */
+router.post('/notify', async (req, res) => {
+  try {
+    const { email, product_id, variant_id } = req.body;
+
+    if (!email || !product_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email and product_id are required'
+      });
+    }
+
+    // Check if already registered
+    const [existing] = await db.execute(
+      `SELECT id FROM stock_notifications 
+       WHERE email = ? AND product_id = ? AND (variant_id = ? OR (variant_id IS NULL AND ? IS NULL)) AND notified_at IS NULL`,
+      [email, product_id, variant_id || null, variant_id || null]
+    );
+
+    if (existing.length > 0) {
+      return res.json({
+        success: true,
+        message: 'You are already registered for notifications on this item.'
+      });
+    }
+
+    // Insert new registration
+    await db.execute(
+      `INSERT INTO stock_notifications (product_id, variant_id, email) VALUES (?, ?, ?)`,
+      [product_id, variant_id || null, email]
+    );
+
+    return res.status(201).json({
+      success: true,
+      message: 'Notification registered successfully. We will email you when it is back in stock!'
+    });
+
+  } catch (error) {
+    logger.error(`Stock notify error: ${error.message}`);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to register notification'
+    });
+  }
+});
+
 export default router;

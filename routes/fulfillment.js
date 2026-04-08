@@ -1,5 +1,6 @@
 import express from 'express';
-import Product from '../models/Product.js';
+import db from '../config/database.js';
+import * as Product from '../models/Product.js';
 import mcfService from '../services/mcfService.js';
 import shippoService from '../services/shippoService.js';
 import logger from '../utils/logger.js';
@@ -7,9 +8,40 @@ import logger from '../utils/logger.js';
 const router = express.Router();
 
 /**
- * POST /api/fulfillment/preview (US only)
- * Backend equivalent for frontend's fulfillment.preview()
+ * POST /api/fulfillment/fetch-dimensions
+ * Fetch product dimensions from Amazon MCF catalog
  */
+router.post('/fetch-dimensions', async (req, res) => {
+  try {
+    const { sku } = req.body;
+
+    if (!sku) {
+      return res.status(400).json({ success: false, message: 'SKU is required' });
+    }
+
+    const dimensionData = await mcfService.getProductDimensionsFromMCF(sku);
+
+    // Update database if dimensions found
+    if (dimensionData.dimensions && dimensionData.weight_kg) {
+      await db.query(
+        'UPDATE products SET weight_kg = ?, dimensions = ?, updated_at = NOW() WHERE amazon_sku = ?',
+        [dimensionData.weight_kg, dimensionData.dimensions, sku]
+      );
+    }
+
+    return res.json({
+      success: true,
+      dimensions: dimensionData
+    });
+
+  } catch (err) {
+    logger.error(`POST /api/fulfillment/fetch-dimensions error: ${err.message}`);
+    return res.status(500).json({
+      success: false,
+      message: err.message || 'Failed to fetch dimensions from Amazon'
+    });
+  }
+});
 router.post('/preview', async (req, res) => {
   try {
     const { country, shipping, items } = req.body;
@@ -143,6 +175,42 @@ router.post('/validate-address', async (req, res) => {
         logger.error(`POST /api/fulfillment/validate-address error: ${err.message}`);
         return res.status(500).json({ success: false, message: 'Internal validation error', error: err.message });
     }
+});
+
+/**
+ * POST /api/fulfillment/calculate-tax
+ * Returns applicable tax for an order.
+ * Canada: $0 (tax handled at label/invoice level offline)
+ * USA: basic state-rate lookup
+ */
+router.post('/calculate-tax', async (req, res) => {
+  try {
+    const { country, state, subtotal } = req.body;
+    const sub = parseFloat(subtotal) || 0;
+
+    if (country === 'CA') {
+      // Canadian GST/HST/PST is calculated at invoice time, not during checkout
+      return res.json({ success: true, tax: 0, tax_label: 'Tax (incl.)', rate: 0 });
+    }
+
+    // US state tax rates (simplified — production would use TaxJar/Avalara)
+    const US_TAX_RATES = {
+      CA: 0.0725, NY: 0.08, TX: 0.0625, FL: 0.06, WA: 0.065,
+      IL: 0.0625, PA: 0.06, OH: 0.0575, GA: 0.04, NC: 0.0475,
+      MI: 0.06, NJ: 0.0663, VA: 0.053, AZ: 0.056, TN: 0.07,
+      MA: 0.0625, IN: 0.07, MO: 0.04225, MD: 0.06, WI: 0.05,
+      CO: 0.029, MN: 0.06875, SC: 0.06, AL: 0.04, LA: 0.0445,
+      KY: 0.06, OR: 0, MT: 0, NH: 0, DE: 0, AK: 0
+    };
+
+    const rate = US_TAX_RATES[state?.toUpperCase()] ?? 0;
+    const tax = parseFloat((sub * rate).toFixed(2));
+
+    return res.json({ success: true, tax, tax_label: 'Sales Tax', rate });
+  } catch (err) {
+    logger.error(`POST /api/fulfillment/calculate-tax error: ${err.message}`);
+    return res.json({ success: true, tax: 0, tax_label: 'Tax', rate: 0 });
+  }
 });
 
 export default router;

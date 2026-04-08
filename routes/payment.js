@@ -2,7 +2,7 @@ import express from 'express';
 import axios from 'axios';
 import db from '../config/database.js';
 import Order from '../models/Order.js';
-import Product from '../models/Product.js';
+import * as Product from '../models/Product.js';
 import { fulfillOrder } from '../services/fulfillmentService.js';
 import logger from '../utils/logger.js';
 import { optionalAuth, requireVerified } from '../middleware/auth.js';
@@ -54,8 +54,27 @@ router.post('/create-order', optionalAuth, async (req, res, next) => {
   next();
 }, async (req, res) => {
   try {
-    const { country, currency, items, shipping, shippingCost, subtotal, tax, total, email, shippingSpeed } = req.body;
+    const { country, currency, items, shipping, shippingCost, subtotal, tax, total, email, shippingSpeed, guestOtpCode } = req.body;
     
+    // 0. Guest Verification (for unauthenticated users)
+    if (!req.user && !req.headers['authorization']) {
+      if (!guestOtpCode) {
+        return res.status(401).json({ success: false, message: 'Verification code required for guest checkout' });
+      }
+      // Fetch the record first, then compare in JS (avoids MySQL timezone issues)
+      const [otpRows] = await db.execute(
+        "SELECT id, otp_code, otp_expiry FROM guest_verifications WHERE email = ? ORDER BY created_at DESC LIMIT 1",
+        [email]
+      );
+      if (otpRows.length === 0 || otpRows[0].otp_code !== guestOtpCode) {
+        return res.status(401).json({ success: false, message: 'Invalid or expired verification code' });
+      }
+      const expiry = new Date(otpRows[0].otp_expiry); // mysql2 returns a Date object (timezone: UTC)
+      if (new Date() > expiry) {
+        return res.status(401).json({ success: false, message: 'Verification code has expired. Please request a new one.' });
+      }
+    }
+
     // 1. Server-side validation (Price & Stock)
     const validation = await Product.validateCartItems(items, country);
     if (!validation.valid) {

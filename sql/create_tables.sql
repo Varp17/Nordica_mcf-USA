@@ -13,10 +13,10 @@ SET FOREIGN_KEY_CHECKS = 0;
 -- -- ------------------------------------------------------------
 -- -- 1. DATABASE
 -- -- ------------------------------------------------------------
--- CREATE DATABASE IF NOT EXISTS nordica_ecomsun
---   CHARACTER SET utf8mb4
---   COLLATE utf8mb4_unicode_ci;
--- USE nordica_ecomsun;
+CREATE DATABASE IF NOT EXISTS ecom_nordica
+  CHARACTER SET utf8mb4
+  COLLATE utf8mb4_unicode_ci;
+USE ecom_nordica;
 -- ------------------------------------------------------------
 -- 2. USERS (admin + customers)
 -- ------------------------------------------------------------
@@ -75,6 +75,19 @@ CREATE TABLE addresses (
   updated_at   DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
   INDEX idx_address_user (user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ------------------------------------------------------------
+-- 2c. GUEST VERIFICATIONS
+-- ------------------------------------------------------------
+DROP TABLE IF EXISTS guest_verifications;
+CREATE TABLE guest_verifications (
+  id               CHAR(36)      PRIMARY KEY DEFAULT (UUID()),
+  email            VARCHAR(255)  NOT NULL,
+  otp_code         VARCHAR(10)   NOT NULL,
+  otp_expiry       DATETIME      NOT NULL,
+  created_at       DATETIME      DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_guest_email (email)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
  
 -- ------------------------------------------------------------
@@ -145,6 +158,7 @@ CREATE TABLE products (
   brand_id           CHAR(36)      DEFAULT NULL,
   sku                VARCHAR(100)  DEFAULT NULL UNIQUE,
   amazon_sku         VARCHAR(100)  DEFAULT NULL UNIQUE,
+  asin               VARCHAR(20)   DEFAULT NULL,
   amazon_url         VARCHAR(500)  DEFAULT NULL,
   
   -- Statistics
@@ -155,7 +169,9 @@ CREATE TABLE products (
   in_stock           TINYINT(1)    NOT NULL DEFAULT 1,
   availability       ENUM('In Stock','Out of Stock') DEFAULT 'In Stock',
   weight_kg          DECIMAL(8,3)  DEFAULT NULL,
+  weight_lb          DECIMAL(8,3)  DEFAULT NULL,
   dimensions         VARCHAR(100)  DEFAULT NULL,
+  dimensions_imperial VARCHAR(100) DEFAULT NULL,
   
   -- Legacy/Rich JSON Blobs
   features           JSON          DEFAULT NULL,
@@ -221,8 +237,13 @@ CREATE TABLE product_variants (
   product_id       CHAR(36)      NOT NULL,
   sku              VARCHAR(100)  DEFAULT NULL,
   amazon_sku       VARCHAR(100)  DEFAULT NULL,
+  asin             VARCHAR(20)   DEFAULT NULL,
   variant_name     VARCHAR(255)  DEFAULT NULL,
   price            DECIMAL(12,2) DEFAULT NULL,
+  weight_lb        DECIMAL(8,3)  DEFAULT NULL,
+  weight_kg        DECIMAL(8,3)  DEFAULT NULL,
+  dimensions       VARCHAR(100)  DEFAULT NULL,
+  dimensions_imperial VARCHAR(100) DEFAULT NULL,
   stock            INT           NOT NULL DEFAULT 0,
   attributes       JSON          DEFAULT NULL,
   is_active        TINYINT(1)    NOT NULL DEFAULT 1,
@@ -232,6 +253,20 @@ CREATE TABLE product_variants (
   INDEX idx_pv_product (product_id),
   INDEX idx_pv_sku (sku),
   INDEX idx_pv_amazon_sku (amazon_sku)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ------------------------------------------------------------
+-- 6b. RESTOCK SUBSCRIPTIONS
+-- ------------------------------------------------------------
+DROP TABLE IF EXISTS restock_subscriptions;
+CREATE TABLE restock_subscriptions (
+  id               CHAR(36)      PRIMARY KEY DEFAULT (UUID()),
+  email            VARCHAR(255)  NOT NULL,
+  product_id       CHAR(36)      NOT NULL,
+  variant_id       CHAR(36)      DEFAULT NULL,
+  created_at       DATETIME      DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_restock_email (email),
+  FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ------------------------------------------------------------
@@ -1554,8 +1589,8 @@ INSERT INTO products (
 -- CAD Bucket
 INSERT INTO products (
   id, name, slug, description, long_description, price, original_price,
-  category, brand, image, images, variant_images, features, compatibility,
-  rating, review_count, in_stock, about_section, badge, url, specifications,
+  category, brand, sku, image, images, variant_images, features, compatibility,
+  rating, review_count, in_stock, weight_kg, weight_lb, dimensions, dimensions_imperial, about_section, badge, url, specifications,
   color_options, videos, reviews, rating_breakdown, hide_for_usa, sizes, country, target_country, amazon_url
 ) SELECT 
   UUID(),
@@ -1564,7 +1599,7 @@ INSERT INTO products (
   'Heavy duty 5 Gallon detailing bucket molded of high-quality plastic with a metal handle.',
   'Our 5 Gallon detailing bucket is molded of heavy duty plastic and a metal handle to withstand years of repeated use. This bucket is the perfect fitment for your Dirt Lock bucket filter and all the accessories that go along with it. Made In Canada.',
   12.99, NULL,
-  'Detailing-Accessories', 'DETAIL GUARDZ',
+  'Detailing-Accessories', 'DETAIL GUARDZ', 'CAD-78C-V',
   'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DETAIL GUARDZ 5 GALLON DETAILING BUCKET/DETAIL GUARDZ 5 GALLON DETAILING BUCKET.webp',
   JSON_ARRAY(
     'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DETAIL GUARDZ 5 GALLON DETAILING BUCKET/DETAIL GUARDZ 5 GALLON DETAILING BUCKET.webp',
@@ -1575,7 +1610,7 @@ INSERT INTO products (
   NULL,
   JSON_ARRAY('Heavy duty plastic construction', 'Metal handle for durability', 'Perfect fit for Dirt Lock filters', 'Made In Canada'),
   JSON_ARRAY('Dirt Lock bucket filter', 'All accessories'),
-  4.8, 45, 1,
+  4.8, 45, 1, 1.2, 2.65, '30.5x30.5x38.1', '12x12x15',
   NULL,
   'Premium',
   NULL,
@@ -1605,7 +1640,7 @@ INSERT INTO products (
 INSERT INTO products (
   id, name, slug, description, long_description, price, original_price,
   category, brand, image, images, variant_images, features, compatibility,
-  rating, review_count, in_stock, about_section, badge, url, specifications,
+  rating, review_count, in_stock, weight_kg, weight_lb, dimensions, dimensions_imperial, about_section, badge, url, specifications,
   color_options, videos, reviews, rating_breakdown, hide_for_usa, sizes, country, target_country, amazon_url
 ) SELECT 
   UUID(),
@@ -1668,7 +1703,7 @@ INSERT INTO products (
     'Chemical & crush resistant'
   ),
   JSON_ARRAY('3-8 Gallon Round Pails'),
-  4.9, 156, 1,
+  4.9, 156, 1, 0.490, 1.08, '26.5x26.5x6.5', '10.4x10.4x2.6',
   JSON_OBJECT(
     'heroImage', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/about section large.jpg',
     'heroImageAlt', 'Dirt Lock Bucket Filter Insert',
@@ -1699,11 +1734,11 @@ INSERT INTO products (
     'manufacturer', 'DETAIL GUARDZ Canada'
   ),
   JSON_ARRAY(
-    JSON_OBJECT('name', 'Blue', 'value', 'blue', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (blue) B07CKLPJZR/1. Hero Image.webp', 'price', 32.99),
-    JSON_OBJECT('name', 'Black', 'value', 'black', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (black) B07CKC4M9D/1. Hero Image.webp', 'price', 32.99),
-    JSON_OBJECT('name', 'Red', 'value', 'red', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (red) B07CKG1VCH/1. Hero Image.webp', 'price', 32.99),
-    JSON_OBJECT('name', 'White', 'value', 'white', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (white) B088PZXQY1/1. Hero Image.webp', 'price', 32.99),
-    JSON_OBJECT('name', 'Yellow', 'value', 'yellow', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (yellow) B07P9CWKLJ/1. Hero Image.webp', 'price', 32.99)
+    JSON_OBJECT('name', 'Blue', 'value', 'blue', 'sku', 'CAD-C21-V-BLUE', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (blue) B07CKLPJZR/1. Hero Image.webp', 'price', 32.99, 'weight_kg', 0.49, 'weight_lb', 1.08, 'dimensions', '26.5x26.5x6.5', 'dimensions_imperial', '10.4x10.4x2.6'),
+    JSON_OBJECT('name', 'Black', 'value', 'black', 'sku', 'CAD-C21-V-BLACK', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (black) B07CKC4M9D/1. Hero Image.webp', 'price', 32.99, 'weight_kg', 0.49, 'weight_lb', 1.08, 'dimensions', '26.5x26.5x6.5', 'dimensions_imperial', '10.4x10.4x2.6'),
+    JSON_OBJECT('name', 'Red', 'value', 'red', 'sku', 'CAD-C21-V-RED', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (red) B07CKG1VCH/1. Hero Image.webp', 'price', 32.99, 'weight_kg', 0.49, 'weight_lb', 1.08, 'dimensions', '26.5x26.5x6.5', 'dimensions_imperial', '10.4x10.4x2.6'),
+    JSON_OBJECT('name', 'White', 'value', 'white', 'sku', 'CAD-C21-V-WHITE', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (white) B088PZXQY1/1. Hero Image.webp', 'price', 32.99, 'weight_kg', 0.49, 'weight_lb', 1.08, 'dimensions', '26.5x26.5x6.5', 'dimensions_imperial', '10.4x10.4x2.6'),
+    JSON_OBJECT('name', 'Yellow', 'value', 'yellow', 'sku', 'CAD-C21-V-YELLOW', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Dirt Lock-20260122T171825Z-1-001/Dirt Lock/Dirt Lock (yellow) B07P9CWKLJ/1. Hero Image.webp', 'price', 32.99, 'weight_kg', 0.49, 'weight_lb', 1.08, 'dimensions', '26.5x26.5x6.5', 'dimensions_imperial', '10.4x10.4x2.6')
   ),
   JSON_OBJECT(
     'main', JSON_OBJECT('url', 'https://www.youtube.com/embed/2LndE9cD63A', 'title', 'DETAIL GUARDZ Dirt Lock Car Wash Insert', 'description', 'Our patented design utilizes the motion of your hand to pump and trap debris underneath the screen. Every time you pump your hand in the bucket you are cycling the dirt underneath the screen.'),
@@ -1730,7 +1765,7 @@ INSERT INTO products (
 INSERT INTO products (
   id, name, slug, description, long_description, price, original_price,
   category, brand, image, images, variant_images, features, compatibility,
-  rating, review_count, in_stock, about_section, badge, url, specifications,
+  rating, review_count, in_stock, weight_kg, weight_lb, dimensions, dimensions_imperial, about_section, badge, url, specifications,
   color_options, videos, reviews, rating_breakdown, hide_for_usa, sizes, country, target_country, amazon_url
 ) SELECT 
   UUID(),
@@ -1770,7 +1805,7 @@ INSERT INTO products (
   ),
   JSON_ARRAY(' Dirt Lock bucket filter', 'Pad washer attachment', 'Hook and loop handle', 'Storage bracket'),
   JSON_ARRAY('All polishing pads 1-10 inches'),
-  4.7, 42, 1,
+  4.7, 42, 1, 1.5, 3.31, '30x30x40', '11.8x11.8x15.7',
   JSON_OBJECT(
     'heroImage', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Pad Washer Images/about section large.jpg',
     'heroImageAlt', 'Dirt Lock Pad Washer System',
@@ -1794,8 +1829,8 @@ INSERT INTO products (
     'manufacturer', 'DETAIL GUARDZ Canada'
   ),
   JSON_ARRAY(
-    JSON_OBJECT('name', 'White', 'value', 'white', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DIRTLOCK-PWSPadWasherBundle-White_main_720x/DIRTLOCK-PWSPadWasherBundle-White_main_720x.webp', 'price', 79.99),
-    JSON_OBJECT('name', 'Black', 'value', 'black', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DIRTLOCK-PWSPadWasherBundle-White_main_720x/DIRTLOCK-PWSPadWasherBundle_Main_Black_720x.webp', 'price', 79.99)
+    JSON_OBJECT('name', 'White', 'value', 'white', 'sku', 'CAD-2CF16-V-WHITE', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DIRTLOCK-PWSPadWasherBundle-White_main_720x/DIRTLOCK-PWSPadWasherBundle-White_main_720x.webp', 'price', 79.99, 'weight_kg', 1.5, 'weight_lb', 3.31, 'dimensions', '30x30x40', 'dimensions_imperial', '11.8x11.8x15.7'),
+    JSON_OBJECT('name', 'Black', 'value', 'black', 'sku', 'CAD-2CF16-V-BLACK', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DIRTLOCK-PWSPadWasherBundle-White_main_720x/DIRTLOCK-PWSPadWasherBundle_Main_Black_720x.webp', 'price', 79.99, 'weight_kg', 1.5, 'weight_lb', 3.31, 'dimensions', '30x30x40', 'dimensions_imperial', '11.8x11.8x15.7')
   ),
   JSON_OBJECT(
     'main', JSON_OBJECT('url', 'https://www.youtube.com/embed/_ZHI-xV6XLg', 'title', 'DETAIL GUARDZ Dirt Lock Pad Washer System', 'description', 'The ultimate pad washing kit! Clean your polishing pads quickly and gently with our complete system.'),
@@ -1822,7 +1857,7 @@ INSERT INTO products (
 INSERT INTO products (
   id, name, slug, description, long_description, price, original_price,
   category, brand, image, images, variant_images, features, compatibility,
-  rating, review_count, in_stock, about_section, badge, url, specifications,
+  rating, review_count, in_stock, weight_kg, weight_lb, dimensions, dimensions_imperial, about_section, badge, url, specifications,
   color_options, videos, reviews, rating_breakdown, hide_for_usa, sizes, country, target_country, amazon_url
 ) SELECT 
   UUID(),
@@ -1859,7 +1894,7 @@ INSERT INTO products (
   ),
   JSON_ARRAY('Dirt Lock bucket filter', 'Pad washer attachment', 'Hook and loop handle', 'Storage bracket', 'Pad spray cleaner 650ML'),
   JSON_ARRAY('All polishing pads 1-10 inches'),
-  4.9, 28, 1,
+  4.9, 28, 1, 2.1, 4.63, '32x32x45', '12.6x12.6x17.7',
   JSON_OBJECT(
     'heroImage', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Pad Washer Images/about section large.jpg',
     'heroImageAlt', 'Dirt Lock Pad Washer System With Cleaner',
@@ -1883,8 +1918,8 @@ INSERT INTO products (
     'manufacturer', 'DETAIL GUARDZ Canada'
   ),
   JSON_ARRAY(
-    JSON_OBJECT('name', 'White', 'value', 'white', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DIRT LOCK - COMPLETE PAD WASHER KIT WITH CLEANER/DIRTLOCK-PWSWSCPadWasherBundle-White_main_-WithCleaner_720x.webp', 'price', 89.99),
-    JSON_OBJECT('name', 'Black', 'value', 'black', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DIRT LOCK - COMPLETE PAD WASHER KIT WITH CLEANER/DIRTLOCK-PWSWSCPadWasherBundle_Main_-WithCleaner-BLACK_720x.webp', 'price', 89.99)
+    JSON_OBJECT('name', 'White', 'value', 'white', 'sku', 'CAD-760C-V-WHITE', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DIRT LOCK - COMPLETE PAD WASHER KIT WITH CLEANER/DIRTLOCK-PWSWSCPadWasherBundle-White_main_-WithCleaner_720x.webp', 'price', 89.99, 'weight_kg', 2.1, 'weight_lb', 4.63, 'dimensions', '32x32x45', 'dimensions_imperial', '12.6x12.6x17.7'),
+    JSON_OBJECT('name', 'Black', 'value', 'black', 'sku', 'CAD-760C-V-BLACK', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DIRT LOCK - COMPLETE PAD WASHER KIT WITH CLEANER/DIRTLOCK-PWSWSCPadWasherBundle_Main_-WithCleaner-BLACK_720x.webp', 'price', 89.99, 'weight_kg', 2.1, 'weight_lb', 4.63, 'dimensions', '32x32x45', 'dimensions_imperial', '12.6x12.6x17.7')
   ),
   JSON_OBJECT(
     'main', JSON_OBJECT('url', 'https://www.youtube.com/embed/_ZHI-xV6XLg', 'title', 'DETAIL GUARDZ Dirt Lock Pad Washer System With Cleaner', 'description', 'The ultimate pad washing kit including 650ML pad spray cleaner. Clean your polishing pads quickly and gently with our complete system.'),
@@ -1911,7 +1946,7 @@ INSERT INTO products (
 INSERT INTO products (
   id, name, slug, description, long_description, price, original_price,
   category, brand, image, images, variant_images, features, compatibility,
-  rating, review_count, in_stock, about_section, badge, url, specifications,
+  rating, review_count, in_stock, weight_kg, weight_lb, dimensions, dimensions_imperial, about_section, badge, url, specifications,
   color_options, videos, reviews, rating_breakdown, hide_for_usa, sizes, country, target_country, amazon_url
 ) SELECT 
   UUID(),
@@ -1944,7 +1979,7 @@ INSERT INTO products (
   ),
   JSON_ARRAY('180° Coverage (expandable to 360°)', 'Vertical cleaning surface', 'Snaps into Dirt Lock filter'),
   JSON_ARRAY('Dirt Lock Bucket Filter', '3-8 Gallon Pails'),
-  4.6, 34, 1,
+  4.6, 34, 1, 0.8, 1.76, '32x20x15', '12.6x7.9x5.9',
   JSON_OBJECT(
     'heroImage', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Scrub Wall-20260122T171828Z-1-001/ABOUT SECTION LARGE.jpg',
     'heroImageAlt', 'Dirt Lock Scrub Wall System',
@@ -1973,8 +2008,8 @@ INSERT INTO products (
     'manufacturer', 'DETAIL GUARDZ Canada'
   ),
   JSON_ARRAY(
-    JSON_OBJECT('name', 'Black', 'value', 'black', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DIRT LOCK - COMPLETE SCRUB WALL KIT/DIRTLOCK-SW180-Black_MainImage_ae9fb235-7709-48d4-a81a-03b3cf45c222_720x.webp', 'price', 59.99),
-    JSON_OBJECT('name', 'White', 'value', 'white', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DIRT LOCK - COMPLETE SCRUB WALL KIT/DIRTLOCK-SW180_WHITE_-MainImage_720x.webp', 'price', 59.99)
+    JSON_OBJECT('name', 'Black', 'value', 'black', 'sku', 'CAD-A49-V-BLACK', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DIRT LOCK - COMPLETE SCRUB WALL KIT/DIRTLOCK-SW180-Black_MainImage_ae9fb235-7709-48d4-a81a-03b3cf45c222_720x.webp', 'price', 59.99, 'weight_kg', 0.8, 'weight_lb', 1.76, 'dimensions', '32x20x15', 'dimensions_imperial', '12.6x7.9x5.9'),
+    JSON_OBJECT('name', 'White', 'value', 'white', 'sku', 'CAD-A49-V-WHITE', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DIRT LOCK - COMPLETE SCRUB WALL KIT/DIRTLOCK-SW180_WHITE_-MainImage_720x.webp', 'price', 59.99, 'weight_kg', 0.8, 'weight_lb', 1.76, 'dimensions', '32x20x15', 'dimensions_imperial', '12.6x7.9x5.9')
   ),
   JSON_OBJECT(
     'main', JSON_OBJECT('url', 'https://www.youtube.com/embed/wgR1NE6h6Zk', 'title', 'DETAIL GUARDZ Dirt Lock Scrub Wall 180/360', 'description', 'The Dirt Lock Scrub Wall attachment is a vertical extension of the Dirt Lock''s pressurized cleaning power.'),
@@ -2002,7 +2037,7 @@ INSERT INTO products (
 INSERT INTO products (
   id, name, slug, description, long_description, price, original_price,
   category, brand, image, images, variant_images, features, compatibility,
-  rating, review_count, in_stock, about_section, badge, url, specifications,
+  rating, review_count, in_stock, weight_kg, weight_lb, dimensions, dimensions_imperial, about_section, badge, url, specifications,
   color_options, videos, reviews, rating_breakdown, hide_for_usa, sizes, country, target_country, amazon_url
 ) SELECT 
   UUID(),
@@ -2051,7 +2086,7 @@ INSERT INTO products (
   ),
   JSON_ARRAY('Full car setup (4 pieces)', 'Eliminates hose snags', 'Durable industrial plastic'),
   JSON_ARRAY('All tires'),
-  4.9, 145, 1,
+  4.9, 145, 1, 0.9, 1.98, '34x15x15', '13.4x5.9x5.9',
   JSON_OBJECT(
     'heroImage', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/4-Pack Hose Guide-20260122T171823Z-1-001/about section large.jpg',
     'heroImageAlt', 'Detail Guardz Hose Guide 4-Pack under tire',
@@ -2073,11 +2108,11 @@ INSERT INTO products (
     'manufacturer', 'DETAIL GUARDZ Canada'
   ),
   JSON_ARRAY(
-    JSON_OBJECT('name', 'Blue', 'value', 'blue', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DETAIL GUARDZ - HOSE GUIDE (4PK)/Detail_Guardz_Car_Hose_Guides_-_4_Pack_Blue_d6ccc2fc-4146-4699-bd6f-625d5a7fad15_720x.webp', 'price', 32.99),
-    JSON_OBJECT('name', 'Black', 'value', 'black', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DETAIL GUARDZ - HOSE GUIDE (4PK)/Detail_Guardz_Car_Hose_Guides_-_4_Pack_Black_720x.webp', 'price', 32.99),
-    JSON_OBJECT('name', 'Neon', 'value', 'neon', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DETAIL GUARDZ - HOSE GUIDE (4PK)/Detail_Guardz_Car_Hose_Guides_-_4_Pack_Neon-Green_720x.webp', 'price', 32.99),
-    JSON_OBJECT('name', 'Red', 'value', 'red', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DETAIL GUARDZ - HOSE GUIDE (4PK)/Detail_Guardz_Car_Hose_Guides_-_4_Pack_Red_720x.webp', 'price', 32.99),
-    JSON_OBJECT('name', 'Yellow', 'value', 'yellow', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DETAIL GUARDZ - HOSE GUIDE (4PK)/Detail_Guardz_Car_Hose_Guides_-_4_Pack_Yellow_720x.webp', 'price', 32.99)
+    JSON_OBJECT('name', 'Blue', 'value', 'blue', 'sku', 'USA-ABDB1-V-BLUE', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DETAIL GUARDZ - HOSE GUIDE (4PK)/Detail_Guardz_Car_Hose_Guides_-_4_Pack_Blue_d6ccc2fc-4146-4699-bd6f-625d5a7fad15_720x.webp', 'price', 32.99, 'weight_kg', 0.9, 'weight_lb', 1.98, 'dimensions', '34x15x15', 'dimensions_imperial', '13.4x5.9x5.9'),
+    JSON_OBJECT('name', 'Black', 'value', 'black', 'sku', 'USA-ABDB1-V-BLACK', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DETAIL GUARDZ - HOSE GUIDE (4PK)/Detail_Guardz_Car_Hose_Guides_-_4_Pack_Black_720x.webp', 'price', 32.99, 'weight_kg', 0.9, 'weight_lb', 1.98, 'dimensions', '34x15x15', 'dimensions_imperial', '13.4x5.9x5.9'),
+    JSON_OBJECT('name', 'Neon', 'value', 'neon', 'sku', 'USA-ABDB1-V-NEON-GREEN', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DETAIL GUARDZ - HOSE GUIDE (4PK)/Detail_Guardz_Car_Hose_Guides_-_4_Pack_Neon-Green_720x.webp', 'price', 32.99, 'weight_kg', 0.9, 'weight_lb', 1.98, 'dimensions', '34x15x15', 'dimensions_imperial', '13.4x5.9x5.9'),
+    JSON_OBJECT('name', 'Red', 'value', 'red', 'sku', 'USA-ABDB1-V-RED', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DETAIL GUARDZ - HOSE GUIDE (4PK)/Detail_Guardz_Car_Hose_Guides_-_4_Pack_Red_720x.webp', 'price', 32.99, 'weight_kg', 0.9, 'weight_lb', 1.98, 'dimensions', '34x15x15', 'dimensions_imperial', '13.4x5.9x5.9'),
+    JSON_OBJECT('name', 'Yellow', 'value', 'yellow', 'sku', 'USA-ABDB1-V-YELLOW', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DETAIL GUARDZ - HOSE GUIDE (4PK)/Detail_Guardz_Car_Hose_Guides_-_4_Pack_Yellow_720x.webp', 'price', 32.99, 'weight_kg', 0.9, 'weight_lb', 1.98, 'dimensions', '34x15x15', 'dimensions_imperial', '13.4x5.9x5.9')
   ),
   JSON_OBJECT(
     'main', JSON_OBJECT('url', 'https://www.youtube.com/embed/W37xy__Vou4', 'title', 'DETAIL GUARDZ Hose Guide (4 Pack)', 'description', 'Complete 4-pack hose guide set for full vehicle coverage. Fits all cars, motorcycles and truck tires.'),
@@ -2104,7 +2139,7 @@ INSERT INTO products (
 INSERT INTO products (
   id, name, slug, description, long_description, price, original_price,
   category, brand, image, images, variant_images, features, compatibility,
-  rating, review_count, in_stock, about_section, badge, url, specifications,
+  rating, review_count, in_stock, weight_kg, weight_lb, dimensions, dimensions_imperial, about_section, badge, url, specifications,
   color_options, videos, reviews, rating_breakdown, hide_for_usa, sizes, country, target_country, amazon_url
 ) SELECT 
   UUID(),
@@ -2122,13 +2157,14 @@ INSERT INTO products (
   NULL,
   JSON_ARRAY('Quickly breaks down polish and wax', 'Easy to rinse', 'Concentrated formula'),
   JSON_ARRAY('All polishing pads'),
-  4.6, 42, 1,
+  4.6, 42, 1, 0.7, 1.54, '10x10x25', '3.9x3.9x9.8',
   NULL,
   NULL,
   NULL,
   JSON_OBJECT(
     'brand', 'DETAIL GUARDZ',
     'material', 'Concentrated Formula',
+    'sku', 'CAD-E600-V',
     'manufacturer', 'DETAIL GUARDZ Canada'
   ),
   NULL,
@@ -2152,7 +2188,7 @@ INSERT INTO products (
 INSERT INTO products (
   id, name, slug, description, long_description, price, original_price,
   category, brand, image, images, variant_images, features, compatibility,
-  rating, review_count, in_stock, about_section, badge, url, specifications,
+  rating, review_count, in_stock, weight_kg, weight_lb, dimensions, dimensions_imperial, about_section, badge, url, specifications,
   color_options, videos, reviews, rating_breakdown, hide_for_usa, sizes, country, target_country, amazon_url
 ) SELECT 
   UUID(),
@@ -2195,7 +2231,7 @@ INSERT INTO products (
   ),
   JSON_ARRAY('Push activated pump', 'Soft rounded scrubbing ridges', 'Enhanced filtering action'),
   JSON_ARRAY('3-8 Gallon Pails'),
-  4.7, 56, 1,
+  4.7, 56, 1, 0.75, 1.65, '25x20x15', '9.8x7.9x5.9',
   JSON_OBJECT(
     'heroImage', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon Listing Images/Scrub & Pump Images-20260312T173939Z-1-001/ABOUT SECTION LARGE.jpg',
     'heroImageAlt', 'Dirt Lock Scrub and Pump System',
@@ -2224,8 +2260,8 @@ INSERT INTO products (
     'manufacturer', 'DETAIL GUARDZ Canada'
   ),
   JSON_ARRAY(
-    JSON_OBJECT('name', 'Black', 'value', 'black', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DIRT LOCK - COMPLETE SCRUB AND PUMP KIT/DirtLockScrubAndPump-BlackBundled-Main_543e2957-4819-460a-ae25-e3bc69bdccf4_720x.webp', 'price', 39.99),
-    JSON_OBJECT('name', 'White', 'value', 'white', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DIRT LOCK - COMPLETE SCRUB AND PUMP KIT/DirtLockScrubAndPump-White_Bundled_-Main_e8d67fa9-d7f6-48de-81a5-931af77c235f_720x.webp', 'price', 39.99)
+    JSON_OBJECT('name', 'Black', 'value', 'black', 'sku', 'CAD-11E6-V-BLACK', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DIRT LOCK - COMPLETE SCRUB AND PUMP KIT/DirtLockScrubAndPump-BlackBundled-Main_543e2957-4819-460a-ae25-e3bc69bdccf4_720x.webp', 'price', 39.99),
+    JSON_OBJECT('name', 'White', 'value', 'white', 'sku', 'CAD-11E6-V-WHITE', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DIRT LOCK - COMPLETE SCRUB AND PUMP KIT/DirtLockScrubAndPump-White_Bundled_-Main_e8d67fa9-d7f6-48de-81a5-931af77c235f_720x.webp', 'price', 39.99)
   ),
   JSON_OBJECT(
     'main', JSON_OBJECT('url', 'https://www.youtube.com/embed/Ck9pNdgxRp4', 'title', 'DETAIL GUARDZ Dirt Lock Scrub and Pump Attachment', 'description', 'Save $5.00 CAD by purchasing this as a kit! Includes Scrub And Pump Attachment and Dirt Lock Bucket Filter.'),
@@ -2250,7 +2286,7 @@ INSERT INTO products (
 INSERT INTO products (
   id, name, slug, description, long_description, price, original_price,
   category, brand, image, images, variant_images, features, compatibility,
-  rating, review_count, in_stock, about_section, badge, url, specifications,
+  rating, review_count, in_stock, weight_kg, weight_lb, dimensions, dimensions_imperial, about_section, badge, url, specifications,
   color_options, videos, reviews, rating_breakdown, hide_for_usa, sizes, country, target_country, amazon_url
 ) SELECT 
   UUID(),
@@ -2270,13 +2306,14 @@ INSERT INTO products (
   NULL,
   JSON_ARRAY('100% Korean Microfiber', 'Dense sponge core for glide', 'Ultra-soft threads'),
   JSON_ARRAY('All vehicles'),
-  5.0, 12, 1,
+  5.0, 12, 1, 0.2, 0.44, '25x18x5', '9.8x7.1x2.0',
   NULL,
   NULL,
   NULL,
   JSON_OBJECT(
     'brand', 'PURESTAR',
     'material', '100% Korean Microfiber',
+    'sku', 'CAD-A70-V',
     'manufacturer', 'Purestar'
   ),
   NULL,
@@ -2300,7 +2337,7 @@ INSERT INTO products (
 INSERT INTO products (
   id, name, slug, description, long_description, price, original_price,
   category, brand, image, images, variant_images, features, compatibility,
-  rating, review_count, in_stock, about_section, badge, url, specifications,
+  rating, review_count, in_stock, weight_kg, weight_lb, dimensions, dimensions_imperial, about_section, badge, url, specifications,
   color_options, videos, reviews, rating_breakdown, hide_for_usa, sizes, country, target_country, amazon_url
 ) SELECT 
   UUID(),
@@ -2329,7 +2366,7 @@ INSERT INTO products (
   ),
   JSON_ARRAY('Ultra soft material', 'High-density sponge', 'Vibrant colors'),
   JSON_ARRAY('All vehicles'),
-  4.9, 18, 1,
+  4.9, 18, 1, 0.15, 0.33, '25x18x5', '9.8x7.1x2.0',
   NULL,
   NULL,
   NULL,
@@ -2339,8 +2376,8 @@ INSERT INTO products (
     'manufacturer', 'Purestar'
   ),
   JSON_ARRAY(
-    JSON_OBJECT('name', 'Purple', 'value', 'purple', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/ULTRA SOFT COLOR-POP WASH MITT/ssum_colorpop-mitt_purple_720x.webp', 'price', 13.99),
-    JSON_OBJECT('name', 'Green', 'value', 'green', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/ULTRA SOFT COLOR-POP WASH MITT/ssum_colorpop-mitt_green_720x.webp', 'price', 13.99)
+    JSON_OBJECT('name', 'Purple', 'value', 'purple', 'sku', 'CAD-114-V-PURPLE', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/ULTRA SOFT COLOR-POP WASH MITT/ssum_colorpop-mitt_purple_720x.webp', 'price', 13.99, 'weight_kg', 0.15, 'weight_lb', 0.33, 'dimensions', '25x18x5', 'dimensions_imperial', '9.8x7.1x2.0'),
+    JSON_OBJECT('name', 'Green', 'value', 'green', 'sku', 'CAD-114-V-GREEN', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/ULTRA SOFT COLOR-POP WASH MITT/ssum_colorpop-mitt_green_720x.webp', 'price', 13.99, 'weight_kg', 0.15, 'weight_lb', 0.33, 'dimensions', '25x18x5', 'dimensions_imperial', '9.8x7.1x2.0')
   ),
   NULL,
   JSON_ARRAY(
@@ -2362,7 +2399,7 @@ INSERT INTO products (
 INSERT INTO products (
   id, name, slug, description, long_description, price, original_price,
   category, brand, image, images, variant_images, features, compatibility,
-  rating, review_count, in_stock, about_section, badge, url, specifications,
+  rating, review_count, in_stock, weight_kg, weight_lb, dimensions, dimensions_imperial, about_section, badge, url, specifications,
   color_options, videos, reviews, rating_breakdown, hide_for_usa, sizes, country, target_country, amazon_url
 ) SELECT 
   UUID(),
@@ -2380,7 +2417,7 @@ INSERT INTO products (
   NULL,
   JSON_ARRAY('100% Cotton', 'Pre-shrunk', 'Double sided logo'),
   JSON_ARRAY('N/A'),
-  5.0, 15, 1,
+  5.0, 15, 1, 0.25, 0.55, '30x25x2', '11.8x9.8x0.8',
   NULL,
   NULL,
   NULL,
@@ -2406,13 +2443,20 @@ INSERT INTO products (
     JSON_OBJECT('stars', 2, 'percentage', 3, 'count', 17),
     JSON_OBJECT('stars', 1, 'percentage', 1, 'count', 5)
   ),
-  0, JSON_ARRAY('Small', 'Medium', 'Large', 'XL', '2XL', '3XL'), 'CAD', 'canada', NULL FROM DUAL;
+  0, JSON_ARRAY(
+    JSON_OBJECT('size', 'Small', 'sku', 'CAD-CAB29-V-WHITE-S', 'weight_kg', 0.25, 'weight_lb', 0.55, 'dimensions', '30x25x2', 'dimensions_imperial', '11.8x9.8x0.8'),
+    JSON_OBJECT('size', 'Medium', 'sku', 'CAD-CAB29-V-WHITE-M', 'weight_kg', 0.25, 'weight_lb', 0.55, 'dimensions', '30x25x2', 'dimensions_imperial', '11.8x9.8x0.8'),
+    JSON_OBJECT('size', 'Large', 'sku', 'CAD-CAB29-V-WHITE-L', 'weight_kg', 0.25, 'weight_lb', 0.55, 'dimensions', '30x25x2', 'dimensions_imperial', '11.8x9.8x0.8'),
+    JSON_OBJECT('size', 'XL', 'sku', 'CAD-CAB29-V-WHITE-XL', 'weight_kg', 0.25, 'weight_lb', 0.55, 'dimensions', '30x25x2', 'dimensions_imperial', '11.8x9.8x0.8'),
+    JSON_OBJECT('size', '2XL', 'sku', 'CAD-CAB29-V-WHITE-2XL', 'weight_kg', 0.25, 'weight_lb', 0.55, 'dimensions', '30x25x2', 'dimensions_imperial', '11.8x9.8x0.8'),
+    JSON_OBJECT('size', '3XL', 'sku', 'CAD-CAB29-V-WHITE-3XL', 'weight_kg', 0.25, 'weight_lb', 0.55, 'dimensions', '30x25x2', 'dimensions_imperial', '11.8x9.8x0.8')
+  ), 'CAD', 'canada', NULL FROM DUAL;
 
 -- CAD Coffee Mug
 INSERT INTO products (
   id, name, slug, description, long_description, price, original_price,
   category, brand, image, images, variant_images, features, compatibility,
-  rating, review_count, in_stock, about_section, badge, url, specifications,
+  rating, review_count, in_stock, weight_kg, weight_lb, dimensions, dimensions_imperial, about_section, badge, url, specifications,
   color_options, videos, reviews, rating_breakdown, hide_for_usa, sizes, country, target_country, amazon_url
 ) SELECT 
   UUID(),
@@ -2429,13 +2473,14 @@ INSERT INTO products (
   NULL,
   JSON_ARRAY('11oz Capacity', 'Premium Ceramic', 'Classic Logo'),
   JSON_ARRAY('N/A'),
-  4.9, 22, 1,
+  4.9, 22, 1, 0.4, 0.88, '12x12x12', '4.7x4.7x4.7',
   NULL,
   NULL,
   NULL,
   JSON_OBJECT(
     'brand', 'DETAIL GUARDZ',
     'material', 'Ceramic',
+    'sku', 'CAD-894-V',
     'manufacturer', 'DETAIL GUARDZ Canada'
   ),
   NULL,
@@ -2459,7 +2504,7 @@ INSERT INTO products (
 INSERT INTO products (
   id, name, slug, description, long_description, price, original_price,
   category, brand, image, images, variant_images, features, compatibility,
-  rating, review_count, in_stock, about_section, badge, url, specifications,
+  rating, review_count, in_stock, weight_kg, weight_lb, dimensions, dimensions_imperial, about_section, badge, url, specifications,
   color_options, videos, reviews, rating_breakdown, hide_for_usa, sizes, country, target_country, amazon_url
 ) SELECT 
   UUID(),
@@ -2476,12 +2521,13 @@ INSERT INTO products (
   NULL,
   JSON_ARRAY('13"x19" Size', 'High quality print', 'Classic motion design'),
   JSON_ARRAY('N/A'),
-  4.8, 10, 1,
+  4.8, 10, 1, 0.3, 0.66, '48x33x0.5', '18.9x13x0.2',
   NULL,
   NULL,
   NULL,
   JSON_OBJECT(
     'brand', 'DETAIL GUARDZ',
+    'sku', 'CAD-EE1-V',
     'manufacturer', 'DETAIL GUARDZ Canada'
   ),
   NULL,
@@ -2505,7 +2551,7 @@ INSERT INTO products (
 INSERT INTO products (
   id, name, slug, description, long_description, price, original_price,
   category, brand, image, images, variant_images, features, compatibility,
-  rating, review_count, in_stock, about_section, badge, url, specifications,
+  rating, review_count, in_stock, weight_kg, weight_lb, dimensions, dimensions_imperial, about_section, badge, url, specifications,
   color_options, videos, reviews, rating_breakdown, hide_for_usa, sizes, country, target_country, amazon_url
 ) SELECT 
   UUID(),
@@ -2523,12 +2569,13 @@ INSERT INTO products (
   NULL,
   JSON_ARRAY('Added padding', 'Durable surface', 'Non-slip base'),
   JSON_ARRAY('N/A'),
-  4.7, 14, 1,
+  4.7, 14, 1, 0.2, 0.44, '25x20x0.5', '9.8x7.9x0.2',
   NULL,
   NULL,
   NULL,
   JSON_OBJECT(
     'brand', 'DETAIL GUARDZ',
+    'sku', 'CAD-420-V',
     'manufacturer', 'DETAIL GUARDZ Canada'
   ),
   NULL,
@@ -2552,7 +2599,7 @@ INSERT INTO products (
 INSERT INTO products (
   id, name, slug, description, long_description, price, original_price,
   category, brand, image, images, variant_images, features, compatibility,
-  rating, review_count, in_stock, about_section, badge, url, specifications,
+  rating, review_count, in_stock, weight_kg, weight_lb, dimensions, dimensions_imperial, about_section, badge, url, specifications,
   color_options, videos, reviews, rating_breakdown, hide_for_usa, sizes, country, target_country, amazon_url
 ) SELECT 
   UUID(),
@@ -2570,13 +2617,14 @@ INSERT INTO products (
   NULL,
   JSON_ARRAY('Lobster closure clasp', 'UV resistant materials', 'Vibrant blue color'),
   JSON_ARRAY('N/A'),
-  5.0, 8, 1,
+  5.0, 8, 1, 0.05, 0.11, '20x5x1', '7.9x2x0.4',
   NULL,
   NULL,
   NULL,
   JSON_OBJECT(
     'brand', 'DETAIL GUARDZ',
     'material', 'UV Resistant Material',
+    'sku', 'CAD-5C3-V',
     'manufacturer', 'DETAIL GUARDZ Canada'
   ),
   NULL,
