@@ -8,6 +8,7 @@ import { upload as s3Upload } from "../services/s3Service.js";
 import { shippoClient } from "./shippo.js";
 import fetch from "node-fetch";
 import { deepFormatImages } from "../utils/helpers.js";
+import logger from "../utils/logger.js";
 
 
 const router = express.Router();
@@ -346,9 +347,12 @@ router.get("/inventory", authenticateToken, requireAdmin, async (req, res) => {
         pcv.id,
         pcv.product_id,
         p.name as product_name,
+        pcv.variant_name,
         pcv.color_name,
         pcv.amazon_sku,
+        pcv.sku,
         pcv.stock,
+        pcv.price,
         pcv.updated_at,
         p.target_country,
         COALESCE(SUM(oi.quantity), 0) as units_sold_all_time,
@@ -358,6 +362,7 @@ router.get("/inventory", authenticateToken, requireAdmin, async (req, res) => {
       LEFT JOIN product_images pi ON pcv.id = pi.color_variant_id AND (pi.image_type = 'color_variant' OR pi.is_primary = 1)
       LEFT JOIN order_items oi ON oi.product_id = pcv.product_id 
         AND (oi.color = pcv.color_name OR oi.color = pcv.color_code)
+      WHERE pcv.is_active = 1 AND p.is_active = 1
       GROUP BY pcv.id
       ORDER BY pcv.stock ASC, p.name ASC
     `);
@@ -461,7 +466,7 @@ router.get(
       const product = products[0];
 
       // Parse JSON fields
-      try { product.key_features = typeof product.key_features === 'string' ? JSON.parse(product.key_features) : (product.key_features || []); } catch (e) { product.key_features = []; }
+      try { product.features = typeof product.features === 'string' ? JSON.parse(product.features) : (product.features || []); } catch (e) { product.features = []; }
       try { product.specifications = typeof product.specifications === 'string' ? JSON.parse(product.specifications) : (product.specifications || {}); } catch (e) { product.specifications = {}; }
       try { product.images = typeof product.images === 'string' ? JSON.parse(product.images) : (product.images || []); } catch (e) { product.images = []; }
       try { product.tags = typeof product.tags === 'string' ? JSON.parse(product.tags) : (product.tags || []); } catch (e) { product.tags = []; }
@@ -577,133 +582,25 @@ router.post(
   }
 );
 
-// Create product - FIXED COUNTRY VALIDATION
+// PURE GENERIC Upload (for new products without ID)
 router.post(
-  "/products",
+  "/upload",
   authenticateToken,
   requireAdmin,
-  s3Upload.any(), // Accept any field names
+  s3Upload.single('image'),
   async (req, res) => {
-    const connection = await db.getConnection();
-
     try {
-      await connection.beginTransaction();
-
-      // Process S3 Files
-      const filesByField = {};
-      if (req.files) {
-        req.files.forEach(f => {
-          if (!filesByField[f.fieldname]) filesByField[f.fieldname] = [];
-          filesByField[f.fieldname].push(f.location);
-        });
-      }
-
-      const { category, brand } = req.body;
-
-      // Get or create category/brand ... (logic remains)
-      let categoryId;
-      if (category) {
-        const [existingCategories] = await connection.execute("SELECT id FROM categories WHERE LOWER(name) = LOWER(?)", [category]);
-        if (existingCategories.length > 0) categoryId = existingCategories[0].id;
-        else {
-          const newCategoryId = uuidv4();
-          await connection.execute("INSERT INTO categories (id, name, is_active, created_at) VALUES (?, ?, 1, NOW())", [newCategoryId, category]);
-          categoryId = newCategoryId;
-        }
-      }
-
-      let brandId;
-      if (brand) {
-        const [existingBrands] = await connection.execute("SELECT id FROM brands WHERE LOWER(name) = LOWER(?)", [brand]);
-        if (existingBrands.length > 0) brandId = existingBrands[0].id;
-        else {
-          const newBrandId = uuidv4();
-          await connection.execute("INSERT INTO brands (id, name, is_active, created_at) VALUES (?, ?, 1, NOW())", [newBrandId, brand]);
-          brandId = newBrandId;
-        }
-      }
-
-      const {
-        name, price, description, shortDescription, fullDescription, youtubeUrl,
-        features, specifications, tags, colorVariants, sku, weight, dimensions,
-        material, warranty, returnPolicy, in_stock, target_country, images,
-        ...rest
-      } = req.body;
-
-      const stock = parseInt(in_stock) || 0;
-      const availability = stock > 0 ? "In Stock" : "Out of Stock";
-      const validCountries = ['us', 'canada', 'both'];
-      let targetCountry = (target_country && validCountries.includes(target_country.toLowerCase())) ? target_country.toLowerCase() : 'both';
-
-      const heroImage = filesByField.heroImage?.[0] || filesByField.image?.[0] || req.body.image_url || req.body.image || null;
-      let gallery = [];
-      try { gallery = typeof images === 'string' ? JSON.parse(images) : (images || []); } catch (e) { }
-      if (filesByField.gallery) gallery = [...gallery, ...filesByField.gallery];
-
-      const productId = uuidv4();
-      await connection.execute(
-        `INSERT INTO products (
-          id, name, name_ar, price, original_price, discount,
-          short_description, description, description_ar, full_description,
-          image, images, youtube_url,
-          rating, reviews, brand, category, category_id, brand_id,
-          availability, sku, in_stock,
-          weight, dimensions, material, warranty, return_policy,
-          key_features, specifications, tags,
-          target_country, amazon_url,
-          is_active, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
-        [
-          productId, name, rest.name_ar || null, parseFloat(price),
-          rest.original_price ? parseFloat(rest.original_price) : null,
-          rest.discount ? parseFloat(rest.discount) : null,
-          shortDescription || null, description || fullDescription || "",
-          rest.description_ar || null, fullDescription || null,
-          heroImage, JSON.stringify(gallery), youtubeUrl || null,
-          rest.rating || 0, rest.reviews || 0, brand, category, categoryId, brandId,
-          availability, sku || null, stock,
-          weight || null, dimensions || null, material || null, warranty || null, returnPolicy || null,
-          features || "[]", specifications || "[]", tags || "[]",
-          targetCountry, req.body.amazon_url || null, 1,
-        ]
-      );
-
-      // Color Variants & Images
-      const colorVariantsArray = typeof colorVariants === 'string' ? JSON.parse(colorVariants) : (colorVariants || []);
-      for (let i = 0; i < colorVariantsArray.length; i++) {
-        const variant = colorVariantsArray[i];
-        const variantId = uuidv4();
-        await connection.execute(
-          "INSERT INTO product_color_variants (id, product_id, color_name, color_code, stock, created_at) VALUES (?,?,?,?,?,NOW())",
-          [variantId, productId, variant.color, variant.colorCode, variant.stock || 0]
-        );
-        const vFiles = filesByField[`colorVariantImages_${i}`] || [];
-        for (let j = 0; j < vFiles.length; j++) {
-          await connection.execute(
-            "INSERT INTO product_images (id, product_id, image_url, image_type, color_variant_id, display_order, created_at) VALUES (?,?,?,?,?,?,NOW())",
-            [uuidv4(), productId, vFiles[j], 'color_variant', variantId, j + 1]
-          );
-        }
-      }
-
-      await connection.commit();
-      res.status(201).json({ success: true, productId, target_country: targetCountry });
-    } catch (error) {
-      await connection.rollback();
-      console.error("❌ Create product error:", error);
-      res.status(500).json({
-        error: "Failed to create product",
-        details: error.message
-      });
-    } finally {
-      connection.release();
+      if (!req.file) throw new Error("No file uploaded");
+      res.json({ success: true, url: req.file.location });
+    } catch (e) {
+      res.status(500).json({ error: e.message });
     }
   }
 );
 
-// Update product - FIXED COUNTRY VALIDATION
-router.put(
-  "/products/:id",
+// Create product - RICH CONTENT SUPPORT
+router.post(
+  "/products",
   authenticateToken,
   requireAdmin,
   s3Upload.any(),
@@ -712,9 +609,8 @@ router.put(
 
     try {
       await connection.beginTransaction();
-      const { id } = req.params;
 
-      // Process S3 Files
+      // Process S3 Files if any
       const filesByField = {};
       if (req.files) {
         req.files.forEach(f => {
@@ -724,163 +620,313 @@ router.put(
       }
 
       const {
-        name, price, category, brand, description, image_url, image,
-        shortDescription, fullDescription, youtubeUrl,
-        features, specifications, tags, colorVariants, images,
-        sku, weight_kg, weight_lb, dimensions, dimensions_imperial,
-        material, warranty, returnPolicy,
-        in_stock, target_country, amazon_url, ...rest
+        name, name_ar, price, original_price, discount,
+        short_description, description, description_ar, full_description,
+        brand, category, sku, in_stock, target_country, amazon_url,
+        youtube_url, image, images, videos, aboutSection, specifications,
+        color_variants, features
       } = req.body;
 
-      const body = req.body;
-      const updates = {};
-
-      const setUpdate = (field, key) => {
-        if (body[field] !== undefined) updates[key] = body[field];
-        else if (body[key] !== undefined) updates[key] = body[key];
-      };
-
-      if (body.name) updates.name = body.name;
-      if (body.price) updates.price = parseFloat(body.price);
-
-      setUpdate('description', 'description');
-      setUpdate('short_description', 'short_description');
-      setUpdate('shortDescription', 'short_description');
-      setUpdate('full_description', 'full_description');
-      setUpdate('fullDescription', 'full_description');
-      setUpdate('name_ar', 'name_ar');
-      setUpdate('description_ar', 'description_ar');
-      setUpdate('youtube_url', 'youtube_url');
-      setUpdate('youtubeUrl', 'youtube_url');
-      setUpdate('sku', 'sku');
-      setUpdate('weight_kg', 'weight_kg');
-      setUpdate('weight_lb', 'weight_lb');
-      setUpdate('dimensions', 'dimensions');
-      setUpdate('dimensions_imperial', 'dimensions_imperial');
-      setUpdate('material', 'material');
-      setUpdate('warranty', 'warranty');
-      setUpdate('return_policy', 'return_policy');
-      setUpdate('returnPolicy', 'return_policy');
-      setUpdate('discount', 'discount');
-      setUpdate('original_price', 'original_price');
-
-      if (body.features || body.key_features) {
-        const f = body.features || body.key_features;
-        updates.features = typeof f === 'string' ? f : JSON.stringify(f);
-      }
-      if (body.specifications) {
-        updates.specifications = typeof body.specifications === 'string' ? body.specifications : JSON.stringify(body.specifications);
-      }
-      if (body.about_section || body.aboutSection) {
-        const a = body.about_section || body.aboutSection;
-        updates.about_section = typeof a === 'string' ? a : JSON.stringify(a);
-      }
-      if (body.videos) {
-        updates.videos = typeof body.videos === 'string' ? body.videos : JSON.stringify(body.videos);
-      }
-      if (body.tags) {
-        updates.tags = typeof body.tags === 'string' ? body.tags : JSON.stringify(body.tags);
-      }
-
-      // image update
-      if (filesByField.heroImage || filesByField.image) {
-        updates.image = filesByField.heroImage?.[0] || filesByField.image?.[0];
-      } else if (image_url || image) {
-        updates.image = image_url || image;
-      }
-
-      let gallery = [];
-      try { gallery = typeof images === 'string' ? JSON.parse(images) : (images || []); } catch (e) { }
-      if (filesByField.gallery) gallery = [...gallery, ...filesByField.gallery];
-      updates.images = JSON.stringify(gallery);
-
-      if (amazon_url !== undefined) updates.amazon_url = amazon_url;
-      if (target_country !== undefined) {
-        const validCountries = ['us', 'canada', 'both'];
-        updates.target_country = (target_country && validCountries.includes(target_country.toLowerCase())) ? target_country.toLowerCase() : 'both';
-      }
-
+      // Handle category/brand creation
+      let categoryId = null;
       if (category) {
-        const [cats] = await connection.execute("SELECT id FROM categories WHERE LOWER(name) = LOWER(?)", [category]);
-        if (cats.length > 0) updates.category_id = cats[0].id;
+        const [existing] = await connection.execute("SELECT id FROM categories WHERE LOWER(name) = LOWER(?)", [category]);
+        if (existing.length > 0) categoryId = existing[0].id;
         else {
+          categoryId = uuidv4();
+          await connection.execute("INSERT INTO categories (id, name, is_active, created_at) VALUES (?, ?, 1, NOW())", [categoryId, category]);
+        }
+      }
+
+      let brandId = null;
+      if (brand) {
+        const [existing] = await connection.execute("SELECT id FROM brands WHERE LOWER(name) = LOWER(?)", [brand]);
+        if (existing.length > 0) brandId = existing[0].id;
+        else {
+          brandId = uuidv4();
+          await connection.execute("INSERT INTO brands (id, name, is_active, created_at) VALUES (?, ?, 1, NOW())", [brandId, brand]);
+        }
+      }
+
+      const stock = parseInt(in_stock) || 0;
+      const availability = stock > 0 ? "In Stock" : "Out of Stock";
+      const validCountries = ['us', 'canada', 'both'];
+      let targetCountry = (target_country && validCountries.includes(target_country.toLowerCase())) ? target_country.toLowerCase() : 'both';
+
+      const productId = uuidv4();
+      
+      // JSON data normalization
+      const gallery = typeof images === 'string' ? images : JSON.stringify(images || []);
+      const videosJson = typeof videos === 'string' ? videos : JSON.stringify(videos || { main: { url: "", title: "" }, additional: [] });
+      const aboutJson = typeof aboutSection === 'string' ? aboutSection : JSON.stringify(aboutSection || { heroImage: "", heroImageAlt: "", description: "", features: [] });
+      const specsJson = typeof specifications === 'string' ? specifications : JSON.stringify(specifications || []);
+      const featuresJson = typeof features === 'string' ? features : JSON.stringify(features || []);
+
+      await connection.execute(
+        `INSERT INTO products (
+          id, name, name_ar, price, original_price, discount,
+          short_description, description, description_ar, long_description,
+          image, images, youtube_url, videos,
+          brand, category, category_id, brand_id,
+          availability, sku, in_stock, inventory_cache,
+          about_section, specifications, features,
+          target_country, amazon_url, is_active, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, NOW())`,
+        [
+          productId, name, name_ar || null, parseFloat(price),
+          original_price ? parseFloat(original_price) : null,
+          discount ? parseFloat(discount) : null,
+          short_description || null, description || "", description_ar || null, full_description || description || "",
+          image || null, gallery, youtube_url || null, videosJson,
+          brand, category, categoryId, brandId,
+          availability, sku || null, stock, stock,
+          aboutJson, specsJson, featuresJson,
+          targetCountry, amazon_url || null
+        ]
+      );
+
+      // 2. Handle Variants & Aggregate Logic
+      const variants = typeof color_variants === 'string' ? JSON.parse(color_variants) : (color_variants || []);
+      const colorOptionsList = [];
+      let aggregateStock = 0;
+
+      for (const v of variants) {
+        const vStock = parseInt(v.stock) || 0;
+        aggregateStock += vStock;
+        const vId = uuidv4();
+
+        await connection.execute(
+          "INSERT INTO product_color_variants (id, product_id, color_name, color_code, stock, price, amazon_sku, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, NOW())",
+          [vId, productId, v.color_name || v.color, v.color_code || v.colorCode || '#000000', vStock, v.price || price, v.amazon_sku || null]
+        );
+
+        colorOptionsList.push({
+          id: vId,
+          name: v.color_name || v.color,
+          color: v.color_code || v.colorCode || '#000000',
+          stock: vStock,
+          amazon_sku: v.amazon_sku || null,
+          in_stock: vStock > 0 ? 1 : 0,
+          price: parseFloat(v.price) || parseFloat(price) || 0
+        });
+      }
+
+      // 3. Final Sync for Storefront
+      if (colorOptionsList.length > 0) {
+        await connection.execute(
+          "UPDATE products SET color_options = ?, in_stock = ?, inventory_cache = ? WHERE id = ?",
+          [JSON.stringify(colorOptionsList), aggregateStock > 0 ? 1 : 0, aggregateStock, productId]
+        );
+      }
+
+      await connection.commit();
+      res.status(201).json({ success: true, productId, target_country: targetCountry });
+    } catch (error) {
+      await connection.rollback();
+      logger.error("❌ Create product error:", error);
+      res.status(500).json({ error: "Failed to create product", details: error.message });
+    } finally {
+      connection.release();
+    }
+  }
+);
+
+// Consolidated Update Product — Robust & Non-Destructive
+router.put(
+  "/products/:id",
+  authenticateToken,
+  requireAdmin,
+  s3Upload.any(),
+  async (req, res) => {
+    const connection = await db.getConnection();
+    const { id } = req.params;
+
+    try {
+      await connection.beginTransaction();
+
+      // Extract all possible fields from body
+      const {
+        name, name_ar, price, original_price, discount,
+        short_description, description, description_ar, full_description,
+        brand, category, sku, in_stock, target_country, amazon_url,
+        youtube_url, image, images, about_section, aboutSection, 
+        specifications, features, weight_kg, weight_lb, dimensions, 
+        dimensions_imperial, material, warranty, return_policy,
+        color_variants, colorVariants, videos, tags
+      } = req.body;
+
+      const updates = {};
+      const setUpdate = (val, col) => { if (val !== undefined) updates[col] = val; };
+
+      setUpdate(name, 'name');
+      setUpdate(name_ar, 'name_ar');
+      if (price !== undefined) setUpdate(parseFloat(price) || 0, 'price');
+      setUpdate(original_price ? parseFloat(original_price) : null, 'original_price');
+      setUpdate(discount ? parseFloat(discount) : null, 'discount');
+      setUpdate(short_description, 'short_description');
+      setUpdate(description, 'description');
+      setUpdate(description_ar, 'description_ar');
+      setUpdate(full_description || description, 'long_description');
+      setUpdate(youtube_url, 'youtube_url');
+      setUpdate(brand, 'brand');
+      setUpdate(category, 'category');
+      setUpdate(sku, 'sku');
+      setUpdate(amazon_url, 'amazon_url');
+      
+      const parseNum = (val) => (val === "" || val === null || val === undefined) ? null : parseFloat(val);
+      const parseStock = (val) => (val === "" || val === null || val === undefined) ? 0 : parseInt(val);
+
+      setUpdate(parseNum(weight_kg), 'weight_kg');
+      setUpdate(parseNum(weight_lb), 'weight_lb');
+      setUpdate(dimensions, 'dimensions');
+      setUpdate(dimensions_imperial, 'dimensions_imperial');
+      setUpdate(material, 'material');
+      setUpdate(warranty, 'warranty');
+      setUpdate(return_policy, 'return_policy');
+      
+      // For simple products (no variants), update in_stock/inventory_cache directly
+      if (in_stock !== undefined) {
+        const stock = parseStock(in_stock);
+        setUpdate(stock, 'in_stock');
+        setUpdate(stock, 'inventory_cache');
+        setUpdate(stock > 0 ? 'In Stock' : 'Out of Stock', 'availability');
+      }
+
+      if (target_country) {
+        const valid = ['us', 'canada', 'both'];
+        updates.target_country = valid.includes(target_country.toLowerCase()) ? target_country.toLowerCase() : 'both';
+      }
+
+      // Handle standard JSON fields
+      const processJson = (val) => (typeof val === 'string' ? val : JSON.stringify(val || null));
+      if (images !== undefined) updates.images = processJson(images);
+      if (videos !== undefined) updates.videos = processJson(videos);
+      if (tags !== undefined) updates.tags = processJson(tags);
+      
+      const about = about_section || aboutSection;
+      if (about !== undefined) updates.about_section = processJson(about);
+      
+      if (specifications !== undefined) updates.specifications = processJson(specifications);
+      if (features !== undefined) updates.features = processJson(features);
+
+      // Handle Image Uploads (Field image or file)
+      const filesByField = {};
+      if (req.files) {
+        req.files.forEach(f => {
+          if (!filesByField[f.fieldname]) filesByField[f.fieldname] = [];
+          filesByField[f.fieldname].push(f.location || `/uploads/${f.filename}`);
+        });
+      }
+
+      if (filesByField.image || filesByField.heroImage) {
+        updates.image = filesByField.image?.[0] || filesByField.heroImage?.[0];
+      } else if (image) {
+        updates.image = image;
+      }
+
+      // 1. Sync Categories & Brands
+      if (category) {
+        const catSlug = category.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+        const [cats] = await connection.execute("SELECT id FROM categories WHERE slug = ?", [catSlug]);
+        if (cats.length > 0) {
+          updates.category_id = cats[0].id;
+        } else {
           const nid = uuidv4();
-          await connection.execute("INSERT INTO categories (id, name, is_active, created_at) VALUES (?, ?, 1, NOW())", [nid, category]);
+          await connection.execute("INSERT INTO categories (id, name, slug, is_active) VALUES (?, ?, ?, 1)", [nid, category, catSlug]);
           updates.category_id = nid;
         }
-        updates.category = category;
       }
 
       if (brand) {
-        const [brs] = await connection.execute("SELECT id FROM brands WHERE LOWER(name) = LOWER(?)", [brand]);
-        if (brs.length > 0) updates.brand_id = brs[0].id;
-        else {
+        const brandSlug = brand.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+        const [brs] = await connection.execute("SELECT id FROM brands WHERE slug = ?", [brandSlug]);
+        if (brs.length > 0) {
+          updates.brand_id = brs[0].id;
+        } else {
           const nid = uuidv4();
-          await connection.execute("INSERT INTO brands (id, name, is_active, created_at) VALUES (?, ?, 1, NOW())", [nid, brand]);
+          await connection.execute("INSERT INTO brands (id, name, slug, is_active) VALUES (?, ?, ?, 1)", [nid, brand, brandSlug]);
           updates.brand_id = nid;
         }
-        updates.brand = brand;
       }
 
-      if (in_stock !== undefined) {
-        updates.in_stock = parseInt(in_stock);
-        updates.availability = parseInt(in_stock) > 0 ? "In Stock" : "Out of Stock";
-      }
-
+      // 2. Perform Product Update
       if (Object.keys(updates).length > 0) {
         const fields = Object.keys(updates).map(k => `${k} = ?`).join(", ");
         await connection.execute(`UPDATE products SET ${fields}, updated_at = NOW() WHERE id = ?`, [...Object.values(updates), id]);
       }
 
-      if (colorVariants) {
-        await connection.execute("DELETE FROM product_color_variants WHERE product_id = ?", [id]);
-        // Note: we don't delete images if we want to preserve them, but current logic does it to refresh.
-        // The user wants SKU and Name editing specifically.
-        const cvArray = typeof colorVariants === 'string' ? JSON.parse(colorVariants) : (colorVariants || []);
-
-        // Prepare list for JSON column update
-        const colorOptionsList = [];
-
-        for (let i = 0; i < cvArray.length; i++) {
-          const v = cvArray[i];
-          const vId = uuidv4();
-
-          // Insert into separate table
-          await connection.execute(
-            "INSERT INTO product_color_variants (id, product_id, color_name, color_code, amazon_sku, stock, price, is_active, created_at) VALUES (?,?,?,?,?,?,?,1,NOW())",
-            [vId, id, v.color_name || v.color, v.color_code || v.colorCode, v.amazon_sku || null, parseInt(v.stock) || 0, parseFloat(v.price) || 0]
-          );
-
-          // Add to JSON list for storefront synchronization
-          colorOptionsList.push({
-            name: v.color_name || v.color,
-            color: v.color_code || v.colorCode,
-            stock: parseInt(v.stock) || 0,
-            amazon_sku: v.amazon_sku || null,
-            in_stock: (parseInt(v.stock) || 0) > 0 ? 1 : 0,
-            price: v.price || 0
-          });
-
-          // Handle images if they exist in the request or were passed in
-          const vFiles = filesByField[`colorVariantImages_${i}`] || [];
-          for (let j = 0; j < vFiles.length; j++) {
-            await connection.execute(
-              "INSERT INTO product_images (id, product_id, image_url, image_type, color_variant_id, display_order, created_at) VALUES (?,?,?,?,?,?,NOW())",
-              [uuidv4(), id, vFiles[j], 'color_variant', vId, j + 1]
-            );
-          }
+      // 3. SURGICAL VARIANT SYNC (Non-Destructive)
+      const incomingVariants = color_variants || colorVariants;
+      if (incomingVariants) {
+        const variants = typeof incomingVariants === 'string' ? JSON.parse(incomingVariants) : incomingVariants;
+        
+        // Fetch existing variants to identify deletions
+        const [existing] = await connection.execute("SELECT id FROM product_color_variants WHERE product_id = ?", [id]);
+        const existingIds = existing.map(v => v.id);
+        const incomingIds = variants.filter(v => v.id && !v.id.startsWith('new-')).map(v => v.id);
+        
+        // Deactivate variants not in the incoming list (or hard delete if preferred, but deactivation is safer)
+        const toRemove = existingIds.filter(eid => !incomingIds.includes(eid));
+        if (toRemove.length > 0) {
+          await connection.execute(`UPDATE product_color_variants SET is_active = 0 WHERE id IN (?)`, [toRemove]);
         }
 
-        // Calculate total aggregate stock from all variants
-        const aggregateStock = colorOptionsList.reduce((sum, v) => sum + (parseInt(v.stock) || 0), 0);
+        const colorOptionsList = []; // For syncing products.color_options JSON
 
-        // SYNC HOME: Update JSON, total stock, and availability status
+        for (let i = 0; i < variants.length; i++) {
+          const v = variants[i];
+          let vId = v.id;
+          const isNew = !vId || vId.startsWith('new-');
+
+          if (isNew) {
+            vId = uuidv4();
+            await connection.execute(
+              "INSERT INTO product_color_variants (id, product_id, sku, color_name, color_code, amazon_sku, stock, price, is_active) VALUES (?,?,?,?,?,?,?,?,1)",
+              [vId, id, v.sku || null, v.color_name || v.color, v.color_code || v.colorCode || '#000000', v.amazon_sku || null, parseInt(v.stock) || 0, parseFloat(v.price) || 0]
+            );
+          } else {
+            await connection.execute(
+              "UPDATE product_color_variants SET sku=?, color_name=?, color_code=?, amazon_sku=?, stock=?, price=?, is_active=1 WHERE id=?",
+              [v.sku || null, v.color_name || v.color, v.color_code || v.colorCode || '#000000', v.amazon_sku || null, parseInt(v.stock) || 0, parseFloat(v.price) || 0, vId]
+            );
+          }
+
+          // Handle variant-specific images if uploaded
+          const vFiles = filesByField[`colorVariantImages_${i}`] || [];
+          if (vFiles.length > 0) {
+             // For simplicity, we replace variant images if new ones are uploaded
+             await connection.execute("DELETE FROM product_images WHERE color_variant_id = ?", [vId]);
+             for (let j = 0; j < vFiles.length; j++) {
+               await connection.execute(
+                 "INSERT INTO product_images (id, product_id, image_url, image_type, color_variant_id, sort_order) VALUES (?,?,?,?,?,?)",
+                 [uuidv4(), id, vFiles[j], 'color_variant', vId, j + 1]
+               );
+             }
+          }
+
+          colorOptionsList.push({
+            id: vId,
+            name: v.color_name || v.color,
+            color: v.color_code || v.colorCode || '#000000',
+            stock: parseInt(v.stock) || 0,
+            sku: v.sku || null,
+            amazon_sku: v.amazon_sku || null,
+            in_stock: (parseInt(v.stock) || 0) > 0 ? 1 : 0,
+            price: parseFloat(v.price) || 0
+          });
+        }
+
+        // 4. Update Aggregate Stock and JSON in parent product
+        const aggregateStock = colorOptionsList.reduce((sum, v) => sum + v.stock, 0);
+        const availability = aggregateStock > 0 ? "In Stock" : "Out of Stock";
+        
         await connection.execute(
-          "UPDATE products SET color_options = ?, in_stock = ?, availability = ?, updated_at = NOW() WHERE id = ?",
+          "UPDATE products SET color_options = ?, in_stock = ?, inventory_cache = ?, availability = ? WHERE id = ?",
           [
             JSON.stringify(colorOptionsList),
             aggregateStock,
-            aggregateStock > 0 ? "In Stock" : "Out of Stock",
+            aggregateStock,
+            availability,
             id
           ]
         );
@@ -890,7 +936,7 @@ router.put(
       res.json({ success: true, message: "Product updated successfully" });
     } catch (error) {
       await connection.rollback();
-      console.error("❌ Update product error:", error);
+      logger.error("❌ Update product error:", error);
       res.status(500).json({ error: "Failed to update product", details: error.message });
     } finally {
       connection.release();
@@ -899,8 +945,198 @@ router.put(
 );
 
 // ─────────────────────────────────────────────────────────────────────────────
-// STOCK MANAGEMENT — Production-Grade Endpoints (Canada & US)
+// SHIPPING INFO — Weight & Dimensions (used by Shippo for label/rate calc)
 // ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * PATCH /api/admin/products/:id/shipping-info
+ * Update weight and dimensions for a Canada product.
+ * Handles:
+ *   - Auto-conversion KG ↔ LB (whichever is provided converts the other)
+ *   - Dimension string "LxWxH" parsed + stored as both CM and IN
+ *   - Returns shippo_parcel preview so admin can see exactly what Shippo will use
+ *
+ * Body (all optional, at least one required):
+ *   { weight_kg?, weight_lb?, dimensions?, dimensions_imperial? }
+ */
+router.patch("/products/:id/shipping-info", authenticateToken, requireAdmin, async (req, res) => {
+  const connection = await db.getConnection();
+  try {
+    await connection.beginTransaction();
+    const { id } = req.params;
+    let { weight_kg, weight_lb, dimensions, dimensions_imperial } = req.body;
+
+    // ── 1. Validate product exists ──────────────────────────────────────────
+    const [rows] = await connection.execute(
+      "SELECT id, name, weight_kg, weight_lb, dimensions, dimensions_imperial, target_country FROM products WHERE id = ? AND is_active = 1",
+      [id]
+    );
+    if (!rows.length) return res.status(404).json({ success: false, error: "Product not found" });
+    const product = rows[0];
+
+    const updates = {};
+
+    // ── 2. Weight handling with auto-conversion ──────────────────────────────
+    // Conversion constants
+    const KG_TO_LB = 2.20462;
+    const LB_TO_KG = 0.453592;
+
+    if (weight_kg !== undefined && weight_kg !== null && weight_kg !== "") {
+      const kg = parseFloat(weight_kg);
+      if (isNaN(kg) || kg < 0) {
+        return res.status(400).json({ success: false, error: "weight_kg must be a non-negative number" });
+      }
+      updates.weight_kg = parseFloat(kg.toFixed(4));
+      // Auto-derive LB if not explicitly provided
+      if (weight_lb === undefined || weight_lb === "" || weight_lb === null) {
+        updates.weight_lb = parseFloat((kg * KG_TO_LB).toFixed(4));
+      }
+    }
+
+    if (weight_lb !== undefined && weight_lb !== null && weight_lb !== "") {
+      const lb = parseFloat(weight_lb);
+      if (isNaN(lb) || lb < 0) {
+        return res.status(400).json({ success: false, error: "weight_lb must be a non-negative number" });
+      }
+      updates.weight_lb = parseFloat(lb.toFixed(4));
+      // Auto-derive KG if not explicitly provided
+      if (weight_kg === undefined || weight_kg === "" || weight_kg === null) {
+        updates.weight_kg = parseFloat((lb * LB_TO_KG).toFixed(4));
+      }
+    }
+
+    // ── 3. Dimensions handling (format: "LxWxH" or "L x W x H") ───────────
+    const CM_TO_IN = 0.393701;
+    const IN_TO_CM = 2.54;
+
+    /**
+     * Parse "20x15x10" or "20 x 15 x 10" → { length, width, height } numbers
+     * Returns null if unparseable.
+     */
+    const parseDimStr = (str) => {
+      if (!str) return null;
+      const parts = String(str).trim().split(/[\s]*[xX×]\s*/);
+      if (parts.length !== 3) return null;
+      const [l, w, h] = parts.map(p => parseFloat(p));
+      if ([l, w, h].some(n => isNaN(n) || n <= 0)) return null;
+      return { l, w, h };
+    };
+
+    /**
+     * Format { l, w, h } back to "L x W x H" string (rounded to 2 decimals)
+     */
+    const fmtDim = ({ l, w, h }) =>
+      `${parseFloat(l.toFixed(2))}x${parseFloat(w.toFixed(2))}x${parseFloat(h.toFixed(2))}`;
+
+    if (dimensions !== undefined && dimensions !== null && dimensions !== "") {
+      const parsed = parseDimStr(dimensions);
+      if (!parsed) {
+        return res.status(400).json({
+          success: false,
+          error: "dimensions must be in format LxWxH (e.g. 20x15x10). Values must be > 0.",
+        });
+      }
+      updates.dimensions = fmtDim(parsed);
+      // Auto-derive inches if not explicitly provided
+      if (dimensions_imperial === undefined || dimensions_imperial === "" || dimensions_imperial === null) {
+        updates.dimensions_imperial = fmtDim({
+          l: parsed.l * CM_TO_IN,
+          w: parsed.w * CM_TO_IN,
+          h: parsed.h * CM_TO_IN,
+        });
+      }
+    }
+
+    if (dimensions_imperial !== undefined && dimensions_imperial !== null && dimensions_imperial !== "") {
+      const parsed = parseDimStr(dimensions_imperial);
+      if (!parsed) {
+        return res.status(400).json({
+          success: false,
+          error: "dimensions_imperial must be in format LxWxH (e.g. 8x6x4). Values must be > 0.",
+        });
+      }
+      updates.dimensions_imperial = fmtDim(parsed);
+      // Auto-derive CM if not explicitly provided
+      if (dimensions === undefined || dimensions === "" || dimensions === null) {
+        updates.dimensions = fmtDim({
+          l: parsed.l * IN_TO_CM,
+          w: parsed.w * IN_TO_CM,
+          h: parsed.h * IN_TO_CM,
+        });
+      }
+    }
+
+    // ── 4. Require at least one field ────────────────────────────────────────
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: "Provide at least one of: weight_kg, weight_lb, dimensions, dimensions_imperial",
+      });
+    }
+
+    // ── 5. Validate Shippo minimum sizes (avoid useless API calls later) ─────
+    const finalKg = updates.weight_kg ?? parseFloat(product.weight_kg) ?? null;
+    const finalDimStr = updates.dimensions ?? product.dimensions ?? null;
+    const warnings = [];
+
+    if (finalKg !== null && finalKg < 0.01) {
+      warnings.push("weight_kg is very low (< 10g) — Shippo may reject this parcel");
+    }
+    if (finalKg !== null && finalKg > 30) {
+      warnings.push("weight_kg exceeds 30kg — Canada Post may not accept this");
+    }
+    if (finalDimStr) {
+      const d = parseDimStr(finalDimStr);
+      if (d) {
+        if (Math.min(d.l, d.w, d.h) < 0.5) {
+          warnings.push("One or more dimensions < 0.5cm — may be rejected by carrier");
+        }
+        if (d.l + 2 * (d.w + d.h) > 300) {
+          warnings.push("Girth + length > 300cm — exceeds Canada Post maximum");
+        }
+      }
+    }
+
+    // ── 6. Persist ───────────────────────────────────────────────────────────
+    const fields = Object.keys(updates).map(k => `${k} = ?`).join(", ");
+    await connection.execute(
+      `UPDATE products SET ${fields}, updated_at = NOW() WHERE id = ?`,
+      [...Object.values(updates), id]
+    );
+
+    await connection.commit();
+
+    // ── 7. Build Shippo parcel preview for the response ─────────────────────
+    const resultKg = updates.weight_kg ?? parseFloat(product.weight_kg) ?? 1;
+    const resultDimCm = parseDimStr(updates.dimensions ?? product.dimensions ?? "30x20x15") ?? { l: 30, w: 20, h: 15 };
+    const shippo_parcel_preview = {
+      length: String(parseFloat(resultDimCm.l.toFixed(2))),
+      width:  String(parseFloat(resultDimCm.w.toFixed(2))),
+      height: String(parseFloat(resultDimCm.h.toFixed(2))),
+      distance_unit: "cm",
+      weight: String(parseFloat(resultKg.toFixed(4))),
+      mass_unit: "kg",
+    };
+
+    logger.info(`[SHIPPING] ${product.name} — dims: ${updates.dimensions ?? 'unchanged'}, weight: ${updates.weight_kg ?? 'unchanged'}kg`);
+
+    res.json({
+      success: true,
+      productId: id,
+      updated: updates,
+      shippo_parcel_preview,
+      warnings: warnings.length ? warnings : undefined,
+    });
+  } catch (err) {
+    await connection.rollback();
+    logger.error(`PATCH /products/:id/shipping-info error: ${err.message}`);
+    res.status(500).json({ success: false, error: err.message });
+  } finally {
+    connection.release();
+  }
+});
+
+
 
 /**
  * PATCH /api/admin/products/:id/stock
@@ -981,6 +1217,7 @@ router.patch("/products/:id/variants/stock", authenticateToken, requireAdmin, as
       if (v.color_name !== undefined) { fields.push('color_name = ?'); values.push(v.color_name); }
       if (v.color_code !== undefined) { fields.push('color_code = ?'); values.push(v.color_code); }
       if (v.amazon_sku !== undefined) { fields.push('amazon_sku = ?'); values.push(v.amazon_sku || null); }
+      if (v.sku !== undefined) { fields.push('sku = ?'); values.push(v.sku || null); }
 
       values.push(v.id, id); // for WHERE clause
 
@@ -1000,7 +1237,7 @@ router.patch("/products/:id/variants/stock", authenticateToken, requireAdmin, as
 
     // Re-aggregate total stock and sync JSON color_options on the parent product
     const [allVariants] = await connection.execute(
-      "SELECT id, color_name, color_code, amazon_sku, stock, price FROM product_color_variants WHERE product_id = ? AND is_active = 1",
+      "SELECT id, sku, color_name, color_code, amazon_sku, stock, price FROM product_color_variants WHERE product_id = ? AND is_active = 1",
       [id]
     );
 
@@ -1009,6 +1246,7 @@ router.patch("/products/:id/variants/stock", authenticateToken, requireAdmin, as
       name: v.color_name,
       color: v.color_code,
       stock: parseInt(v.stock) || 0,
+      sku: v.sku || null,
       amazon_sku: v.amazon_sku || null,
       in_stock: (parseInt(v.stock) || 0) > 0 ? 1 : 0,
       price: v.price || 0
@@ -2176,7 +2414,7 @@ router.get(
 
       if (type === "orders") {
         const [rows] = await db.execute(
-          `SELECT id, created_at, total_amount, status, payment_status, user_id 
+          `SELECT id, created_at, total, status, payment_status, user_id 
            FROM orders 
            WHERE ${dateWhere} AND ${countryWhere}
            ORDER BY created_at DESC 
@@ -2188,7 +2426,7 @@ router.get(
         const [rows] = await db.execute(
           `SELECT id, email, first_name, last_name, total_orders, total_spent 
            FROM (
-             SELECT u.*, COUNT(o.id) as total_orders, COALESCE(SUM(o.total_amount), 0) as total_spent 
+             SELECT u.*, COUNT(o.id) as total_orders, COALESCE(SUM(o.total), 0) as total_spent 
              FROM users u 
              LEFT JOIN orders o ON u.id = o.user_id 
              WHERE u.role = 'customer' 
@@ -2202,7 +2440,7 @@ router.get(
         );
         const [orders] = await db.execute(
           `SELECT COUNT(*) as totalOrders, 
-                  SUM(CASE WHEN payment_status="paid" THEN total_amount ELSE 0 END) as totalRevenue 
+                  SUM(CASE WHEN payment_status="paid" THEN total ELSE 0 END) as totalRevenue 
            FROM orders`
         );
         data = [
@@ -2273,7 +2511,7 @@ router.post(
   "/banners",
   authenticateToken,
   requireAdmin,
-  s3Upload.single("file"),
+  s3Upload.fields([{ name: 'file', maxCount: 1 }, { name: 'mobile_file', maxCount: 1 }]),
   async (req, res) => {
     try {
       const {
@@ -2281,6 +2519,7 @@ router.post(
         description,
         subtitle,
         image_url,
+        mobile_image_url,
         link_url,
         button_text,
         page_location,
@@ -2288,29 +2527,33 @@ router.post(
         is_active = 1,
         sort_order = 0,
       } = req.body;
-
-      const file = req.file;
-      const uploadedPath = file ? file.location : null;
-      const finalImageUrl = uploadedPath || image_url;
-
-      if (!finalImageUrl) {
-        return res.status(400).json({ error: "Image file or image_url required" });
+ 
+      const files = req.files || {};
+      const desktopFile = files['file'] ? files['file'][0] : null;
+      const mobileFile = files['mobile_file'] ? files['mobile_file'][0] : null;
+ 
+      const finalDesktopUrl = desktopFile ? desktopFile.location : image_url;
+      const finalMobileUrl = mobileFile ? mobileFile.location : mobile_image_url;
+ 
+      if (!finalDesktopUrl) {
+        return res.status(400).json({ error: "Desktop image file or image_url required" });
       }
 
       const id = uuidv4();
       await db.execute(
-        `INSERT INTO banners (id, title, description, subtitle, image_url, link_url, button_text, page_location, device_type, is_active, sort_order)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO banners (id, title, description, subtitle, image_url, mobile_image_url, link_url, button_text, page_location, device_type, is_active, sort_order)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           id,
           title || null,
           description || null,
           subtitle || null,
-          finalImageUrl,
+          finalDesktopUrl,
+          finalMobileUrl || null,
           link_url || null,
           button_text || null,
-          page_location || 'home',
-          device_type || 'both',
+          page_location || 'home_hero',
+          device_type || 'all',
           parseInt(is_active) === 0 ? 0 : 1,
           parseInt(sort_order) || 0,
         ]
@@ -2329,7 +2572,7 @@ router.put(
   "/banners/:id",
   authenticateToken,
   requireAdmin,
-  s3Upload.single("file"),
+  s3Upload.fields([{ name: 'file', maxCount: 1 }, { name: 'mobile_file', maxCount: 1 }]),
   async (req, res) => {
     try {
       const { id } = req.params;
@@ -2338,6 +2581,7 @@ router.put(
         description,
         subtitle,
         image_url,
+        mobile_image_url,
         link_url,
         button_text,
         page_location,
@@ -2345,9 +2589,10 @@ router.put(
         is_active,
         sort_order,
       } = req.body;
-
-      const file = req.file;
-      const uploadedPath = file ? file.location : null;
+ 
+      const files = req.files || {};
+      const desktopFile = files['file'] ? files['file'][0] : null;
+      const mobileFile = files['mobile_file'] ? files['mobile_file'][0] : null;
 
       const updates = [];
       const values = [];
@@ -2355,8 +2600,13 @@ router.put(
       if (title !== undefined) { updates.push("title = ?"); values.push(title || null); }
       if (description !== undefined) { updates.push("description = ?"); values.push(description || null); }
       if (subtitle !== undefined) { updates.push("subtitle = ?"); values.push(subtitle || null); }
-      if (uploadedPath) { updates.push("image_url = ?"); values.push(uploadedPath); }
+      
+      if (desktopFile) { updates.push("image_url = ?"); values.push(desktopFile.location); }
       else if (image_url !== undefined) { updates.push("image_url = ?"); values.push(image_url); }
+      
+      if (mobileFile) { updates.push("mobile_image_url = ?"); values.push(mobileFile.location); }
+      else if (mobile_image_url !== undefined) { updates.push("mobile_image_url = ?"); values.push(mobile_image_url); }
+ 
       if (link_url !== undefined) { updates.push("link_url = ?"); values.push(link_url || null); }
       if (button_text !== undefined) { updates.push("button_text = ?"); values.push(button_text || null); }
       if (page_location !== undefined) { updates.push("page_location = ?"); values.push(page_location); }

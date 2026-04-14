@@ -2,6 +2,11 @@ import express from "express";
 import { v4 as uuidv4 } from "uuid";
 import db from "../config/database.js";
 import { authenticateToken, optionalAuth } from "../middleware/auth.js";
+import { sendOrderConfirmationEmail } from "../utils/mailer.js";
+import { generateInvoiceBuffer } from "../utils/pdfGenerator.js";
+import { uploadBuffer } from "../services/s3Service.js";
+
+
 
 const router = express.Router()
 
@@ -229,24 +234,44 @@ router.post("/", optionalAuth, async (req, res, next) => {
       throw new Error("Cart is empty.");
     }
 
-    // 3. Final validation and calculation on the backend
-    const subtotal = cartItems.reduce((sum, item) => {
+    // 3. Calculation and Validation
+    // We trust the frontend's calculations for the preview, but we re-verify the subtotal.
+    // Shipping and Tax are passed from the frontend because they were fetched from the real-time API.
+    const calculatedSubtotal = cartItems.reduce((sum, item) => {
       if (item.in_stock < item.quantity) {
         throw new Error(`Not enough stock for "${item.name}". Only ${item.in_stock} available.`);
       }
       return sum + parseFloat(item.price) * item.quantity;
     }, 0);
 
-    const shipping_cost = subtotal > 100 ? 0 : 25.0; // Your business logic for shipping
-    const tax_amount = subtotal * 0.15; // Your business logic for tax
-    const total_amount = subtotal + shipping_cost + tax_amount;
+    const country = req.body.country || 'US';
+    const subtotal = calculatedSubtotal;
+    const shipping_cost = parseFloat(req.body.shippingCost) || 0;
+    const tax_amount = parseFloat(req.body.tax) || 0;
+    const total_amount = parseFloat((subtotal + shipping_cost + tax_amount).toFixed(2));
+    const shipping_speed = req.body.shippingMethod || req.body.shippingSpeed || 'standard';
 
     // 4. Create the main order record
     const newOrderId = uuidv4();
     await connection.execute(
-      `INSERT INTO orders (id, user_id, guest_email, created_at, subtotal, shipping_cost, tax_amount, total, status, payment_method, payment_status, shipping_address) 
-       VALUES (?, ?, ?, NOW(), ?, ?, ?, ?, 'processing', ?, 'pending', ?)`,
-      [newOrderId, userId, userId ? null : email, subtotal, shipping_cost, tax_amount, total_amount, payment_method, JSON.stringify(shipping_address)]
+      `INSERT INTO orders (
+        id, user_id, guest_email, created_at, subtotal, shipping_cost, 
+        tax_amount, total, status, payment_method, payment_status, 
+        shipping_address, shipping_speed, country
+      ) VALUES (?, ?, ?, NOW(), ?, ?, ?, ?, 'processing', ?, 'pending', ?, ?, ?)`,
+      [
+        newOrderId, 
+        userId, 
+        userId ? null : email, 
+        subtotal, 
+        shipping_cost, 
+        tax_amount, 
+        total_amount, 
+        payment_method, 
+        JSON.stringify(shipping_address),
+        shipping_speed, // Store the rate ID or speed category
+        country
+      ]
     );
 
     // 5. Create the associated order_items records
@@ -282,7 +307,34 @@ router.post("/", optionalAuth, async (req, res, next) => {
     // 7. Commit the transaction
     await connection.commit();
 
-    // 8. Send the successful response WITH THE ORDER ID
+    // 8. ASYNC: Send confirmation email with Invoice PDF
+    // We do this in a try/catch so email failure doesn't crash the response
+    try {
+        const [fullOrder] = await db.execute("SELECT * FROM orders WHERE id = ?", [newOrderId]);
+        const orderData = { ...fullOrder[0], items: cartItems }; 
+        const pdfBuffer = await generateInvoiceBuffer(orderData);
+        
+        // --- AWS S3 UPLOAD ---
+        const s3Key = `invoices/invoice_${newOrderId}.pdf`;
+        const s3Url = await uploadBuffer(pdfBuffer, s3Key, "application/pdf");
+        
+        // Save S3 URL to DB
+        await db.execute("UPDATE orders SET invoice_pdf_url = ? WHERE id = ?", [s3Url, newOrderId]);
+        orderData.invoice_pdf_url = s3Url;
+
+        await sendOrderConfirmationEmail({
+            to: email,
+            name: `${shipping_address.firstName} ${shipping_address.lastName}`,
+            order: orderData,
+            invoicePdf: pdfBuffer
+        });
+    } catch (emailErr) {
+
+        console.error("⚠️ Order confirmation email failed (post-checkout):", emailErr);
+    }
+
+    // 9. Send the successful response WITH THE ORDER ID
+
     res.status(201).json({
       message: "Order created successfully",
       orderId: newOrderId, // This is the key your frontend needs!

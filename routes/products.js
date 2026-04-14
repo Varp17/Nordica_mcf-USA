@@ -279,8 +279,8 @@ router.get("/slug/:slug", async (req, res) => {
   _log.debug("GET /slug/:slug request:", { slug: req.params.slug, country: req.query.country });
   try {
     const userCountry = normalizeCountryCode(req.query.country || req.country || 'CA');
-    const countryMatch = userCountry === 'CA' ? ['CA', 'CAD'] : ['US', 'USA'];
-    const countryCondition = `(p.country IN (${countryMatch.map(() => '?').join(',')}) OR p.country IS NULL)`;
+    const countryTarget = userCountry === 'CA' ? ['canada', 'both'] : ['us', 'both'];
+    const countryCondition = `p.target_country IN (${countryTarget.map(() => '?').join(',')})`;
 
     const [products] = await db.execute(
       `SELECT p.*, c.name as cat_name, b.name as br_name
@@ -288,7 +288,7 @@ router.get("/slug/:slug", async (req, res) => {
        LEFT JOIN categories c ON p.category_id = c.id
        LEFT JOIN brands b ON p.brand_id = b.id
        WHERE p.slug = ? AND ${countryCondition}`,
-      [req.params.slug, ...countryMatch],
+      [req.params.slug, ...countryTarget],
     )
 
     if (products.length === 0) {
@@ -421,8 +421,8 @@ router.get("/slug/:slug", async (req, res) => {
 router.get("/:id", async (req, res) => {
   try {
     const userCountry = normalizeCountryCode(req.query.country || req.country || 'CA');
-    const countryMatch = userCountry === 'CA' ? ['CA', 'CAD'] : ['US', 'USA'];
-    const countryCondition = `(p.country IN (${countryMatch.map(() => '?').join(',')}) OR p.country IS NULL)`;
+    const countryTarget = userCountry === 'CA' ? ['canada', 'both'] : ['us', 'both'];
+    const countryCondition = `p.target_country IN (${countryTarget.map(() => '?').join(',')})`;
 
     const [products] = await db.execute(
       `SELECT p.*, c.name as cat_name, b.name as br_name
@@ -430,7 +430,7 @@ router.get("/:id", async (req, res) => {
        LEFT JOIN categories c ON p.category_id = c.id
        LEFT JOIN brands b ON p.brand_id = b.id
        WHERE (p.id = ? OR p.slug = ?) AND ${countryCondition}`,
-      [req.params.id, req.params.id, ...countryMatch],
+      [req.params.id, req.params.id, ...countryTarget],
     )
 
     if (products.length === 0) {

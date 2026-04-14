@@ -7,6 +7,7 @@
  * ────────────────────────────────────────────────────
  * sendShipmentCreatedEmail()   → fires once when admin buys label
  * sendTrackingUpdateEmail()    → fires on each status-level change
+ * sendOrderConfirmationEmail() → fires immediately after checkout
  *
  * Configuration (via .env)
  * ────────────────────────────────────────────────────
@@ -124,11 +125,12 @@ export async function sendShipmentCreatedEmail({
     <p>Thank you for shopping with us!</p>`;
 
   await transporter.sendMail({
-    from:    `"${storeName()}" <${process.env.SMTP_FROM}>`,
+    from:    `"${storeName()}" <${process.env.EMAIL_FROM_ADDRESS}>`,
     to,
     subject: `Your order #${orderNumber} has shipped! 🚚`,
     html:    emailWrapper(body),
   });
+
 
   console.log(`📧 Shipment created email → ${to} (order #${orderNumber})`);
 }
@@ -175,11 +177,87 @@ export async function sendTrackingUpdateEmail({
     <p>Thank you for shopping with us!</p>`;
 
   await transporter.sendMail({
-    from:    `"${storeName()}" <${process.env.SMTP_FROM}>`,
+    from:    `"${storeName()}" <${process.env.EMAIL_FROM_ADDRESS}>`,
     to,
     subject: cfg.subject(orderNumber),
     html:    emailWrapper(body),
   });
 
+
   console.log(`📧 Tracking update email (${status}) → ${to} (order #${orderNumber})`);
 }
+
+/* ══════════════════════════════════════════════════════════ */
+/* 3. Order Confirmation (with Invoice)                      */
+/*    Fired immediately after successful checkout.           */
+/* ══════════════════════════════════════════════════════════ */
+/**
+ * @param {object} opts
+ * @param {string} opts.to
+ * @param {string} opts.name
+ * @param {object} opts.order         Complete order object for summary
+ * @param {Buffer} [opts.invoicePdf]  Optional PDF attachment buffer
+ */
+export async function sendOrderConfirmationEmail({
+  to, name, order, invoicePdf,
+}) {
+  const itemsHtml = (order.items || []).map(item => `
+    <tr>
+      <td style="padding: 10px 0; border-bottom: 1px solid #eeeeee;">
+        ${item.product_name_at_purchase || item.name} (x${item.quantity})
+      </td>
+      <td style="padding: 10px 0; border-bottom: 1px solid #eeeeee; text-align: right;">
+        $${(parseFloat(item.price_at_purchase || item.price) * item.quantity).toFixed(2)}
+      </td>
+    </tr>
+  `).join("");
+
+  const body = `
+    <p>Hi ${name},</p>
+    <p>Thank you for your order! We've received your payment and are getting your items ready for dispatch.</p>
+    
+    <div class="info">
+      <p><strong>Order ID:</strong> #${order.id}</p>
+      <p><strong>Date:</strong> ${new Date(order.created_at || order.order_date).toLocaleDateString()}</p>
+    </div>
+
+    <table style="width: 100%; border-collapse: collapse; margin-top: 20px;">
+      <thead>
+        <tr>
+          <th style="text-align: left; padding-bottom: 10px; border-bottom: 2px solid #eeeeee;">Item</th>
+          <th style="text-align: right; padding-bottom: 10px; border-bottom: 2px solid #eeeeee;">Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${itemsHtml}
+      </tbody>
+      <tfoot>
+        <tr>
+          <td style="padding-top: 20px; font-weight: bold;">Grand Total</td>
+          <td style="padding-top: 20px; font-weight: bold; text-align: right;">$${parseFloat(order.total || order.total_amount).toFixed(2)}</td>
+        </tr>
+      </tfoot>
+    </table>
+
+    <p style="margin-top: 32px;">Please find your official invoice attached to this email.</p>
+    <p>We'll send you another update as soon as your tracking number is assigned.</p>`;
+
+  const mailOptions = {
+    from:    `"${storeName()}" <${process.env.EMAIL_FROM_ADDRESS}>`,
+    to,
+    subject: `Order Confirmation #${order.id} — ${storeName()}`,
+    html:    emailWrapper(body),
+    attachments: [],
+  };
+
+
+  if (invoicePdf) {
+    mailOptions.attachments.push({
+      filename: `Invoice_${order.id}.pdf`,
+      content: invoicePdf,
+    });
+  }
+
+  await transporter.sendMail(mailOptions);
+  console.log(`📧 Order confirmation email → ${to} (order #${order.id})`);
+}

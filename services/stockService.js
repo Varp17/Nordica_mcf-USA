@@ -45,7 +45,7 @@ export async function checkInventoryLevels() {
 
     // 2. Check product variants table
     const [lowStockVariants] = await db.execute(
-      `SELECT v.id, p.name as product_name, v.color_name, v.amazon_sku, v.stock 
+      `SELECT v.id, v.product_id, p.name as product_name, v.color_name, v.amazon_sku, v.stock 
        FROM product_color_variants v
        JOIN products p ON v.product_id = p.id
        WHERE (v.stock < 30 OR v.stock = 0) AND v.is_active = 1`

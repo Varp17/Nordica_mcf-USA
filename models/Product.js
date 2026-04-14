@@ -212,7 +212,7 @@ export async function validateCartItems(cartItems, country = 'US') {
       productName: variantName,
       product_name: variantName,
       quantity:    cartItem.quantity || 1,
-      unitPrice:   parseFloat(cartItem.price || product.price),
+      unitPrice:   parseFloat(product.price), // ALWAYS use database price for production
       weightKg:    parseFloat(product.weight_kg || 0.5),
       weight_kg:   parseFloat(product.weight_kg || 0.5),
       dimensions:  product.dimensions || null,
@@ -221,7 +221,15 @@ export async function validateCartItems(cartItems, country = 'US') {
     });
   }
 
-  return { valid: errors.length === 0, errors, items: validItems };
+  // Calculate true subtotal from validated items
+  const subtotal = validItems.reduce((sum, item) => sum + (item.unitPrice * item.quantity), 0);
+
+  return { 
+    valid: errors.length === 0, 
+    errors, 
+    items: validItems, 
+    subtotal: parseFloat(subtotal.toFixed(2)) 
+  };
 }
 
 export async function deductStock(items, connection = null) {
@@ -249,8 +257,12 @@ export async function deductStock(items, connection = null) {
     const pId = item.product_id || item.productId || item.variantId || null;
     const sku = item.sku || null;
     await dbConn.execute(
-      `UPDATE products SET inventory_cache = GREATEST(0, inventory_cache - ?) WHERE id = ? OR slug = ? OR sku = ?`,
-      [qty, pId, pId, sku]
+      `UPDATE products 
+       SET inventory_cache = GREATEST(0, inventory_cache - ?),
+           in_stock = CASE WHEN GREATEST(0, inventory_cache - ?) > 0 THEN 1 ELSE 0 END,
+           availability = CASE WHEN GREATEST(0, inventory_cache - ?) > 0 THEN 'In Stock' ELSE 'Out of Stock' END
+       WHERE id = ? OR slug = ? OR sku = ?`,
+      [qty, qty, qty, pId, pId, sku]
     );
   }
 }
@@ -280,8 +292,12 @@ export async function restoreStock(items, connection = null) {
     const sku = item.sku || null;
 
     await dbConn.execute(
-      `UPDATE products SET inventory_cache = inventory_cache + ? WHERE id = ? OR slug = ? OR sku = ?`,
-      [qty, pId, pId, sku]
+      `UPDATE products 
+       SET inventory_cache = inventory_cache + ?,
+           in_stock = CASE WHEN (inventory_cache + ?) > 0 THEN 1 ELSE 0 END,
+           availability = CASE WHEN (inventory_cache + ?) > 0 THEN 'In Stock' ELSE 'Out of Stock' END
+       WHERE id = ? OR slug = ? OR sku = ?`,
+      [qty, qty, qty, pId, pId, sku]
     );
   }
 }

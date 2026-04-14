@@ -1204,6 +1204,7 @@
  */
 
 import express from "express";
+import axios from "axios";
 import { Shippo } from "shippo";
 import db from "../config/database.js";
 import { authenticateToken, requireAdmin } from "../middleware/auth.js";
@@ -1268,37 +1269,35 @@ const fullName = (first, last) =>
 
 
 //testing for postman
+/** Centralised Shippo REST helper — bypasses SDK undici timeouts */
 const shippoFetch = async (path, options = {}) => {
-  const apiToken = process.env.SHIPPO_API_TOKEN;
+  const apiToken = process.env.SHIPPO_API_TOKEN || process.env.SHIPPO_API_KEY;
+  if (!apiToken) throw new Error("SHIPPO_API_TOKEN is not configured");
 
-  if (!apiToken) throw new Error("SHIPPO_API_TOKEN is not set in .env");
-
-  const resp = await fetch(`https://api.goshippo.com${path}`, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `ShippoToken ${apiToken}`,
-      ...(options.headers || {}),
-    },
-  });
-
-  // Read as text first — never crash on empty body
-  const text = await resp.text();
-
-  console.log("🌐 Shippo RAW response:", resp.status, "|", text.slice(0, 500));
-
-  if (!text) {
-    throw new Error(`Shippo returned empty body — HTTP ${resp.status}. Check your API token.`);
-  }
-
-  let data;
   try {
-    data = JSON.parse(text);
-  } catch {
-    throw new Error(`Shippo returned non-JSON (HTTP ${resp.status}): ${text.slice(0, 200)}`);
+    const url = `https://api.goshippo.com${path}`;
+    const response = await axios({
+      url,
+      method: options.method || 'GET',
+      data: options.body ? (typeof options.body === 'string' ? JSON.parse(options.body) : options.body) : undefined,
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `ShippoToken ${apiToken}`,
+        "SHIPPO-API-VERSION": "2018-02-08",
+        ...(options.headers || {}),
+      },
+      timeout: 15000 // 15s timeout
+    });
+    
+    return { ok: true, status: response.status, data: response.data };
+  } catch (err) {
+    console.error(`🌐 Shippo API Error [${path}]:`, err.response?.data || err.message);
+    return { 
+      ok: false, 
+      status: err.response?.status || 500, 
+      data: err.response?.data || { detail: err.message } 
+    };
   }
-
-  return { ok: resp.ok, status: resp.status, data };
 };
 /* ══════════════════════════════════════════════════════════ */
 /* GAP 1 — List carrier accounts                            */
@@ -1375,69 +1374,48 @@ router.get(
 /* ══════════════════════════════════════════════════════════ */
 const handleTrackings = async (req, res) => {
   try {
-    console.log("📊 GET /trackings (Shippo trackingStatus API)");
-
     const { status, page = 1 } = req.query;
+    const { ok, data } = await shippoFetch(`/transactions/?page=${page}&results=50`);
 
-    const transactions = await shippo.transactions.list({
-      page: Number(page),
-      results: 20,
-    });
-
-    const results = transactions.results || [];
+    if (!ok) {
+      return res.status(500).json({ error: "Failed to fetch transactions from Shippo", details: data });
+    }
 
     const detailed = await Promise.all(
-      results.map(async (t) => {
+      (data.results || []).map(async (t) => {
         const trackingNumber = t.tracking_number || t.trackingNumber || null;
         const carrier = t.tracking_carrier || t.trackingCarrier || t.carrier || null;
 
-        let tracking = null;
+        let live = null;
         if (trackingNumber && carrier) {
           try {
-            const ts = await shippo.trackingStatus.get(carrier, trackingNumber);
-            tracking = mapShippoTracking(ts);
-          } catch (err) {
-            console.error(
-              "⚠️ trackingStatus.get failed for",
-              carrier,
-              trackingNumber,
-              err
-            );
+            live = await shippoService.getTrackingStatus(carrier, trackingNumber);
+          } catch (e) { 
+            console.warn(`Admin trackings detail fetch failed for ${carrier}/${trackingNumber}:`, e.message);
           }
         }
 
-        const trackingStatus =
-          tracking?.status || t.tracking_status || t.trackingStatus || null;
-
         return {
           transactionId: t.object_id,
-          orderId: t.order || null,
-          shippo_tracking_number: trackingNumber,
-          shippo_carrier: carrier,
-          shippo_tracking_status: trackingStatus,
-          tracking,
-          tracking_raw: tracking || t,
+          orderId: t.order || '—',
+          shippo_tracking_number: trackingNumber || '—',
+          shippo_carrier: carrier || '—',
+          shippo_tracking_status: live?.status || t.tracking_status || 'UNKNOWN',
+          tracking: {
+            status: live?.status || t.tracking_status || 'UNKNOWN',
+            location: live?.tracking_status?.location || '—',
+            statusDate: live?.tracking_status?.status_date || t.object_created,
+            history: live?.tracking_history || []
+          }
         };
       })
     );
 
     const filtered = status
-      ? detailed.filter(
-          (d) =>
-            (d.shippo_tracking_status || "").toUpperCase() ===
-            String(status).toUpperCase()
-        )
+      ? detailed.filter((d) => (d.shippo_tracking_status || "").toUpperCase() === String(status).toUpperCase())
       : detailed;
 
-    res.json({
-      success: true,
-      data: filtered,
-      pagination: {
-        page: transactions.page || Number(page),
-        next: transactions.next,
-        previous: transactions.previous,
-      },
-    });
+    res.json({ success: true, data: filtered, pagination: { next: data.next, previous: data.previous } });
   } catch (err) {
     console.error("❌ List Shippo trackings error:", err);
     res.status(500).json({ error: "Failed to list Shippo trackings" });
@@ -1926,15 +1904,49 @@ router.post(
         email: process.env.SHIPPO_FROM_EMAIL || undefined,
       };
 
-      // ── Parcel (above Canada Post minimums) ───────────────────────
+      // ── Parcel — dynamic from product weight/dimensions ───────────────
+      // Helper: parse "LxWxH" string → { l, w, h } numbers or null
+      const parseDim = (str) => {
+        if (!str) return null;
+        const parts = String(str).trim().split(/[\s]*[xX×]\s*/);
+        if (parts.length !== 3) return null;
+        const [l, w, h] = parts.map(Number);
+        if ([l, w, h].some(n => isNaN(n) || n <= 0)) return null;
+        return { l, w, h };
+      };
+
+      // Load items for this order to aggregate weight
+      const [orderItems] = await db.execute(
+        `SELECT oi.quantity,
+                COALESCE(p.weight_kg, 0.5)      AS weight_kg,
+                COALESCE(p.dimensions, '30x20x15') AS dimensions
+         FROM order_items oi
+         JOIN products p ON oi.product_id = p.id
+         WHERE oi.order_id = ?`,
+        [orderId]
+      );
+
+      // Aggregate total weight (sum of item qty × unit weight)
+      let totalWeightKg = orderItems.reduce(
+        (sum, item) => sum + (parseFloat(item.weight_kg) || 0.5) * (parseInt(item.quantity) || 1),
+        0
+      );
+      // Enforce Canada Post floor (0.1kg min) and ceiling (30kg max)
+      totalWeightKg = Math.max(0.1, Math.min(30, parseFloat(totalWeightKg.toFixed(4))));
+
+      // Use dimensions from first item (largest box approach or just first product)
+      const firstItemDim = parseDim(orderItems[0]?.dimensions) ?? { l: 30, w: 20, h: 15 };
+
       const parcel = {
-        length: "30",
-        width: "20",
-        height: "15",
+        length: String(parseFloat(firstItemDim.l.toFixed(2))),
+        width:  String(parseFloat(firstItemDim.w.toFixed(2))),
+        height: String(parseFloat(firstItemDim.h.toFixed(2))),
         distance_unit: "cm",
-        weight: "1",
+        weight: String(totalWeightKg),
         mass_unit: "kg",
       };
+
+      console.log("📦 Parcel for Shippo:", JSON.stringify(parcel));
 
       // ── Step 1: Create shipment → get rates ────────────────────────
       // async: false forces Shippo to wait and return rates immediately

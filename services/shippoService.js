@@ -272,7 +272,11 @@ export async function createShipment(order) {
     address_to:      addressTo.object_id,
     parcels:        [parcel.object_id],
     async:          false,
-    metadata:       `Order ${order.order_number}`
+    metadata:       JSON.stringify({
+      order_number: order.order_number,
+      customer_email: order.customer_email || order.cust_email,
+      source: 'Nordica Ecom Production'
+    })
   }, { headers });
 
   const shipment = shipmentResponse.data;
@@ -345,6 +349,24 @@ export async function getTrackingStatus(carrier, trackingNumber) {
   return retryWithBackoff(async () => {
     // BYPASS SDK: Use axios to avoid validation errors
     const response = await axios.get(`https://api.goshippo.com/tracks/${carrier}/${trackingNumber}/`, { headers });
+    return response.data;
+  });
+}
+
+/**
+ * Register a tracking number with Shippo to start receiving webhook updates.
+ * @param {string} carrier - Carrier slug
+ * @param {string} trackingNumber - Tracking number
+ */
+export async function registerTracking(carrier, trackingNumber) {
+  const headers = getAuthHeaders();
+  logger.info(`Shippo: Registering tracking for ${carrier}/${trackingNumber}`);
+
+  return retryWithBackoff(async () => {
+    const response = await axios.post('https://api.goshippo.com/tracks/', {
+      carrier,
+      tracking_number: trackingNumber
+    }, { headers });
     return response.data;
   });
 }
@@ -426,5 +448,6 @@ export default {
   getShippingRates,
   createShipment,
   getTrackingStatus,
+  registerTracking,
   refundLabel
 };

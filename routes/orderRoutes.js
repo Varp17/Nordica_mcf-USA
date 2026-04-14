@@ -121,6 +121,22 @@ router.post('/', optionalAuth, validateCreateOrder, async (req, res) => {
     // Use the found/created customer ID
     customerId = customer.id;
 
+    // 1.1 Recalculate Financials (Production Security)
+    const serverSubtotal = validation.subtotal;
+    const serverShippingCost = parseFloat(shippingCost || 0);
+    
+    // Recalculate Tax
+    let serverTax = 0;
+    const provState = (shipping.province || shipping.state || '').toUpperCase();
+    const TAX_RATES = country === 'CA' ? {
+      'AB': 0.05, 'BC': 0.12, 'MB': 0.12, 'NB': 0.15, 'NL': 0.15, 'NS': 0.15, 'NT': 0.05, 'NU': 0.05, 'ON': 0.13, 'PE': 0.15, 'QC': 0.14975, 'SK': 0.11, 'YT': 0.05
+    } : {
+      CA: 0.0725, NY: 0.08, TX: 0.0625, FL: 0.06, WA: 0.065, IL: 0.0625, PA: 0.06, OH: 0.0575, GA: 0.04, NC: 0.0475, MI: 0.06, NJ: 0.0663, VA: 0.053, AZ: 0.056, TN: 0.07, MA: 0.0625, IN: 0.07, MO: 0.04225, MD: 0.06, WI: 0.05, CO: 0.029, MN: 0.06875, SC: 0.06, AL: 0.04, LA: 0.0445, KY: 0.06
+    };
+    const rate = TAX_RATES[provState] ?? 0;
+    serverTax = parseFloat((serverSubtotal * rate).toFixed(2));
+    const serverTotal = parseFloat((serverSubtotal + serverShippingCost + serverTax).toFixed(2));
+
     // ── 3. Create order in DB ─────────────────────────────────────────────────
     const order = await Order.createOrder({
       customerId: customer.id,
@@ -131,11 +147,12 @@ router.post('/', optionalAuth, validateCreateOrder, async (req, res) => {
       paymentMethod,
       paymentReference,
       paymentStatus: 'paid',
-      subtotal: parseFloat(subtotal),
-      tax: parseFloat(tax || 0),
-      shippingCost: parseFloat(shippingCost || 0),
-      total: parseFloat(total),
+      subtotal: serverSubtotal,
+      tax: serverTax,
+      shippingCost: serverShippingCost,
+      total: serverTotal,
       currency: currency || (country === 'CA' ? 'CAD' : 'USD'),
+      customer_email: email,
       notes
     });
 
@@ -145,6 +162,45 @@ router.post('/', optionalAuth, validateCreateOrder, async (req, res) => {
       paymentReference,
       paymentMethod
     });
+
+    // ── 4.5. Log MCF Actual Shipping Cost and Profit/Loss Margin ─────────────
+    if (country === 'US') {
+      try {
+        const address = {
+          name: `${shipping?.firstName || ''} ${shipping?.lastName || ''}`.trim() || 'Valued Customer',
+          line1: shipping?.address1 || shipping?.address,
+          city: shipping?.city,
+          stateOrRegion: shipping?.state,
+          postalCode: shipping?.zip,
+          countryCode: 'US'
+        };
+
+        const previews = await mcfService.getFulfillmentPreview(address, validatedItems);
+        let targetSpeed = shippingSpeed || 'Standard';
+        
+        // Strip out any dynamic suffix if they picked a dynamic rate
+        if (targetSpeed.includes('_DYNAMIC')) {
+            targetSpeed = targetSpeed.replace('_DYNAMIC', '');
+        }
+
+        // Standardize capitalization to match Amazon (Standard, Expedited, Priority)
+        const normalizedTarget = targetSpeed.charAt(0).toUpperCase() + targetSpeed.slice(1).toLowerCase();
+
+        const exactPreview = previews.find(p => p.shippingSpeedCategory === normalizedTarget);
+        if (exactPreview) {
+            const actualCost = parseFloat(exactPreview.totalFee || 0);
+            const lossMargin = parseFloat((serverShippingCost - actualCost).toFixed(2));
+            
+            await Order.updateOrder(order.id, {
+                actual_shipping_cost: actualCost,
+                shipping_profit_loss: lossMargin
+            });
+            logger.info(`Recorded MCF Margin for ${order.id}: Paid ${serverShippingCost}, Cost ${actualCost}, Margin ${lossMargin}`);
+        }
+      } catch (e) {
+        logger.error(`Failed to calculate MCF shipping loss for ${order.id}: ${e.message}`);
+      }
+    }
 
     // ── 5. Trigger fulfillment & Invoice (async — don't block the response) ─────────────
     // We respond to the customer immediately, then fulfill & generate invoice in background
@@ -507,6 +563,8 @@ function _sanitizeOrder(order, isAdmin = false) {
     base.amazonFulfillmentId = order.amazon_fulfillment_id;
     base.fulfillmentError = order.fulfillment_error;
     base.customerEmail = order.customer_email;
+    base.actualShippingCost = order.actual_shipping_cost;
+    base.shippingProfitLoss = order.shipping_profit_loss;
     base.shippingFull = {
       address1: order.shipping_address1,
       address2: order.shipping_address2,

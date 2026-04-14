@@ -256,16 +256,18 @@ CREATE TABLE product_variants (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ------------------------------------------------------------
--- 6b. RESTOCK SUBSCRIPTIONS
+-- 6b. STOCK NOTIFICATIONS
 -- ------------------------------------------------------------
-DROP TABLE IF EXISTS restock_subscriptions;
-CREATE TABLE restock_subscriptions (
-  id               CHAR(36)      PRIMARY KEY DEFAULT (UUID()),
+DROP TABLE IF EXISTS stock_notifications;
+CREATE TABLE stock_notifications (
+  id               INT           AUTO_INCREMENT PRIMARY KEY,
   email            VARCHAR(255)  NOT NULL,
   product_id       CHAR(36)      NOT NULL,
   variant_id       CHAR(36)      DEFAULT NULL,
   created_at       DATETIME      DEFAULT CURRENT_TIMESTAMP,
-  INDEX idx_restock_email (email),
+  notified_at      DATETIME      DEFAULT NULL,
+  INDEX idx_stock_notif_email (email),
+  INDEX idx_stock_notif_status (notified_at),
   FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

@@ -65,25 +65,55 @@ router.post('/preview', async (req, res) => {
       countryCode: 'US'
     };
 
-    const previews = await mcfService.getFulfillmentPreview(address, validatedItems);
-    
-    // The frontend expects { success: true, previews: [...] }
-    return res.json({ 
-      success: true, 
-      previews: previews.map(p => {
+    let dynamicPreviews = [];
+    try {
+      const amzPreviews = await mcfService.getFulfillmentPreview(address, validatedItems);
+      dynamicPreviews = amzPreviews.map(p => {
         const estDays = p.fulfillmentPreviewShipments?.[0]?.latestArrival 
             ? Math.max(1, Math.ceil((new Date(p.fulfillmentPreviewShipments[0].latestArrival) - new Date()) / (1000 * 60 * 60 * 24)))
             : null;
-            
         return {
             ...p,
-            id: p.shippingSpeedCategory,
-            name: `${p.shippingSpeedCategory} Shipping`,
+            id: p.shippingSpeedCategory + '_DYNAMIC',
+            name: `Dynamic ${p.shippingSpeedCategory}`,
             price: p.totalFee,
             currency: p.currency || 'USD',
-            estimation: estDays ? `Estimated ${estDays - 2}-${estDays} business days` : 'Reliable Delivery'
+            estimation: estDays ? `Estimated ${estDays - 2}-${estDays} business days` : 'Reliable Delivery',
+            shippingSpeedCategory: p.shippingSpeedCategory,
+            isDynamic: true
         };
-      })
+      });
+    } catch (e) {
+      logger.error('Failed to fetch dynamic previews', { error: e.message });
+    }
+
+    const getEst = (speed, defaultEst) => {
+        const dp = dynamicPreviews.find(d => d.shippingSpeedCategory === speed);
+        return dp?.estimation || defaultEst;
+    };
+
+    const hardcodedPreviews = [
+      {
+        id: 'Standard',
+        name: 'Standard Shipping',
+        price: 4.99,
+        currency: 'USD',
+        estimation: getEst('Standard', 'Estimated 3-5 business days'),
+        shippingSpeedCategory: 'Standard'
+      },
+      {
+        id: 'Expedited',
+        name: 'Expedited Shipping',
+        price: 7.99,
+        currency: 'USD',
+        estimation: getEst('Expedited', 'Estimated 2-3 business days'),
+        shippingSpeedCategory: 'Expedited'
+      }
+    ];
+
+    return res.json({ 
+      success: true, 
+      previews: [...hardcodedPreviews, ...dynamicPreviews]
     });
   } catch (err) {
     logger.error(`POST /api/fulfillment/preview error: ${err.message}`, {
@@ -189,8 +219,18 @@ router.post('/calculate-tax', async (req, res) => {
     const sub = parseFloat(subtotal) || 0;
 
     if (country === 'CA') {
-      // Canadian GST/HST/PST is calculated at invoice time, not during checkout
-      return res.json({ success: true, tax: 0, tax_label: 'Tax (incl.)', rate: 0 });
+      const province = (req.body.province || state || '').toUpperCase();
+      const CA_TAX_RATES = {
+        'AB': 0.05, 'BC': 0.12, 'MB': 0.12, 'NB': 0.15, 'NL': 0.15,
+        'NS': 0.15, 'NT': 0.05, 'NU': 0.05, 'ON': 0.13, 'PE': 0.15,
+        'QC': 0.14975, 'SK': 0.11, 'YT': 0.05
+      };
+      
+      const rate = CA_TAX_RATES[province] ?? 0;
+      const tax = parseFloat((sub * rate).toFixed(2));
+      const label = rate === 0.13 ? 'HST (13%)' : rate > 0.05 ? 'GST/HST/PST' : 'GST (5%)';
+      
+      return res.json({ success: true, tax, tax_label: label, rate });
     }
 
     // US state tax rates (simplified — production would use TaxJar/Avalara)

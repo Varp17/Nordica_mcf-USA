@@ -190,10 +190,11 @@ async function _loadOrderWithItems(orderId) {
     SELECT oi.*, 
            COALESCE(v.weight_kg, p.weight_kg, 0.5) as weight_kg,
            COALESCE(v.dimensions, p.dimensions, '20x15x10') as dimensions,
-           COALESCE(v.sku, oi.sku) as actual_sku
+           COALESCE(pcv.amazon_sku, v.sku, oi.sku) as actual_sku
     FROM order_items oi
     LEFT JOIN products p ON oi.product_id = p.id
     LEFT JOIN product_variants v ON oi.product_variant_id = v.id
+    LEFT JOIN product_color_variants pcv ON oi.product_variant_id = pcv.id
     WHERE oi.order_id = ?`, [orderId]);
 
   order.items = itemRows;

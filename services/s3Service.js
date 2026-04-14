@@ -1,4 +1,5 @@
-import { S3Client } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+
 import multer from "multer";
 import multerS3 from "multer-s3";
 import path from "path";
@@ -36,4 +37,24 @@ const upload = multer({
   },
 });
 
+/**
+ * Upload a Buffer to S3
+ */
+export async function uploadBuffer(buffer, key, contentType = "application/pdf") {
+  const bucket = process.env.AWS_S3_BUCKET || process.env.AWS_BUCKET_NAME || "detailguardz";
+  
+  await s3.send(new PutObjectCommand({
+    Bucket: bucket,
+    Key: key,
+    Body: buffer,
+    ContentType: contentType,
+    // Note: Public ACL depends on bucket settings. 
+    // If bucket is strictly private, omit this and use signed URLs or CloudFront.
+  }));
+
+  const region = process.env.AWS_REGION || "us-east-1";
+  return `https://${bucket}.s3.${region}.amazonaws.com/${key}`;
+}
+
 export { s3, upload };
+

@@ -81,27 +81,54 @@ router.post('/create-order', optionalAuth, async (req, res, next) => {
       return res.status(400).json({ success: false, message: validation.errors.join(', ') });
     }
 
+    // 1.1 Recalculate Financials for Security (Production Level)
+    const serverSubtotal = validation.subtotal;
+    const serverShippingCost = parseFloat(shippingCost || 0); // In production, we'd re-verify this via Shippo if possible
+    
+    // Server-side Tax Recalculation
+    let serverTax = 0;
+    const provState = (shipping.province || shipping.state || '').toUpperCase();
+    if (country === 'CA') {
+      const CA_TAX_RATES = {
+        'AB': 0.05, 'BC': 0.12, 'MB': 0.12, 'NB': 0.15, 'NL': 0.15,
+        'NS': 0.15, 'NT': 0.05, 'NU': 0.05, 'ON': 0.13, 'PE': 0.15,
+        'QC': 0.14975, 'SK': 0.11, 'YT': 0.05
+      };
+      const rate = CA_TAX_RATES[provState] ?? 0;
+      serverTax = parseFloat((serverSubtotal * rate).toFixed(2));
+    } else if (country === 'US') {
+      const US_TAX_RATES = {
+        CA: 0.0725, NY: 0.08, TX: 0.0625, FL: 0.06, WA: 0.065, IL: 0.0625, PA: 0.06, OH: 0.0575, GA: 0.04, NC: 0.0475,
+        MI: 0.06, NJ: 0.0663, VA: 0.053, AZ: 0.056, TN: 0.07, MA: 0.0625, IN: 0.07, MO: 0.04225, MD: 0.06, WI: 0.05,
+        CO: 0.029, MN: 0.06875, SC: 0.06, AL: 0.04, LA: 0.0445, KY: 0.06
+      };
+      const rate = US_TAX_RATES[provState] ?? 0;
+      serverTax = parseFloat((serverSubtotal * rate).toFixed(2));
+    }
+
+    const serverTotal = parseFloat((serverSubtotal + serverShippingCost + serverTax).toFixed(2));
+    const finalCurrency = currency || (country === 'CA' ? 'CAD' : 'USD');
+
     // 2. Create Internal Order (Status: Pending, Payment: Pending)
-    // This atomically deducts stock via Order.createOrder
     let internalOrder;
     try {
       internalOrder = await Order.createOrder({
-        customerId: req.user?.userId || req.user?.id || null, // Handle both token formats
+        customerId: req.user?.userId || req.user?.id || null,
         country,
         items: validation.items,
         shipping,
         shippingSpeed: shippingSpeed || 'standard',
         paymentMethod: 'paypal',
         paymentStatus: 'pending',
-        subtotal: parseFloat(subtotal),
-        tax: parseFloat(tax || 0),
-        shippingCost: parseFloat(shippingCost || 0),
-        total: parseFloat(total),
-        currency: currency || (country === 'CA' ? 'CAD' : 'USD'),
+        subtotal: serverSubtotal,
+        tax: serverTax,
+        shippingCost: serverShippingCost,
+        total: serverTotal,
+        currency: finalCurrency,
         customer_email: email,
         notes: 'Checkout initiated via PayPal'
       });
-      logger.info(`Internal order ${internalOrder.order_number} created for ${email}`);
+      logger.info(`Internal order ${internalOrder.order_number} created for ${email}. Total: ${serverTotal} ${finalCurrency}`);
     } catch (orderErr) {
       logger.error(`Failed to pre-create order: ${orderErr.message}`);
       return res.status(500).json({ success: false, message: 'Failed to initiate order. Inventory may be insufficient.' });
@@ -116,14 +143,14 @@ router.post('/create-order', optionalAuth, async (req, res, next) => {
       const paypalOrder = {
         intent: 'CAPTURE',
         purchase_units: [{
-          reference_id: internalOrder.order_number, // Link internal order# to PayPal
+          reference_id: internalOrder.order_number,
           amount: {
             currency_code: internalOrder.currency,
-            value: parseFloat(total).toFixed(2),
+            value: internalOrder.total.toFixed(2),
             breakdown: {
-              item_total: { currency_code: internalOrder.currency, value: parseFloat(subtotal).toFixed(2) },
-              shipping: { currency_code: internalOrder.currency, value: parseFloat(shippingCost || 0).toFixed(2) },
-              tax_total: { currency_code: internalOrder.currency, value: parseFloat(tax || 0).toFixed(2) }
+              item_total: { currency_code: internalOrder.currency, value: internalOrder.subtotal.toFixed(2) },
+              shipping: { currency_code: internalOrder.currency, value: internalOrder.shipping_cost.toFixed(2) },
+              tax_total: { currency_code: internalOrder.currency, value: internalOrder.tax.toFixed(2) }
             }
           },
           shipping: {

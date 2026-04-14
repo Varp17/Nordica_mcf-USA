@@ -49,27 +49,44 @@ async function runSync() {
     // 1. Collect all SKUs from US products only (Amazon FBA is US only)
     const [products] = await db.query(
       `SELECT id, name, amazon_sku, color_options FROM products 
-       WHERE is_active = 1 AND (country IS NULL OR LOWER(country) IN ('us', 'usa', 'both') OR LOWER(target_country) IN ('us', 'usa', 'both'))`
+       WHERE is_active = 1 
+       AND (country IS NULL OR LOWER(country) IN ('us', 'usa', 'both'))
+       AND (target_country IS NULL OR LOWER(target_country) IN ('us', 'usa', 'both'))
+       AND (LOWER(country) NOT IN ('ca', 'canada') OR country IS NULL)`
     );
 
     const skusToFetch = new Set();
     products.forEach(p => {
-      if (p.amazon_sku) skusToFetch.add(p.amazon_sku);
+      // Skip Canadian SKUs explicitly
+      if (p.amazon_sku && !p.amazon_sku.toUpperCase().startsWith('CAD-')) {
+        skusToFetch.add(p.amazon_sku);
+      }
+      
       try {
         const colors = typeof p.color_options === 'string' ? JSON.parse(p.color_options) : p.color_options;
         if (Array.isArray(colors)) {
           colors.forEach(c => {
-            if (c.amazon_sku) skusToFetch.add(c.amazon_sku);
+            if (c.amazon_sku && !c.amazon_sku.toUpperCase().startsWith('CAD-')) {
+              skusToFetch.add(c.amazon_sku);
+            }
           });
         }
       } catch (e) { /* ignore JSON parse errors */ }
     });
 
-    // Also check product_color_variants table
+    // Also check product_color_variants table (joined with products to ensure US only)
     const [variants] = await db.query(
-      `SELECT amazon_sku FROM product_color_variants WHERE amazon_sku IS NOT NULL AND is_active = 1`
+      `SELECT v.amazon_sku FROM product_color_variants v
+       JOIN products p ON v.product_id = p.id
+       WHERE v.amazon_sku IS NOT NULL AND v.is_active = 1
+       AND (p.country IS NULL OR LOWER(p.country) IN ('us', 'usa', 'both'))
+       AND (p.target_country IS NULL OR LOWER(p.target_country) IN ('us', 'usa', 'both'))`
     );
-    variants.forEach(v => skusToFetch.add(v.amazon_sku));
+    variants.forEach(v => {
+      if (v.amazon_sku && !v.amazon_sku.toUpperCase().startsWith('CAD-')) {
+        skusToFetch.add(v.amazon_sku);
+      }
+    });
 
     const allSkus = Array.from(skusToFetch);
 
