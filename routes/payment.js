@@ -83,19 +83,22 @@ router.post('/create-order', optionalAuth, async (req, res, next) => {
 
     // 1.1 Recalculate Financials for Security (Production Level)
     const serverSubtotal = validation.subtotal;
-    const serverShippingCost = parseFloat(shippingCost || 0); // In production, we'd re-verify this via Shippo if possible
+    let serverShippingCost = 0;
     
     // Server-side Tax Recalculation
     let serverTax = 0;
     const provState = (shipping.province || shipping.state || '').toUpperCase();
+    const totalQty = validation.items.reduce((sum, item) => sum + (item.quantity || 1), 0);
+
     if (country === 'CA') {
       const CA_TAX_RATES = {
-        'AB': 0.05, 'BC': 0.12, 'MB': 0.12, 'NB': 0.15, 'NL': 0.15,
-        'NS': 0.15, 'NT': 0.05, 'NU': 0.05, 'ON': 0.13, 'PE': 0.15,
-        'QC': 0.14975, 'SK': 0.11, 'YT': 0.05
+        'AB': 0.05, 'BC': 0.05, 'MB': 0.05, 'NB': 0.15, 'NL': 0.15,
+        'NS': 0.14, 'NT': 0.05, 'NU': 0.05, 'ON': 0.13, 'QC': 0.05, 
+        'PE': 0.15, 'SK': 0.05, 'YT': 0.05
       };
       const rate = CA_TAX_RATES[provState] ?? 0;
       serverTax = parseFloat((serverSubtotal * rate).toFixed(2));
+      serverShippingCost = parseFloat((totalQty * 10).toFixed(2));
     } else if (country === 'US') {
       const US_TAX_RATES = {
         CA: 0.0725, NY: 0.08, TX: 0.0625, FL: 0.06, WA: 0.065, IL: 0.0625, PA: 0.06, OH: 0.0575, GA: 0.04, NC: 0.0475,
@@ -104,6 +107,9 @@ router.post('/create-order', optionalAuth, async (req, res, next) => {
       };
       const rate = US_TAX_RATES[provState] ?? 0;
       serverTax = parseFloat((serverSubtotal * rate).toFixed(2));
+      
+      const isExpedited = (shippingSpeed || '').toLowerCase().includes('expedited');
+      serverShippingCost = parseFloat((totalQty * (isExpedited ? 7 : 5)).toFixed(2));
     }
 
     const serverTotal = parseFloat((serverSubtotal + serverShippingCost + serverTax).toFixed(2));
@@ -146,11 +152,11 @@ router.post('/create-order', optionalAuth, async (req, res, next) => {
           reference_id: internalOrder.order_number,
           amount: {
             currency_code: internalOrder.currency,
-            value: internalOrder.total.toFixed(2),
+            value: Number(internalOrder.total).toFixed(2),
             breakdown: {
-              item_total: { currency_code: internalOrder.currency, value: internalOrder.subtotal.toFixed(2) },
-              shipping: { currency_code: internalOrder.currency, value: internalOrder.shipping_cost.toFixed(2) },
-              tax_total: { currency_code: internalOrder.currency, value: internalOrder.tax.toFixed(2) }
+              item_total: { currency_code: internalOrder.currency, value: Number(internalOrder.subtotal).toFixed(2) },
+              shipping: { currency_code: internalOrder.currency, value: Number(internalOrder.shipping_cost).toFixed(2) },
+              tax_total: { currency_code: internalOrder.currency, value: Number(internalOrder.tax).toFixed(2) }
             }
           },
           shipping: {

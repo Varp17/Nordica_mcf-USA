@@ -51,6 +51,8 @@ router.get("/",authenticateToken, async (req, res) => {
     const query = `
       SELECT 
         o.*,
+        o.actual_shipping_cost as actualShippingCost,
+        o.shipping_profit_loss as shippingProfitLoss,
         (SELECT JSON_ARRAYAGG(JSON_OBJECT('id', oi.id, 'product_id', oi.product_id, 'quantity', oi.quantity, 'price_at_purchase', oi.price_at_purchase, 'product_name_at_purchase', oi.product_name_at_purchase, 'image_url_at_purchase', oi.image_url_at_purchase)) FROM order_items oi WHERE oi.order_id = o.id) as items
       FROM orders o
       WHERE o.user_id = ?
@@ -360,6 +362,8 @@ router.get("/:orderId", optionalAuth, async (req, res) => {
         o.id, o.created_at, o.total, o.status, o.subtotal, 
         o.shipping_cost, o.tax_amount, o.payment_method, o.payment_status,
         o.shipping_address, o.user_id, o.guest_email,
+        o.actual_shipping_cost as actualShippingCost,
+        o.shipping_profit_loss as shippingProfitLoss,
         (SELECT JSON_ARRAYAGG(
           JSON_OBJECT(
             'id', oi.id, 

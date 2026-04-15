@@ -375,6 +375,8 @@ CREATE TABLE orders (
   tax                        DECIMAL(12,2)  NOT NULL DEFAULT 0.00,
   tax_amount                 DECIMAL(12,2)  NOT NULL DEFAULT 0.00,
   shipping_cost              DECIMAL(12,2)  NOT NULL DEFAULT 0.00,
+  actual_shipping_cost       DECIMAL(12,2)  DEFAULT NULL,
+  shipping_profit_loss       DECIMAL(12,2)  DEFAULT NULL,
   total                      DECIMAL(12,2)  NOT NULL,
   currency                   CHAR(3)        DEFAULT 'USD',
   

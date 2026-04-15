@@ -27,6 +27,10 @@ const productSchema = Joi.object({
   description_ar: Joi.string().allow(null, "").optional(),
   image: Joi.string().allow(null, "").optional(),
   sku: Joi.string().allow(null, "").optional(),
+  amazon_sku: Joi.string().allow(null, "").optional(),
+  asin: Joi.string().allow(null, "").optional(),
+  weight_kg: Joi.number().allow(null).optional(),
+  dimensions: Joi.string().allow(null, "").optional(),
   in_stock: Joi.number().integer().min(0).required(),
   category_id: Joi.string().required(),
   brand_id: Joi.string().required(),
@@ -559,8 +563,8 @@ router.post("/", authenticateToken, requireAdmin, async (req, res) => {
   }
 
   let { 
-    name, name_ar, price, original_price, description, description_ar, image, sku, 
-    in_stock, category, brand, category_id, brand_id, target_country 
+    name, name_ar, price, original_price, description, description_ar, image, sku, amazon_sku,
+    weight_kg, dimensions, in_stock, category, brand, category_id, brand_id, target_country 
   } = value;
 
   try {
@@ -576,16 +580,16 @@ router.post("/", authenticateToken, requireAdmin, async (req, res) => {
 
     const sql = `
       INSERT INTO products (
-        id, name, name_ar, price, original_price, description, description_ar, image, images, sku, 
-        in_stock, availability, category_id, brand_id, category, brand, target_country
+        id, name, name_ar, price, original_price, description, description_ar, image, images, sku, amazon_sku,
+        weight_kg, dimensions, in_stock, availability, category_id, brand_id, category, brand, target_country
       ) 
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
     
     await db.execute(sql, [
       newProductId, name, name_ar || null, parseFloat(price), original_price ? parseFloat(original_price) : null,
-      description || null, description_ar || null, image || null, JSON.stringify([]), sku || null, 
-      stockCount, availability, category_id, brand_id, category, brand, target_country || 'both'
+      description || null, description_ar || null, image || null, JSON.stringify([]), sku || null, amazon_sku || null,
+      weight_kg || null, dimensions || null, stockCount, availability, category_id, brand_id, category, brand, target_country || 'both'
     ]);
 
     res.status(201).json({ message: "Product created successfully", productId: newProductId });
@@ -628,8 +632,10 @@ router.put("/:id", authenticateToken, requireAdmin, async (req, res) => {
       return res.status(400).json({ error: error.details[0].message })
     }
 
-    const { name, name_ar, price, original_price, description, description_ar, image_url, brand, category, sku, key_features, specifications } =
-      value
+    const { 
+      name, name_ar, price, original_price, description, description_ar, image, brand, category, 
+      sku, amazon_sku, weight_kg, dimensions, key_features, specifications, target_country 
+    } = value;
 
     // Get category and brand IDs
     const [categories] = await db.execute("SELECT id FROM categories WHERE name = ?", [category])
@@ -641,8 +647,8 @@ router.put("/:id", authenticateToken, requireAdmin, async (req, res) => {
     const [result] = await db.execute(
       `UPDATE products SET 
        name = ?, name_ar = ?, price = ?, original_price = ?, description = ?, description_ar = ?, 
-       image = ?, brand = ?, category = ?, category_id = ?, brand_id = ?, sku = ?,
-       key_features = ?, specifications = ?, target_country = ?, updated_at = NOW()
+       image = ?, brand = ?, category = ?, category_id = ?, brand_id = ?, sku = ?, amazon_sku = ?,
+       weight_kg = ?, dimensions = ?, key_features = ?, specifications = ?, target_country = ?, updated_at = NOW()
        WHERE id = ?`,
       [
         name,
@@ -657,6 +663,9 @@ router.put("/:id", authenticateToken, requireAdmin, async (req, res) => {
         categoryId,
         brandId,
         sku || null,
+        amazon_sku || null,
+        weight_kg || null,
+        dimensions || null,
         key_features ? JSON.stringify(key_features) : null,
         specifications ? JSON.stringify(specifications) : null,
         target_country || 'both',

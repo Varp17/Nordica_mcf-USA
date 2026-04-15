@@ -129,57 +129,105 @@ export async function findVariantById(identifier) {
 }
 
 export async function validateCartItems(cartItems, country = 'US') {
+  if (country === 'CA') {
+    return validateCACartItems(cartItems);
+  }
+  return validateUSCartItems(cartItems);
+}
+
+/**
+ * ── CANADA: Local fulfillment logic ──
+ * No amazon_sku required, focuses on local inventory and weight.
+ */
+async function validateCACartItems(cartItems) {
   const errors = [];
   const validItems = [];
 
   for (const cartItem of (cartItems || [])) {
     let idValue = cartItem.variantId || cartItem.id || cartItem.sku;
-    let baseProductId = idValue;
-    let colorValue = null;
-    if (typeof idValue === 'string' && idValue.includes('::')) {
-      [baseProductId, colorValue] = idValue.split('::');
+    let [baseProductId, colorValue] = typeof idValue === 'string' && idValue.includes('::') 
+      ? idValue.split('::') 
+      : [idValue, null];
+
+    const quantity = parseInt(cartItem.quantity || 1, 10);
+    if (isNaN(quantity) || quantity <= 0) {
+      errors.push(`Invalid quantity for item ${idValue}`);
+      continue;
     }
 
     const product = await findVariantById(baseProductId);
     if (!product) {
-      logger.warn(`Cart validation: Item ${idValue} not found`);
       errors.push(`Product ${idValue} not found or inactive`);
       continue;
     }
 
-    // Stock check — works for both US and CA (uses inventory_cache or stock column)
-    const stockCheck = await checkStock(idValue, cartItem.quantity || 1);
+    // CHECK REGION: Prevent US-only products in CA checkout
+    if (product.target_country === 'us') {
+      errors.push(`"${product.name}" is only available for US customers. Please remove it from your cart.`);
+      continue;
+    }
+
+    const stockCheck = await checkStock(idValue, quantity);
     if (!stockCheck.available) {
-      errors.push(`Insufficient stock for ${product.name}: requested ${cartItem.quantity || 1}, available ${stockCheck.currentStock}`);
+      errors.push(`Insufficient stock for ${product.name}: requested ${quantity}, available ${stockCheck.currentStock}`);
       continue;
     }
 
-    // ── CANADA: Local fulfillment — no amazon_sku required ────────────────────
-    if (country === 'CA') {
-      // Use any available identifier as the SKU for label/order reference
-      const sku = product.sku || product.amazon_sku || idValue;
+    const sku = product.sku || product.amazon_sku || idValue;
+    validItems.push({
+      variantId:   idValue,
+      productId:   product.id,
+      sku:         sku,
+      productName: product.name,
+      quantity:    quantity,
+      unitPrice:   parseFloat(cartItem.price || product.price),
+      weightKg:    parseFloat(product.weight_kg || 0.5),
+      weight_kg:   parseFloat(product.weight_kg || 0.5),
+      dimensions:  product.dimensions || null,
+      country:     'CA'
+    });
+  }
 
-      validItems.push({
-        variantId:   idValue,
-        productId:   product.id,
-        sku:         sku,
-        productName: product.name,
-        product_name: product.name,
-        quantity:    cartItem.quantity || 1,
-        unitPrice:   parseFloat(cartItem.price || product.price),
-        weightKg:    parseFloat(product.weight_kg || 0.5),
-        weight_kg:   parseFloat(product.weight_kg || 0.5),
-        dimensions:  product.dimensions || null,
-        country:     product.country
-      });
+  const subtotal = validItems.reduce((sum, item) => sum + (item.unitPrice * item.quantity), 0);
+  return { valid: errors.length === 0, errors, items: validItems, subtotal: parseFloat(subtotal.toFixed(2)) };
+}
+
+/**
+ * ── USA: Amazon MCF fulfillment logic ──
+ * amazon_sku IS REQUIRED. Strict validation for exports/regional availability.
+ */
+async function validateUSCartItems(cartItems) {
+  const errors = [];
+  const validItems = [];
+
+  for (const cartItem of (cartItems || [])) {
+    let idValue = cartItem.variantId || cartItem.id || cartItem.sku;
+    let [baseProductId, colorValue] = typeof idValue === 'string' && idValue.includes('::') 
+      ? idValue.split('::') 
+      : [idValue, null];
+
+    const quantity = parseInt(cartItem.quantity || 1, 10);
+    if (isNaN(quantity) || quantity <= 0) {
+      errors.push(`Invalid quantity for item ${idValue}`);
       continue;
     }
 
-    // ── USA: Amazon MCF fulfillment — amazon_sku is required ─────────────────
+    const product = await findVariantById(baseProductId);
+    if (!product) {
+      errors.push(`Product ${idValue} not found or inactive`);
+      continue;
+    }
+
+    const stockCheck = await checkStock(idValue, quantity);
+    if (!stockCheck.available) {
+      errors.push(`Insufficient stock for ${product.name}: requested ${quantity}, available ${stockCheck.currentStock}`);
+      continue;
+    }
+
+    // Resolve Amazon SKU for US fulfillment
     let sku = null;
     let variantName = product.name;
 
-    // Priority 1: variant-level amazon_sku from color_options
     if (colorValue && Array.isArray(product.color_options)) {
       const searchColor = colorValue.trim().toLowerCase();
       const option = product.color_options.find(o =>
@@ -193,14 +241,16 @@ export async function validateCartItems(cartItems, country = 'US') {
       }
     }
 
-    // Priority 2: product-level amazon_sku
     if (!sku && product.amazon_sku) {
       sku = product.amazon_sku;
     }
 
     if (!sku) {
-      logger.error(`No valid amazon_sku for US product: ${product.name}`);
-      errors.push(`Product ${product.name} is unavailable for US fulfillment`);
+      if (product.country === 'CAD' || product.country === 'CA' || product.target_country === 'canada') {
+        errors.push(`"${product.name}" is only available for Canadian customers. Please remove it from your cart to proceed with US checkout.`);
+      } else {
+        errors.push(`"${product.name}" is currently unavailable for US fulfillment (Missing Amazon SKU).`);
+      }
       continue;
     }
 
@@ -211,25 +261,18 @@ export async function validateCartItems(cartItems, country = 'US') {
       sellerSku:   sku,
       productName: variantName,
       product_name: variantName,
-      quantity:    cartItem.quantity || 1,
-      unitPrice:   parseFloat(product.price), // ALWAYS use database price for production
+      quantity:    quantity,
+      unitPrice:   parseFloat(product.price),
       weightKg:    parseFloat(product.weight_kg || 0.5),
       weight_kg:   parseFloat(product.weight_kg || 0.5),
       dimensions:  product.dimensions || null,
-      country:     product.country,
+      country:     'US',
       sellerFulfillmentOrderItemId: `item-${validItems.length + 1}`
     });
   }
 
-  // Calculate true subtotal from validated items
   const subtotal = validItems.reduce((sum, item) => sum + (item.unitPrice * item.quantity), 0);
-
-  return { 
-    valid: errors.length === 0, 
-    errors, 
-    items: validItems, 
-    subtotal: parseFloat(subtotal.toFixed(2)) 
-  };
+  return { valid: errors.length === 0, errors, items: validItems, subtotal: parseFloat(subtotal.toFixed(2)) };
 }
 
 export async function deductStock(items, connection = null) {
@@ -358,8 +401,8 @@ export async function checkStock(identifier, quantity = 1) {
       (o.value && o.value.toLowerCase() === searchColor) || 
       (o.name && o.name.toLowerCase() === searchColor)
     );
-    if (option) {
-      currentStock = option.stock !== undefined ? option.stock : (option.inventory_cache || 0);
+    if (option && (option.stock !== undefined || option.inventory_cache !== undefined)) {
+      currentStock = option.stock !== undefined ? option.stock : option.inventory_cache;
     }
   }
 

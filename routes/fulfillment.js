@@ -92,28 +92,37 @@ router.post('/preview', async (req, res) => {
         return dp?.estimation || defaultEst;
     };
 
-    const hardcodedPreviews = [
+    const totalQty = validatedItems.reduce((sum, item) => sum + (item.quantity || 1), 0);
+
+    const allOptions = [
       {
-        id: 'Standard',
+        id: 'standard',
         name: 'Standard Shipping',
-        price: 4.99,
+        price: parseFloat((totalQty * 5).toFixed(2)),
         currency: 'USD',
         estimation: getEst('Standard', 'Estimated 3-5 business days'),
         shippingSpeedCategory: 'Standard'
       },
       {
-        id: 'Expedited',
+        id: 'expedited',
         name: 'Expedited Shipping',
-        price: 7.99,
+        price: parseFloat((totalQty * 7).toFixed(2)),
         currency: 'USD',
         estimation: getEst('Expedited', 'Estimated 2-3 business days'),
         shippingSpeedCategory: 'Expedited'
       }
     ];
 
+    const availableSpeeds = new Set(dynamicPreviews.filter(p => p.isFulfillable).map(p => p.shippingSpeedCategory));
+    const hardcodedPreviews = allOptions.filter(o => availableSpeeds.has(o.shippingSpeedCategory));
+
+    if (hardcodedPreviews.length === 0) {
+        hardcodedPreviews.push(allOptions[0]);
+    }
+
     return res.json({ 
       success: true, 
-      previews: [...hardcodedPreviews, ...dynamicPreviews]
+      previews: [...hardcodedPreviews]
     });
   } catch (err) {
     logger.error(`POST /api/fulfillment/preview error: ${err.message}`, {
@@ -145,26 +154,19 @@ router.post('/rates', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Cart validation failed', errors });
     }
 
-    const rates = await shippoService.getShippingRates({
-      shipping_first_name: shipping?.firstName,
-      shipping_last_name: shipping?.lastName,
-      shipping_address1: shipping?.address1 || shipping?.address,
-      shipping_city: shipping?.city,
-      shipping_province: shipping?.province || shipping?.state,
-      shipping_postal_code: shipping?.postalCode || shipping?.zip,
-      items: validatedItems
-    });
+    const totalQty = validatedItems.reduce((sum, item) => sum + (item.quantity || 1), 0);
+    const fixedRate = {
+        id: 'standard_ca',
+        name: 'Standard Shipping',
+        price: parseFloat((totalQty * 10).toFixed(2)),
+        currency: 'CAD',
+        estimation: 'Estimated 3-7 business days',
+        isFulfillable: true
+    };
 
     return res.json({ 
         success: true, 
-        rates: rates.map(r => ({
-            ...r,
-            id: r.rateId,
-            name: r.serviceName,
-            price: r.amount,
-            estimation: r.estimatedDays ? `Estimated ${r.estimatedDays} business days` : r.durationTerms || 'Reliable Delivery',
-            isFulfillable: true
-        })) 
+        rates: [fixedRate]
     });
   } catch (err) {
     logger.error(`POST /api/fulfillment/rates error: ${err.message}`);
@@ -221,14 +223,14 @@ router.post('/calculate-tax', async (req, res) => {
     if (country === 'CA') {
       const province = (req.body.province || state || '').toUpperCase();
       const CA_TAX_RATES = {
-        'AB': 0.05, 'BC': 0.12, 'MB': 0.12, 'NB': 0.15, 'NL': 0.15,
-        'NS': 0.15, 'NT': 0.05, 'NU': 0.05, 'ON': 0.13, 'PE': 0.15,
-        'QC': 0.14975, 'SK': 0.11, 'YT': 0.05
+        'AB': 0.05, 'BC': 0.05, 'MB': 0.05, 'NB': 0.15, 'NL': 0.15,
+        'NS': 0.14, 'NT': 0.05, 'NU': 0.05, 'ON': 0.13, 'QC': 0.05, 
+        'PE': 0.15, 'SK': 0.05, 'YT': 0.05
       };
       
       const rate = CA_TAX_RATES[province] ?? 0;
       const tax = parseFloat((sub * rate).toFixed(2));
-      const label = rate === 0.13 ? 'HST (13%)' : rate > 0.05 ? 'GST/HST/PST' : 'GST (5%)';
+      const label = rate >= 0.13 ? `HST (${(rate*100).toFixed(0)}%)` : `GST (${(rate*100).toFixed(0)}%)`;
       
       return res.json({ success: true, tax, tax_label: label, rate });
     }

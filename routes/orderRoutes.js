@@ -67,6 +67,7 @@ router.post('/', optionalAuth, validateCreateOrder, async (req, res) => {
     // ── 0. Security: Guest vs Auth Check ────────────────────────────────────
     let customerId = null;
     if (!req.user) {
+      // If no valid user session, we require guest verification (OTP)
       if (!guestOtpCode) {
         return res.status(401).json({ success: false, message: 'Verification code required for guest checkout' });
       }
@@ -92,24 +93,51 @@ router.post('/', optionalAuth, validateCreateOrder, async (req, res) => {
       }
     }
 
+
     // ── 1. Validate & price cart items ────────────────────────────────────────
-    const { valid, errors, items: validatedItems } = await Product.validateCartItems(items, country);
+    const validation = await Product.validateCartItems(items, country);
+    const { valid, errors, items: validatedItems } = validation;
 
     if (!valid) {
+      logger.error('Order creation: Cart validation failed', { errors, items });
       return res.status(400).json({ success: false, message: 'Cart validation failed', errors });
     }
 
-    // Ensure all items match the order's country (normalized)
-    if (validatedItems.some(i => {
-      let normalized = i.country;
-      if (normalized === 'USA') normalized = 'US';
-      if (normalized === 'CAD') normalized = 'CA';
-      return normalized !== country;
-    })) {
-      return res.status(400).json({ success: false, message: `Some items in your cart are not available for ${country}` });
+    // ── 2. Handle Regional Logic Separately ───────────────────────────────────
+    let serverSubtotal = validation.subtotal;
+    let serverTax = 0;
+    let serverShippingCost = parseFloat(shippingCost || 0);
+
+    const provState = (shipping.province || shipping.state || '').toUpperCase();
+
+    if (country === 'CA') {
+      // CANADA SPECIFIC LOGIC
+      const CA_TAX_RATES = {
+        'AB': 0.05, 'BC': 0.12, 'MB': 0.12, 'NB': 0.15, 'NL': 0.15, 'NS': 0.15, 'NT': 0.05, 'NU': 0.05, 'ON': 0.13, 'PE': 0.15, 'QC': 0.14975, 'SK': 0.11, 'YT': 0.05
+      };
+      const rate = CA_TAX_RATES[provState] ?? 0;
+      serverTax = parseFloat((serverSubtotal * rate).toFixed(2));
+
+      // ENFORCE FIXED SHIPPING: $10 PER PRODUCT for Canada
+      const totalQty = validatedItems.reduce((sum, item) => sum + (item.quantity || 1), 0);
+      serverShippingCost = parseFloat((totalQty * 10).toFixed(2));
+    } else {
+      // USA SPECIFIC LOGIC
+      const US_TAX_RATES = {
+        CA: 0.0725, NY: 0.08, TX: 0.0625, FL: 0.06, WA: 0.065, IL: 0.0625, PA: 0.06, OH: 0.0575, GA: 0.04, NC: 0.0475, MI: 0.06, NJ: 0.0663, VA: 0.053, AZ: 0.056, TN: 0.07, MA: 0.0625, IN: 0.07, MO: 0.04225, MD: 0.06, WI: 0.05, CO: 0.029, MN: 0.06875, SC: 0.06, AL: 0.04, LA: 0.0445, KY: 0.06
+      };
+      const rate = US_TAX_RATES[provState] ?? 0;
+      serverTax = parseFloat((serverSubtotal * rate).toFixed(2));
+
+      // ENFORCE FIXED SHIPPING: $5 (standard) or $7 (expedited) PER PRODUCT
+      const totalQty = validatedItems.reduce((sum, item) => sum + (item.quantity || 1), 0);
+      const isExpedited = (shippingSpeed || '').toLowerCase().includes('expedited');
+      serverShippingCost = parseFloat((totalQty * (isExpedited ? 7 : 5)).toFixed(2));
     }
 
-    // ── 2. Find or create customer ────────────────────────────────────────────
+    const serverTotal = parseFloat((serverSubtotal + serverShippingCost + serverTax).toFixed(2));
+
+    // ── 3. Find or create customer entry ──────────────────────────────────────
     const customer = await Customer.findOrCreate({
       email,
       firstName: shipping.firstName,
@@ -118,28 +146,13 @@ router.post('/', optionalAuth, validateCreateOrder, async (req, res) => {
       country
     });
 
-    // Use the found/created customer ID
-    customerId = customer.id;
+    if (!customerId) {
+        customerId = customer.id;
+    }
 
-    // 1.1 Recalculate Financials (Production Security)
-    const serverSubtotal = validation.subtotal;
-    const serverShippingCost = parseFloat(shippingCost || 0);
-    
-    // Recalculate Tax
-    let serverTax = 0;
-    const provState = (shipping.province || shipping.state || '').toUpperCase();
-    const TAX_RATES = country === 'CA' ? {
-      'AB': 0.05, 'BC': 0.12, 'MB': 0.12, 'NB': 0.15, 'NL': 0.15, 'NS': 0.15, 'NT': 0.05, 'NU': 0.05, 'ON': 0.13, 'PE': 0.15, 'QC': 0.14975, 'SK': 0.11, 'YT': 0.05
-    } : {
-      CA: 0.0725, NY: 0.08, TX: 0.0625, FL: 0.06, WA: 0.065, IL: 0.0625, PA: 0.06, OH: 0.0575, GA: 0.04, NC: 0.0475, MI: 0.06, NJ: 0.0663, VA: 0.053, AZ: 0.056, TN: 0.07, MA: 0.0625, IN: 0.07, MO: 0.04225, MD: 0.06, WI: 0.05, CO: 0.029, MN: 0.06875, SC: 0.06, AL: 0.04, LA: 0.0445, KY: 0.06
-    };
-    const rate = TAX_RATES[provState] ?? 0;
-    serverTax = parseFloat((serverSubtotal * rate).toFixed(2));
-    const serverTotal = parseFloat((serverSubtotal + serverShippingCost + serverTax).toFixed(2));
-
-    // ── 3. Create order in DB ─────────────────────────────────────────────────
+    // ── 4. Create order in DB ─────────────────────────────────────────────────
     const order = await Order.createOrder({
-      customerId: customer.id,
+      customerId: customerId,
       country,
       items: validatedItems,
       shipping,
@@ -156,15 +169,9 @@ router.post('/', optionalAuth, validateCreateOrder, async (req, res) => {
       notes
     });
 
-    // ── 4. Mark as paid ───────────────────────────────────────────────────────
-    await Order.updatePaymentStatus(order.id, {
-      paymentStatus: 'paid',
-      paymentReference,
-      paymentMethod
-    });
-
-    // ── 4.5. Log MCF Actual Shipping Cost and Profit/Loss Margin ─────────────
+    // ── 5. Post-Creation Regional Logic ──────────────────────────────────────
     if (country === 'US') {
+      // Record MCF Actual Margin for US Analytics
       try {
         const address = {
           name: `${shipping?.firstName || ''} ${shipping?.lastName || ''}`.trim() || 'Valued Customer',
@@ -177,40 +184,26 @@ router.post('/', optionalAuth, validateCreateOrder, async (req, res) => {
 
         const previews = await mcfService.getFulfillmentPreview(address, validatedItems);
         let targetSpeed = shippingSpeed || 'Standard';
-        
-        // Strip out any dynamic suffix if they picked a dynamic rate
-        if (targetSpeed.includes('_DYNAMIC')) {
-            targetSpeed = targetSpeed.replace('_DYNAMIC', '');
-        }
-
-        // Standardize capitalization to match Amazon (Standard, Expedited, Priority)
+        if (targetSpeed.includes('_DYNAMIC')) targetSpeed = targetSpeed.replace('_DYNAMIC', '');
         const normalizedTarget = targetSpeed.charAt(0).toUpperCase() + targetSpeed.slice(1).toLowerCase();
 
         const exactPreview = previews.find(p => p.shippingSpeedCategory === normalizedTarget);
         if (exactPreview) {
             const actualCost = parseFloat(exactPreview.totalFee || 0);
             const lossMargin = parseFloat((serverShippingCost - actualCost).toFixed(2));
-            
-            await Order.updateOrder(order.id, {
-                actual_shipping_cost: actualCost,
-                shipping_profit_loss: lossMargin
-            });
-            logger.info(`Recorded MCF Margin for ${order.id}: Paid ${serverShippingCost}, Cost ${actualCost}, Margin ${lossMargin}`);
+            await Order.updateOrder(order.id, { actual_shipping_cost: actualCost, shipping_profit_loss: lossMargin });
         }
       } catch (e) {
         logger.error(`Failed to calculate MCF shipping loss for ${order.id}: ${e.message}`);
       }
     }
 
-    // ── 5. Trigger fulfillment & Invoice (async — don't block the response) ─────────────
-    // We respond to the customer immediately, then fulfill & generate invoice in background
+    // ── 6. Trigger fulfillment (async) ────────────────────────────────────────
     fulfillOrder(order.id).catch((err) => {
       logger.error(`Background fulfillment failed for order ${order.id}: ${err.message}`);
     });
 
-    logger.info(`Order created: ${order.order_number} | Country: ${country} | Total: ${total}`);
-
-    logger.info(`Order created: ${order.order_number} | Country: ${country} | Total: ${total}`);
+    logger.info(`Order created: ${order.order_number} | Country: ${country} | Total: ${serverTotal}`);
 
     return res.status(201).json({
       success: true,
@@ -256,7 +249,12 @@ router.post('/shipping-rates', async (req, res) => {
 
     // 2. Fetch rates based on country
     if (country === 'US') {
-      // ── MCF Preview is the PRIMARY pricing authority ──
+      const totalQty = validatedItems.reduce((sum, item) => sum + (item.quantity || 1), 0);
+      const allOptions = [
+        { id: 'standard', name: 'Standard Shipping', price: parseFloat((totalQty * 5).toFixed(2)), currency: 'USD', estimation: 'Estimated 3-5 business days', speed: 'Standard' },
+        { id: 'expedited', name: 'Expedited Shipping', price: parseFloat((totalQty * 7).toFixed(2)), currency: 'USD', estimation: 'Estimated 2-3 business days', speed: 'Expedited' }
+      ];
+
       try {
         const address = {
           name: `${shipping?.firstName || ''} ${shipping?.lastName || ''}`.trim() || 'Valued Customer',
@@ -266,83 +264,30 @@ router.post('/shipping-rates', async (req, res) => {
           postalCode: shipping?.zip || shipping?.postalCode || '10001',
           countryCode: 'US'
         };
-
         const previews = await mcfService.getFulfillmentPreview(address, validatedItems);
+        const availableSpeeds = new Set(previews.filter(p => p.isFulfillable).map(p => p.shippingSpeedCategory));
         
-        // Use ALL fulfillable rates from Amazon directly — no markup
-        rates = previews
-          .filter(p => p.isFulfillable)
-          .map(p => {
-            const earliest = p.fulfillmentPreviewShipments?.[0]?.earliestArrival;
-            const latest = p.fulfillmentPreviewShipments?.[0]?.latestArrival;
-            
-            let estDays = '';
-            if (earliest && latest) {
-              const daysStart = Math.max(1, Math.ceil((new Date(earliest) - new Date()) / (1000 * 60 * 60 * 24)));
-              const daysEnd = Math.max(1, Math.ceil((new Date(latest) - new Date()) / (1000 * 60 * 60 * 24)));
-              estDays = `Estimated ${daysStart}-${daysEnd} business days`;
-            }
+        rates = allOptions
+          .filter(o => availableSpeeds.has(o.speed))
+          .map(({ speed, ...rest }) => ({ ...rest, isFulfillable: true }));
 
-            return {
-              id: p.shippingSpeedCategory.toLowerCase(),
-              name: `${p.shippingSpeedCategory} Shipping`,
-              price: p.totalFee,    // Amazon's exact price — no buffer
-              currency: p.currency || 'USD',
-              estimation: estDays || 'Fast & Reliable Delivery',
-              isFulfillable: true
-            };
-          });
-
-      } catch (mcfErr) {
-        logger.error(`MCF Preview Error: ${mcfErr.message}`);
+      } catch (e) {
+        logger.error(`MCF Availability Check Failed: ${e.message}`);
       }
 
-      // FALLBACK: Manual calculator only if MCF returned nothing
       if (rates.length === 0) {
-        logger.info('shipping-rates: MCF unavailable, using manual fallback');
-        const manualResult = mcfService.calculateManualEstimate(validatedItems);
-        rates = [{
-          id: 'standard',
-          name: 'Standard Shipping',
-          price: manualResult[0]?.totalFee || 9.99,
-          currency: 'USD',
-          estimation: 'Estimated 5-7 business days (offline estimate)',
-          isFulfillable: true
-        }];
+        rates = [allOptions[0]].map(({ speed, ...rest }) => ({ ...rest, isFulfillable: true }));
       }
     } else if (country === 'CA') {
-      try {
-        const shippoRates = await shippoService.getShippingRates({
-          shipping_first_name: shipping?.firstName,
-          shipping_last_name: shipping?.lastName,
-          shipping_address1: shipping?.address1,
-          shipping_address2: shipping?.address2,
-          shipping_city: shipping?.city,
-          shipping_province: shipping?.province || shipping?.state,
-          shipping_postal_code: shipping?.postalCode || shipping?.zip,
-          items: validatedItems
-        });
-
-        rates = shippoRates.map(r => ({
-          id: r.rateId,
-          name: r.serviceName,
-          price: r.amount,
-          currency: r.currency,
-          estimation: r.estimatedDays ? `Estimated ${r.estimatedDays} business days` : (r.durationTerms || 'Standard Shipping'),
-          isFulfillable: true
-        }));
-      } catch (shippoErr) {
-        logger.error(`Shippo Preview Error: ${shippoErr.message}`);
-        // Fallback for CA
-        rates = [{
-          id: 'standard',
-          name: 'Standard Shipping',
-          price: 15.00,
-          currency: 'CAD',
-          estimation: 'Estimated 6-10 business days',
-          isFulfillable: true
-        }];
-      }
+      const totalQty = validatedItems.reduce((sum, item) => sum + (item.quantity || 1), 0);
+      rates = [{
+        id: 'standard_ca',
+        name: 'Standard Shipping',
+        price: parseFloat((totalQty * 10).toFixed(2)),
+        currency: 'CAD',
+        estimation: 'Estimated 3-7 business days',
+        isFulfillable: true
+      }];
     }
 
     return res.json({ success: true, rates });
