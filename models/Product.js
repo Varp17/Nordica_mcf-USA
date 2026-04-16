@@ -309,13 +309,21 @@ export async function validateCartItems(cartItems, country = 'US') {
   const validItems = [];
 
   for (const cartItem of (cartItems || [])) {
-    const identifier = cartItem.variantId || cartItem.id || cartItem.sku;
+    let identifier = cartItem.variantId || cartItem.id || cartItem.sku;
     const quantity = Math.max(1, parseInt(cartItem.quantity) || 1);
 
-    const product = await findVariantById(identifier);
+    let product = await findVariantById(identifier);
+    
+    // EDGE CASE: If composite ID (slug::color) isn't found, fallback to pure SKU if available
+    if (!product && cartItem.sku && identifier !== cartItem.sku) {
+       logger.warn(`Cart validation fallback for item ${cartItem.sku} from identifier ${identifier}`);
+       product = await findVariantById(cartItem.sku);
+       if (product) identifier = cartItem.sku;
+    }
+
     if (!product) {
-      errors.push(`Product not found: ${identifier}`);
-      continue;
+       errors.push(`Product not found: ${identifier}`);
+       continue;
     }
 
     // Region restriction
@@ -351,6 +359,7 @@ export async function validateCartItems(cartItems, country = 'US') {
       productName: product.name,
       quantity,
       unitPrice: product.price,
+      image: product.image, // CAPTURE IMAGE FOR ORDER HISTORY
       weight_kg: product.weight_kg || 0.5,
       dimensions: product.dimensions || '20x15x10',
       country

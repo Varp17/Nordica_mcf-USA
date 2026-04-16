@@ -114,16 +114,22 @@ router.post('/', optionalAuth, validateCreateOrder, async (req, res) => {
 
     let serverShippingCost = 0;
     const totalQty = validatedItems.reduce((sum, item) => sum + (item.quantity || 1), 0);
+    const isFree = serverSubtotal >= 100;
 
-    if (country === 'CA') {
+    if (isFree) {
+      serverShippingCost = 0;
+    } else if (country === 'CA') {
       serverShippingCost = parseFloat((totalQty * 10).toFixed(2));
     } else {
-      // USA SPECIFIC LOGIC
-
-      // ENFORCE FIXED SHIPPING: $5 (standard) or $7 (expedited) PER PRODUCT
-      const totalQty = validatedItems.reduce((sum, item) => sum + (item.quantity || 1), 0);
-      const isExpedited = (shippingSpeed || '').toLowerCase().includes('expedited');
-      serverShippingCost = parseFloat((totalQty * (isExpedited ? 7 : 5)).toFixed(2));
+      // USA SPECIFIC LOGIC: Fixed Flat Rates $5 / $7 / $15
+      const speed = (shippingSpeed || '').toLowerCase();
+      if (speed.includes('priority')) {
+        serverShippingCost = 15.00;
+      } else if (speed.includes('expedited')) {
+        serverShippingCost = 7.00;
+      } else {
+        serverShippingCost = 5.00;
+      }
     }
 
     const serverTotal = parseFloat((serverSubtotal + serverShippingCost + serverTax).toFixed(2));
@@ -238,12 +244,15 @@ router.post('/shipping-rates', async (req, res) => {
 
     let rates = [];
 
+    const subtotal = validatedItems.reduce((sum, item) => sum + (item.unitPrice * item.quantity), 0);
+    const isFree = subtotal >= 100;
+
     // 2. Fetch rates based on country
     if (country === 'US') {
-      const totalQty = validatedItems.reduce((sum, item) => sum + (item.quantity || 1), 0);
       const allOptions = [
-        { id: 'standard', name: 'Standard Shipping', price: parseFloat((totalQty * 5).toFixed(2)), currency: 'USD', estimation: 'Estimated 3-5 business days', speed: 'Standard' },
-        { id: 'expedited', name: 'Expedited Shipping', price: parseFloat((totalQty * 7).toFixed(2)), currency: 'USD', estimation: 'Estimated 2-3 business days', speed: 'Expedited' }
+        { id: 'standard', name: 'Standard Shipping', price: isFree ? 0 : 5.00, currency: 'USD', estimation: 'Estimated 3-5 business days', speed: 'Standard' },
+        { id: 'expedited', name: 'Expedited Shipping', price: isFree ? 0 : 7.00, currency: 'USD', estimation: 'Estimated 2-3 business days', speed: 'Expedited' },
+        { id: 'priority', name: 'Priority Shipping', price: isFree ? 0 : 15.00, currency: 'USD', estimation: 'Estimated 1-2 business days', speed: 'Priority' }
       ];
 
       try {
@@ -274,7 +283,7 @@ router.post('/shipping-rates', async (req, res) => {
       rates = [{
         id: 'standard_ca',
         name: 'Standard Shipping',
-        price: parseFloat((totalQty * 10).toFixed(2)),
+        price: isFree ? 0 : parseFloat((totalQty * 10).toFixed(2)),
         currency: 'CAD',
         estimation: 'Estimated 3-7 business days',
         isFulfillable: true

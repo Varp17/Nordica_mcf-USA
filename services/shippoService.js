@@ -177,7 +177,8 @@ export async function createShipment(order) {
     trackingUrl: transaction.tracking_url_provider,
     labelUrl: transaction.label_url,
     carrier: selectedRate.provider,
-    serviceName: selectedRate.servicelevel?.name || selectedRate.provider
+    serviceName: selectedRate.servicelevel?.name || selectedRate.provider,
+    actualCost: parseFloat(selectedRate.amount || 0)
   };
 }
 

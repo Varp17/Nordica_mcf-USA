@@ -76,16 +76,34 @@ export async function createOrder(orderData) {
     );
 
     for (const item of orderData.items) {
+      const unitPrice = parseFloat(item.unitPrice || item.unit_price || 0);
+      const quantity = parseInt(item.quantity) || 1;
+      const totalPrice = parseFloat((unitPrice * quantity).toFixed(2));
+      const productName = item.productName || item.product_name || 'Product';
+      const imageUrl = item.image || item.image_url || null;
+
       await conn.execute(
         `INSERT INTO order_items (
            id, order_id, product_variant_id, product_id,
-           sku, fnsku, product_name, quantity, unit_price, total_price,
+           sku, fnsku, product_name, quantity, 
+           unit_price, total_price,
+           price_at_purchase, product_name_at_purchase, image_url_at_purchase,
            weight_kg, created_at
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
         [
-          generateUUID(), orderId, item.variantId || item.product_variant_id || null, item.productId || item.product_id || null,
-          item.sku || null, item.fnsku || null, item.productName || item.product_name || 'Product', item.quantity || 1,
-          parseFloat(item.unitPrice || item.unit_price || 0), parseFloat(item.totalPrice || item.total_price || 0),
+          generateUUID(), 
+          orderId, 
+          item.variantId || item.product_variant_id || null, 
+          item.productId || item.product_id || null,
+          item.sku || null, 
+          item.fnsku || null, 
+          productName, 
+          quantity,
+          unitPrice, 
+          totalPrice,
+          unitPrice, // price_at_purchase
+          productName, // product_name_at_purchase
+          imageUrl, // image_url_at_purchase
           item.weightKg || item.weight_kg || 0.5
         ]
       );

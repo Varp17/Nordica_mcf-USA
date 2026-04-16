@@ -217,4 +217,68 @@ export async function cancelFulfillmentOrder(sellerFulfillmentOrderId) {
   }
 }
 
-export default { createFulfillmentOrder, getFulfillmentOrder, getFulfillmentPreview, listInventory, cancelFulfillmentOrder };
+/**
+ * GET /products/pricing/v0/price
+ * Fetch the current competitive pricing for a SKU from Amazon.
+ */
+export async function getProductPriceFromAmazon(sku) {
+  const marketplaceId = process.env.AMAZON_MARKETPLACE_ID_US || 'ATVPDKIKX0DER';
+  
+  try {
+    const response = await spApiRequest('GET', '/products/pricing/v0/price', null, {
+      MarketplaceId: marketplaceId,
+      ItemType: 'Sku',
+      Skus: [sku]
+    });
+
+    const payload = response.data?.payload;
+    if (!payload || !payload[0]) return null;
+
+    // Extract the 'Listing Price' (the price the customer currently sees)
+    const productData = payload[0].Product;
+    const listingPrice = productData?.Offers?.[0]?.BuyingPrice?.ListingPrice?.Amount;
+
+    return listingPrice ? parseFloat(listingPrice) : null;
+
+  } catch (err) {
+    logger.error(`Pricing: Failed to fetch price for SKU ${sku}: ${err.message}`);
+    return null;
+  }
+}
+
+/**
+ * GET /catalog/2022-04-01/items/{asin}
+ * Fetch catalog metadata including ratings and review counts if available.
+ */
+export async function getAmazonCatalogMetadata(asin) {
+  const marketplaceId = process.env.AMAZON_MARKETPLACE_ID_US || 'ATVPDKIKX0DER';
+  
+  try {
+    const response = await spApiRequest('GET', `/catalog/2022-04-01/items/${asin}`, null, {
+      marketplaceIds: [marketplaceId],
+      includedData: ['summaries', 'attributes']
+    });
+
+    const summary = response.data?.summaries?.[0];
+    // Note: Ratings are often restricted to Brand owners or via Advertising API.
+    // If not found, we return null to allow for fallback or manual entry.
+    return {
+      name: summary?.itemName,
+      rating: summary?.rating || null,
+      reviewCount: summary?.reviewCount || null
+    };
+  } catch (err) {
+    logger.error(`Catalog: Failed to fetch metadata for ASIN ${asin}: ${err.message}`);
+    return null;
+  }
+}
+
+export default { 
+  createFulfillmentOrder, 
+  getFulfillmentOrder, 
+  getFulfillmentPreview, 
+  listInventory, 
+  cancelFulfillmentOrder, 
+  getProductPriceFromAmazon,
+  getAmazonCatalogMetadata
+};

@@ -299,14 +299,33 @@ router.post("/", optionalAuth, async (req, res, next) => {
     const total_amount = parseFloat((subtotal + shipping_cost + tax_amount).toFixed(2));
     const shipping_speed = req.body.shippingMethod || req.body.shippingSpeed || 'standard';
 
+    // SECURITY GUARD: Ensure free shipping is ONLY allowed for orders over $100
+    if (shipping_cost === 0 && calculatedSubtotal < 100) {
+      return res.status(403).json({ success: false, message: 'Free shipping only applies to orders over $100.' });
+    }
+
+    // NEW: Capture Shipping Sustainability Projections ON CREATION
+    let projectedSus = { actual_shipping_cost: 0, shipping_profit_loss: 0 };
+    try {
+      projectedSus = await fulfillmentService.getProjectedSustainability(
+        country, 
+        shipping_address, 
+        cartItems, 
+        shipping_cost
+      );
+    } catch (susErr) {
+      console.error("Sustainability probe failed, using defaults:", susErr);
+    }
+
     // 4. Create the main order record
     const newOrderId = uuidv4();
     await connection.execute(
       `INSERT INTO orders (
         id, user_id, guest_email, created_at, subtotal, shipping_cost, 
         tax_amount, total, status, payment_method, payment_status, 
-        shipping_address, shipping_speed, country
-      ) VALUES (?, ?, ?, NOW(), ?, ?, ?, ?, 'processing', ?, 'pending', ?, ?, ?)`,
+        shipping_address, shipping_speed, country,
+        actual_shipping_cost, shipping_profit_loss
+      ) VALUES (?, ?, ?, NOW(), ?, ?, ?, ?, 'processing', ?, 'pending', ?, ?, ?, ?, ?)`,
       [
         newOrderId, 
         userId, 
@@ -317,8 +336,10 @@ router.post("/", optionalAuth, async (req, res, next) => {
         total_amount, 
         payment_method, 
         JSON.stringify(shipping_address),
-        shipping_speed, // Store the rate ID or speed category
-        country
+        shipping_speed, 
+        country,
+        projectedSus.actual_shipping_cost,
+        projectedSus.shipping_profit_loss
       ]
     );
 

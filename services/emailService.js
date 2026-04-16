@@ -208,28 +208,47 @@ function wrapEmail(headerTitle, headerSub, bodyContent) {
 }
 
 function itemsTableHtml(items = [], subtotal, shipping, tax, total) {
-  const rows = (items || []).map(item => `
+  const storeWebsite = process.env.STORE_WEBSITE || 'https://detailguardz.com';
+  const apiBase = process.env.API_BASE_URL || 'http://localhost:5000';
+
+  const rows = (items || []).map(item => {
+    const productName = item.product_name_at_purchase || item.product_name || 'Product';
+    const imageUrl = item.image_url_at_purchase || item.image || '';
+    const absoluteImg = imageUrl.startsWith('http') ? imageUrl : `${apiBase}${imageUrl.startsWith('/') ? '' : '/'}${imageUrl}`;
+    const productUrl = item.slug ? `${storeWebsite}/products/${item.slug}` : `${storeWebsite}/products`;
+    const price = item.price_at_purchase || item.unit_price || 0;
+
+    return `
     <tr>
-      <td>${item.product_name}</td>
+      <td style="padding: 10px 0; width: 60px;">
+        <img src="${absoluteImg}" alt="${productName}" style="width: 50px; height: 50px; object-fit: cover; border-radius: 4px; background: #f9fafb;" />
+      </td>
+      <td style="padding: 10px 12px;">
+        <div style="font-weight: 600; color: #333;">
+          <a href="${productUrl}" style="color: #1a6a8a; text-decoration: none;">${productName}</a>
+        </div>
+        <div style="font-size: 11px; color: #888;">SKU: ${item.sku || 'N/A'}</div>
+      </td>
       <td style="text-align:center;">${item.quantity}</td>
-      <td style="text-align:right;">${formatCurrency(item.unit_price)}</td>
-      <td style="text-align:right;">${formatCurrency(item.unit_price * item.quantity)}</td>
-    </tr>`).join('');
+      <td style="text-align:right;">${formatCurrency(price)}</td>
+      <td style="text-align:right;">${formatCurrency(price * item.quantity)}</td>
+    </tr>`;
+  }).join('');
 
   return `
-    <table class="order-table">
-      <thead><tr>
-        <th>Product</th>
-        <th style="text-align:center;">Qty</th>
-        <th style="text-align:right;">Unit Price</th>
-        <th style="text-align:right;">Total</th>
+    <table class="order-table" style="width: 100%; border-collapse: collapse; margin-top: 20px;">
+      <thead><tr style="border-bottom: 2px solid #edf2f7;">
+        <th colspan="2" style="text-align: left; padding-bottom: 10px;">Item</th>
+        <th style="text-align:center; padding-bottom: 10px;">Qty</th>
+        <th style="text-align:right; padding-bottom: 10px;">Price</th>
+        <th style="text-align:right; padding-bottom: 10px;">Amount</th>
       </tr></thead>
       <tbody>${rows}</tbody>
-      <tfoot>
-        <tr class="totals-row"><td colspan="3">Subtotal</td><td style="text-align:right;">${formatCurrency(subtotal)}</td></tr>
-        <tr class="totals-row"><td colspan="3">Shipping</td><td style="text-align:right;">${formatCurrency(shipping || 0)}</td></tr>
-        <tr class="totals-row"><td colspan="3">Tax</td><td style="text-align:right;">${formatCurrency(tax || 0)}</td></tr>
-        <tr class="totals-row" style="font-size:16px;"><td colspan="3"><strong>Order Total</strong></td>
+      <tfoot style="border-top: 2px solid #edf2f7;">
+        <tr class="totals-row"><td colspan="4" style="padding-top: 15px;">Subtotal</td><td style="text-align:right; padding-top: 15px;">${formatCurrency(subtotal)}</td></tr>
+        <tr class="totals-row"><td colspan="4">Shipping</td><td style="text-align:right;">${formatCurrency(shipping || 0)}</td></tr>
+        <tr class="totals-row"><td colspan="4">Tax</td><td style="text-align:right;">${formatCurrency(tax || 0)}</td></tr>
+        <tr class="totals-row" style="font-size:16px;"><td colspan="4"><strong>Order Total</strong></td>
           <td style="text-align:right;"><strong>${formatCurrency(total)}</strong></td></tr>
       </tfoot>
     </table>`;
@@ -315,8 +334,10 @@ export async function sendOrderShippedEmail(order, tracking) {
     ? new Date(tracking.estimatedDelivery).toLocaleDateString('en-US', { dateStyle: 'long', weekday: 'long' })
     : 'Pending update';
 
-  // Specific logic for Amazon tracking links if available
+  // Tracking URL for guests and regular users
   const trackingUrl = tracking.trackingUrl || `https://www.amazon.com/progress-tracker/package-tracking/${tracking.trackingNumber}`;
+
+  const table = itemsTableHtml(order.items, order.subtotal, order.shipping_cost, order.tax, order.total);
 
   const body = `
     <p>Hi ${firstName},</p>
@@ -333,10 +354,12 @@ export async function sendOrderShippedEmail(order, tracking) {
 
     <div style="text-align: center; margin: 30px 0;">
       <a href="${trackingUrl}" class="btn" style="background: #0ea5e9; padding: 16px 32px; font-size: 16px;">📦 Track Your Package</a>
-      <p style="font-size: 12px; color: #94a3b8; margin-top: 10px;">Click the button above to see real-time updates via Amazon Tracking</p>
     </div>
 
-    <p style="font-weight: 700; color: #1E3A5F; border-bottom: 1px solid #f0f4f8; padding-bottom: 5px;">Shipping Address</p>
+    <p style="font-weight: 700; color: #1E3A5F; margin-bottom: 10px; border-bottom: 2px solid #f0f4f8; padding-bottom: 5px; font-size: 16px;">What's in the Box</p>
+    ${table}
+
+    <p style="font-weight: 700; color: #1E3A5F; border-bottom: 1px solid #f0f4f8; padding-bottom: 5px; margin-top: 30px;">Shipping Address</p>
     <p style="font-size: 14px; color: #64748b; line-height: 1.5;">
        ${order.shipping_first_name} ${order.shipping_last_name}<br>
        ${order.shipping_address1}${order.shipping_address2 ? ', ' + order.shipping_address2 : ''}<br>

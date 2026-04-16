@@ -7,13 +7,13 @@ const redisClient = new Redis({
   username:           process.env.REDIS_USER     || 'default',
   password:           process.env.REDIS_PASSWORD || undefined,
   retryStrategy(times) {
-    if (times > 3) return null; // stop retrying after 3 attempts
     const delay = Math.min(times * 100, 3000);
-    return delay;
+    return delay; // keep retrying
   },
   maxRetriesPerRequest: null,
-  lazyConnect: true,          // don't auto-connect on require()
-  enableOfflineQueue: false
+  keepAlive: 10000,           // check connection every 10s
+  lazyConnect: true,
+  enableOfflineQueue: true    // allow commands while reconnecting
 });
 
 redisClient.on('connect', () => logger.info('Redis client connected'));

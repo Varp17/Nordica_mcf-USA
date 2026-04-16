@@ -4,13 +4,13 @@ import shippoService from './shippoService.js';
 import emailService from './emailService.js';
 import { createInvoiceFromOrder } from './invoiceService.js';
 import logger from '../utils/logger.js';
+import Product from '../models/Product.js';
 
 /**
  * Main entry point for fulfilling an order.
  * Handles regional routing (US vs CA) and error recovery.
  */
 export async function fulfillOrder(orderId) {
-  // EDGE CASE #35: Reload with lock to ensure payment status is visible
   const order = await _loadOrderWithItems(orderId, true);
   
   if (!order) throw new Error(`Order ${orderId} not found`);
@@ -28,7 +28,6 @@ export async function fulfillOrder(orderId) {
 
   await _updateOrderStatus(orderId, { fulfillment_status: 'processing', fulfillment_error: null });
   
-  // ── 0. Generate Invoice ───────────────────────────────────────────────
   let invoicePdf = null;
   try {
     const inv = await createInvoiceFromOrder(orderId);
@@ -50,21 +49,14 @@ export async function fulfillOrder(orderId) {
   } catch (err) {
     logger.error(`Fulfillment failed for order ${orderId}: ${err.message}`, { stack: err.stack });
     await _updateOrderStatus(orderId, { fulfillment_status: 'fulfillment_error', fulfillment_error: err.message });
-    
-    // Alert admin
     emailService.sendFulfillmentErrorAlert(order, err).catch(e => logger.error("Fulfillment Alert Failure", e));
-    
     throw err;
   }
 }
 
-/**
- * US Fulfillment Logic (Amazon MCF)
- */
 async function _fulfillUS(order, invoicePdf = null) {
   logger.info(`Fulfilling US order ${order.order_number} via Amazon MCF`);
-
-  // Pre-fulfillment validation
+  let activePreview = null;
   try {
     const address = {
       name:    `${order.shipping_first_name} ${order.shipping_last_name}`,
@@ -76,32 +68,18 @@ async function _fulfillUS(order, invoicePdf = null) {
       phone:         order.shipping_phone,
       countryCode:   'US'
     };
-
     const previews = await mcfService.getFulfillmentPreview(address, order.items.map(i => ({ sku: i.actual_sku || i.sku, quantity: i.quantity })));
     const speed = order.shipping_speed?.toLowerCase() || 'standard';
-    const activePreview = previews.find(p => p.shippingSpeedCategory.toLowerCase() === speed) || previews[0];
-
-    if (!activePreview || !activePreview.isFulfillable) {
-       // Check if it's just a speed mismatch or total unfulfillability
-       const anyFulfillable = previews.some(p => p.isFulfillable);
-       if (!anyFulfillable) {
-         throw new Error('MCF: Order is currently unfulfillable (Inventory Check Failed)');
-       }
-       logger.warn(`Speed ${speed} not available for ${order.order_number}, falling back to available MCF speed.`);
-    }
+    activePreview = previews.find(p => p.shippingSpeedCategory.toLowerCase() === speed) || previews[0];
   } catch (prevErr) {
     logger.error(`MCF Pre-check Error for ${order.order_number}: ${prevErr.message}`);
-    // Don't block yet, try submission anyway as previews can be flaky
   }
 
-  // Submit to Amazon
   const mcfResult = await mcfService.createFulfillmentOrder(order);
-  
   const actualCost = activePreview?.totalFee || 0;
   const chargedToCustomer = parseFloat(order.shipping_cost || 0);
   const profitLoss = parseFloat((chargedToCustomer - actualCost).toFixed(2));
 
-  // Sustainability Warning
   if (profitLoss < -8.00) {
     logger.warn(`[SUSTAINABILITY ALERT] Order ${order.order_number} has high shipping loss: $${Math.abs(profitLoss)}! (Amazon: ${actualCost}, Customer: ${chargedToCustomer})`);
   }
@@ -115,21 +93,12 @@ async function _fulfillUS(order, invoicePdf = null) {
      shipping_profit_loss: profitLoss
   });
 
-  logger.info(`US order ${order.order_number} submitted to Amazon MCF. Loss/Profit: ${profitLoss} | Amazon Fee: ${actualCost}`);
-  
-  // Notifications
   await emailService.sendOrderConfirmationEmail(order, invoicePdf).catch(e => logger.error("Confirmation Email Error", e));
-  
   return { success: true, fulfillmentChannel: 'amazon_mcf', status: 'submitted_to_amazon', amazonFulfillmentId: mcfResult.sellerFulfillmentOrderId };
 }
 
-/**
- * CA Fulfillment Logic (Shippo)
- */
 async function _fulfillCA(order, invoicePdf = null) {
   logger.info(`Fulfilling CA order ${order.order_number} via Shippo`);
-
-  // Address Validation
   const validation = await shippoService.validateAddress({
     firstName: order.shipping_first_name,
     lastName:  order.shipping_last_name,
@@ -140,15 +109,13 @@ async function _fulfillCA(order, invoicePdf = null) {
     country:   'CA',
     phone:     order.shipping_phone
   });
+  if (!validation.valid) throw new Error('Address validation failed');
 
-  if (!validation.valid) {
-    const errorMsg = Object.values(validation.fieldErrors || {}).join(', ') || 'Invalid shipping address';
-    throw new Error(`Address validation failed: ${errorMsg}`);
-  }
-
-  // Create Shipment & Buy Label
   const shipResult = await shippoService.createShipment(order);
-  
+  const actualCost = shipResult.actualCost || 0;
+  const chargedToCustomer = parseFloat(order.shipping_cost || 0);
+  const profitLoss = parseFloat((chargedToCustomer - actualCost).toFixed(2));
+
   await _updateOrderStatus(order.id, {
     fulfillment_status: 'label_created',
     fulfillment_channel: 'shippo',
@@ -158,44 +125,31 @@ async function _fulfillCA(order, invoicePdf = null) {
     shippo_label_url: shipResult.labelUrl,
     service_name: shipResult.serviceName,
     estimated_delivery: shipResult.estimatedDays ? new Date(Date.now() + shipResult.estimatedDays * 86400000).toISOString().split('T')[0] : null,
-    shippo_transaction_id: shipResult.shippoTransactionId
+    shippo_transaction_id: shipResult.shippoTransactionId,
+    actual_shipping_cost: actualCost,
+    shipping_profit_loss: profitLoss
   });
-
-  // Track & Notify
   try { await shippoService.registerTracking(shipResult.carrier, shipResult.trackingNumber); } catch (e) {}
-
   await emailService.sendOrderConfirmationEmail(order, invoicePdf).catch(e => logger.error("Conf email err", e));
-  
   await emailService.sendOrderShippedEmail(order, { 
     carrier: shipResult.carrier, 
     trackingNumber: shipResult.trackingNumber, 
     trackingUrl: shipResult.trackingUrl, 
     estimatedDelivery: shipResult.estimatedDays ? new Date(Date.now() + shipResult.estimatedDays * 86400000).toLocaleDateString() : '3-7 business days' 
   }).catch(e => logger.error("Ship email err", e));
-
   return { success: true, fulfillmentChannel: 'shippo', status: 'label_created' };
 }
 
-/**
- * Retries a failed order submission
- */
 export async function retryFailedOrder(orderId) {
   const [rows] = await db.query('SELECT fulfillment_status FROM orders WHERE id = ?', [orderId]);
   if (!rows.length) throw new Error('Order not found');
-  
   if (rows[0].fulfillment_status !== 'fulfillment_error' && rows[0].fulfillment_status !== 'inventory_hold') {
       throw new Error(`Cannot retry order in status ${rows[0].fulfillment_status}`);
   }
-
-  // EDGE CASE #38: Set to processing/pending, not 'paid'
   await _updateOrderStatus(orderId, { fulfillment_status: 'pending', fulfillment_error: null });
   return fulfillOrder(orderId);
 }
 
-/**
- * Loads order metadata and items with fulfillment specifics
- * EDGE CASE #69: Fallback for guest email
- */
 async function _loadOrderWithItems(orderId, lock = false) {
   const sql = `
     SELECT o.*, 
@@ -205,13 +159,11 @@ async function _loadOrderWithItems(orderId, lock = false) {
     FROM orders o 
     LEFT JOIN users u ON u.id = o.user_id 
     WHERE o.id = ? ${lock ? 'FOR UPDATE' : ''}`;
-    
   const [orderRows] = await db.query(sql, [orderId]);
   if (!orderRows.length) return null;
   const order = orderRows[0];
-
   const [itemRows] = await db.query(`
-    SELECT oi.*, 
+    SELECT oi.*, p.slug,
            COALESCE(v.weight_kg, p.weight_kg, 0.5) as weight_kg,
            COALESCE(v.dimensions, p.dimensions, '20x15x10') as dimensions,
            COALESCE(pcv.amazon_sku, v.sku, oi.sku) as actual_sku
@@ -220,7 +172,6 @@ async function _loadOrderWithItems(orderId, lock = false) {
     LEFT JOIN product_variants v ON oi.product_variant_id = v.id
     LEFT JOIN product_color_variants pcv ON oi.product_variant_id = pcv.id
     WHERE oi.order_id = ?`, [orderId]);
-
   order.items = itemRows;
   return order;
 }
@@ -231,26 +182,71 @@ async function _updateOrderStatus(orderId, fields) {
   await db.query(`UPDATE orders SET ${setClauses}, updated_at = ? WHERE id = ?`, values);
 }
 
-/**
- * Attempt to cancel fulfillment at the provider level (Amazon or Shippo)
- */
 export async function cancelFulfillment(orderId) {
   const order = await _loadOrderWithItems(orderId);
   if (!order) throw new Error('Order not found');
-
   if (order.country === 'US' && order.amazon_fulfillment_id) {
-    logger.info(`Attempting to cancel Amazon MCF order: ${order.amazon_fulfillment_id}`);
     await mcfService.cancelFulfillmentOrder(order.amazon_fulfillment_id);
     return { success: true, channel: 'amazon_mcf' };
   }
-  
-  // Shippo cancellation is non-trivial (often requires refunding labels)
-  if (order.country === 'CA' && order.shippo_transaction_id) {
-    logger.warn(`Shippo cancellation requested for ${orderId}. Labels may need manual refund.`);
-    // We could potentially call shippoService.refundLabel(order.shippo_transaction_id);
-  }
-
   return { success: true };
 }
 
-export default { fulfillOrder, retryFailedOrder, cancelFulfillment };
+export async function getProjectedSustainability(country, address, items, customerCharged) {
+  try {
+    // RESOLVE SKUs before probing (Crucial for Amazon MCF quotes)
+    const { valid, items: validatedItems } = await Product.validateCartItems(items, country);
+    const probeItems = valid ? validatedItems : items;
+
+    let actualCost = 0;
+    if (country === 'US') {
+      try {
+        const mcfItems = probeItems.map(i => ({ 
+           sku: i.sellerSku || i.sku || i.productId || i.product_id, 
+           quantity: i.quantity 
+        }));
+        const mcfAddress = {
+          name: address.firstName + ' ' + (address.lastName || ''),
+          line1: address.address1 || address.address,
+          city: address.city,
+          stateOrRegion: address.state || address.province,
+          postalCode: address.zip || address.postalCode,
+          phone: address.phone || '0000000000',
+          countryCode: 'US'
+        };
+        const previews = await mcfService.getFulfillmentPreview(mcfAddress, mcfItems);
+        const speed = (address.shippingSpeed || 'standard').toLowerCase();
+        const bestMatch = previews.find(p => p.shippingSpeedCategory.toLowerCase() === speed) || previews[0];
+        actualCost = bestMatch?.totalFee || 0;
+      } catch (err) {
+        logger.error(`MCF Projection Fail: ${err.message}`);
+        actualCost = 6.50; 
+      }
+    } else if (country === 'CA') {
+      try {
+        const rates = await shippoService.getShippingRates({
+            items: probeItems,
+            shipping_address: address,
+            shipping_first_name: address.firstName,
+            shipping_last_name: address.lastName,
+            shipping_address1: address.address1 || address.address,
+            shipping_city: address.city,
+            shipping_province: address.province || address.state,
+            shipping_postal_code: address.postalCode || address.zip
+        });
+        const bestRate = rates.find(r => r.object_id === address.rateId) || rates[0];
+        actualCost = parseFloat(bestRate?.amount || 0);
+      } catch (err) {
+        logger.error(`Shippo Projection Fail: ${err.message}`);
+        actualCost = 12.00;
+      }
+    }
+    const profitLoss = parseFloat((customerCharged - actualCost).toFixed(2));
+    return { actual_shipping_cost: actualCost, shipping_profit_loss: profitLoss };
+  } catch (err) {
+    logger.error(`Sustainability Projection Error: ${err.message}`);
+    return { actual_shipping_cost: 0, shipping_profit_loss: 0 };
+  }
+}
+
+export default { fulfillOrder, retryFailedOrder, cancelFulfillment, getProjectedSustainability };

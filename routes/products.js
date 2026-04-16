@@ -301,8 +301,17 @@ router.get("/slug/:slug", async (req, res) => {
 
     const product = products[0];
     
-    // Fetch variants for this product with their images
-    const [variants] = await db.execute(
+    // Fetch variants from both tables
+    const [modernVariants] = await db.execute(
+      `SELECT v.*, MAX(pi.image_url) as image
+       FROM product_variants v
+       LEFT JOIN product_images pi ON v.id = pi.color_variant_id AND (pi.image_type = 'color_variant' OR pi.is_primary = 1)
+       WHERE v.product_id = ? AND v.is_active = 1
+       GROUP BY v.id`,
+      [product.id]
+    );
+
+    const [legacyVariants] = await db.execute(
       `SELECT v.*, MAX(pi.image_url) as image
        FROM product_color_variants v
        LEFT JOIN product_images pi ON v.id = pi.color_variant_id AND (pi.image_type = 'color_variant' OR pi.is_primary = 1)
@@ -311,13 +320,15 @@ router.get("/slug/:slug", async (req, res) => {
       [product.id]
     );
 
+    const allVariants = [...modernVariants, ...legacyVariants];
+
     // Fetch all variant-specific images to provide full local gallery for each variant
     const [allVariantImages] = await db.execute(
       `SELECT color_variant_id, image_url FROM product_images WHERE product_id = ? AND color_variant_id IS NOT NULL ORDER BY sort_order ASC`,
       [product.id]
     );
 
-    const variantsWithGalleries = variants.map(v => {
+    const variantsWithGalleries = allVariants.map(v => {
       const vImgs = allVariantImages.filter(vi => vi.color_variant_id === v.id).map(vi => vi.image_url);
       return { 
         ...v, 
@@ -443,8 +454,17 @@ router.get("/:id", async (req, res) => {
 
     const product = products[0]
     
-    // Fetch variants for this product with their primary images
-    const [variants] = await db.execute(
+    // Fetch variants from both tables
+    const [modernVariants] = await db.execute(
+      `SELECT v.*, MAX(pi.image_url) as image
+       FROM product_variants v
+       LEFT JOIN product_images pi ON v.id = pi.color_variant_id AND (pi.image_type = 'color_variant' OR pi.is_primary = 1)
+       WHERE v.product_id = ? AND v.is_active = 1
+       GROUP BY v.id`,
+      [product.id]
+    );
+
+    const [legacyVariants] = await db.execute(
       `SELECT v.*, MAX(pi.image_url) as image
        FROM product_color_variants v
        LEFT JOIN product_images pi ON v.id = pi.color_variant_id AND (pi.image_type = 'color_variant' OR pi.is_primary = 1)
@@ -453,13 +473,15 @@ router.get("/:id", async (req, res) => {
       [product.id]
     );
 
+    const allVariants = [...modernVariants, ...legacyVariants];
+
     // Fetch all variant-specific images to provide full local gallery for each variant
     const [allVariantImages] = await db.execute(
       `SELECT color_variant_id, image_url FROM product_images WHERE product_id = ? AND color_variant_id IS NOT NULL ORDER BY sort_order ASC`,
       [product.id]
     );
 
-    const variantsWithGalleries = variants.map(v => {
+    const variantsWithGalleries = allVariants.map(v => {
       const vImgs = allVariantImages.filter(vi => vi.color_variant_id === v.id).map(vi => vi.image_url);
       return { 
         ...v, 

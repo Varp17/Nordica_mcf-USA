@@ -37,8 +37,11 @@ export async function calculateTax(subtotal, country, stateProvince) {
     if (c === 'CA') {
       rate = CA_TAX_RATES[region] ?? 0.05; // 5% GST fallback for CA
       label = rate >= 0.12 ? 'HST/PST/QST' : 'GST';
+    } else if (c === 'US' || c === 'USA') {
+      rate = US_TAX_RATES[region] ?? 0; // Use state rates for USA
+      label = 'Sales Tax';
     } else {
-      rate = US_TAX_RATES[region] ?? 0;
+      rate = 0;
     }
 
     const amount = parseFloat((sub * rate).toFixed(2));

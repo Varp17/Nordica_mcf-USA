@@ -131,8 +131,11 @@ router.post('/create-order', optionalAuth, async (req, res, next) => {
 
     let serverShippingCost = 0;
     const totalQty = validation.items.reduce((sum, item) => sum + (item.quantity || 1), 0);
+    const isFree = serverSubtotal >= 100;
 
-    if (country === 'CA') {
+    if (isFree) {
+      serverShippingCost = 0;
+    } else if (country === 'CA') {
       serverShippingCost = parseFloat((totalQty * 10).toFixed(2));
     } else if (country === 'US') {
       const speed = (shippingSpeed || '').toLowerCase();

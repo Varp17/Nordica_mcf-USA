@@ -4,6 +4,7 @@ import * as Product from '../models/Product.js';
 import mcfService from '../services/mcfService.js';
 import shippoService from '../services/shippoService.js';
 import logger from '../utils/logger.js';
+import taxService from '../services/taxService.js';
 
 import { authenticateToken as requireAuth, requireAdmin } from '../middleware/auth.js';
 
@@ -44,6 +45,78 @@ router.post('/fetch-dimensions', requireAdmin, async (req, res) => {
     });
   }
 });
+
+/**
+ * POST /api/fulfillment/sync-price
+ * Fetch price from Amazon and update local database
+ */
+router.post('/sync-price', requireAdmin, async (req, res) => {
+  try {
+    const { sku } = req.body;
+    if (!sku) return res.status(400).json({ success: false, message: 'SKU is required' });
+
+    const price = await mcfService.getProductPriceFromAmazon(sku);
+    if (price === null) {
+      return res.status(404).json({ success: false, message: 'Price not found on Amazon for this SKU' });
+    }
+
+    // Update variants first (most likely for Amazon SKUs)
+    const [vRes] = await db.query('UPDATE product_variants SET price = ?, updated_at = NOW() WHERE amazon_sku = ?', [price, sku]);
+    const [cvRes] = await db.query('UPDATE product_color_variants SET price = ?, updated_at = NOW() WHERE amazon_sku = ?', [price, sku]);
+    const [pRes] = await db.query('UPDATE products SET price = ?, updated_at = NOW() WHERE amazon_sku = ?', [price, sku]);
+
+    return res.json({
+      success: true,
+      price,
+      updates: {
+        variants: vRes.affectedRows,
+        color_variants: cvRes.affectedRows,
+        products: pRes.affectedRows
+      }
+    });
+
+  } catch (err) {
+    logger.error(`POST /api/fulfillment/sync-price error: ${err.message}`);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+/**
+ * POST /api/fulfillment/sync-reviews
+ * Fetch review count/rating from Amazon and update local database
+ */
+router.post('/sync-reviews', requireAdmin, async (req, res) => {
+  try {
+    const { asin, productId } = req.body;
+    if (!asin || !productId) return res.status(400).json({ success: false, message: 'ASIN and Product ID are required' });
+
+    const metadata = await mcfService.getAmazonCatalogMetadata(asin);
+    
+    // If Amazon API doesn't provide it (common for non-brand owners), 
+    // we allow the user to know it's not available via this channel.
+    if (!metadata || metadata.rating === null) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Review data not exposed by Amazon for this Listing via SP-API.' 
+      });
+    }
+
+    await db.query(
+      'UPDATE products SET rating = ?, review_count = ?, updated_at = NOW() WHERE id = ?',
+      [metadata.rating, metadata.reviewCount, productId]
+    );
+
+    return res.json({
+      success: true,
+      rating: metadata.rating,
+      reviewCount: metadata.reviewCount
+    });
+
+  } catch (err) {
+    logger.error(`POST /api/fulfillment/sync-reviews error: ${err.message}`);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 router.post('/preview', async (req, res) => {
   try {
     const { country, shipping, items } = req.body;
@@ -56,6 +129,7 @@ router.post('/preview', async (req, res) => {
     logger.info('[DEBUG] Incoming items for preview:', { items });
     const { valid, errors, items: validatedItems } = await Product.validateCartItems(items, country);
     if (!valid) {
+      logger.error('[DEBUG] Cart validation failed:', { errors, items });
       return res.status(400).json({ success: false, message: 'Cart validation failed', errors });
     }
 
@@ -76,8 +150,12 @@ router.post('/preview', async (req, res) => {
             ? Math.max(1, Math.ceil((new Date(p.fulfillmentPreviewShipments[0].latestArrival) - new Date()) / (1000 * 60 * 60 * 24)))
             : null;
 
+        const isFreeShipping = (validatedItems.reduce((sum, item) => sum + (item.unitPrice * item.quantity), 0)) >= 100;
+
         const flatRates = { 'Standard': 5, 'Expedited': 7, 'Priority': 15 };
-        const customerCharge = flatRates[p.shippingSpeedCategory] || 0;
+        let customerCharge = flatRates[p.shippingSpeedCategory] || 0;
+        if (isFreeShipping) customerCharge = 0;
+        
         const margin = customerCharge - p.totalFee;
 
         // Log the actual Amazon Fee vs what we charge (Sustainability check)
@@ -103,12 +181,16 @@ router.post('/preview', async (req, res) => {
         return dp?.estimation || defaultEst;
     };
 
+    // Subtotal check for free shipping
+    const subtotal = validatedItems.reduce((sum, item) => sum + (item.unitPrice * item.quantity), 0);
+    const isFree = subtotal >= 100;
+
     // User requested flat rates: Standard $5, Expedited $7, Priority $15
     const allOptions = [
       {
         id: 'standard',
         name: 'Standard Shipping',
-        price: 5.00,
+        price: isFree ? 0 : 5.00,
         currency: 'USD',
         estimation: getEst('Standard', 'Estimated 3-5 business days'),
         shippingSpeedCategory: 'Standard'
@@ -116,7 +198,7 @@ router.post('/preview', async (req, res) => {
       {
         id: 'expedited',
         name: 'Expedited Shipping',
-        price: 7.00,
+        price: isFree ? 0 : 7.00,
         currency: 'USD',
         estimation: getEst('Expedited', 'Estimated 2-3 business days'),
         shippingSpeedCategory: 'Expedited'
@@ -124,7 +206,7 @@ router.post('/preview', async (req, res) => {
       {
         id: 'priority',
         name: 'Priority Shipping',
-        price: 15.00,
+        price: isFree ? 0 : 15.00,
         currency: 'USD',
         estimation: getEst('Priority', 'Estimated 1-2 business days'),
         shippingSpeedCategory: 'Priority'
@@ -178,16 +260,18 @@ router.post('/rates', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Rates only available for CA' });
     }
 
-    const { valid, errors, items: validatedItems } = await Product.validateCartItems(items, country);
+    const { valid, errors, items: validatedItems, subtotal } = await Product.validateCartItems(items, country);
     if (!valid) {
       return res.status(400).json({ success: false, message: 'Cart validation failed', errors });
     }
 
     const totalQty = validatedItems.reduce((sum, item) => sum + (item.quantity || 1), 0);
+    const isFree = subtotal >= 100;
+
     const fixedRate = {
         id: 'standard_ca',
         name: 'Standard Shipping',
-        price: parseFloat((totalQty * 10).toFixed(2)),
+        price: isFree ? 0 : parseFloat((totalQty * 10).toFixed(2)),
         currency: 'CAD',
         estimation: 'Estimated 3-7 business days',
         isFulfillable: true
@@ -247,42 +331,15 @@ router.post('/validate-address', async (req, res) => {
  */
 router.post('/calculate-tax', async (req, res) => {
   try {
-    const { country, state, subtotal } = req.body;
-    const sub = parseFloat(subtotal) || 0;
-
-    if (country === 'CA') {
-      const province = (req.body.province || state || '').toUpperCase();
-      // EDGE CASE #57: Use same tax rates as orderRoutes.js (Synchronized)
-      const CA_TAX_RATES = {
-        'AB': 0.05, 'BC': 0.12, 'MB': 0.12, 'NB': 0.15, 'NL': 0.15, 'NS': 0.15, 
-        'NT': 0.05, 'NU': 0.05, 'ON': 0.13, 'PE': 0.15, 'QC': 0.14975, 'SK': 0.11, 'YT': 0.05
-      };
-      
-      const rate = CA_TAX_RATES[province] ?? 0;
-      const tax = parseFloat((sub * rate).toFixed(2));
-      const label = rate >= 0.12 ? `HST/PST/QST (${(rate*100).toFixed(2)}%)` : `GST (${(rate*100).toFixed(0)}%)`;
-      
-      return res.json({ success: true, tax, tax_label: label, rate });
-    }
-
-    // US state tax rates
-    // EDGE CASE #58: Added more states for better coverage
-    const US_TAX_RATES = {
-      AL: 0.04, AK: 0, AZ: 0.056, AR: 0.065, CA: 0.0725, CO: 0.029, CT: 0.0635,
-      DE: 0, FL: 0.06, GA: 0.04, HI: 0.04, ID: 0.06, IL: 0.0625, IN: 0.07,
-      IA: 0.06, KS: 0.065, KY: 0.06, LA: 0.0445, ME: 0.055, MD: 0.06,
-      MA: 0.0625, MI: 0.06, MN: 0.06875, MS: 0.07, MO: 0.04225, MT: 0,
-      NE: 0.055, NV: 0.0685, NH: 0, NJ: 0.0663, NM: 0.05125, NY: 0.08,
-      NC: 0.0475, ND: 0.05, OH: 0.0575, OK: 0.045, OR: 0, PA: 0.06,
-      RI: 0.07, SC: 0.06, SD: 0.045, TN: 0.07, TX: 0.0625, UT: 0.0610,
-      VT: 0.06, VA: 0.053, WA: 0.065, WV: 0.06, WI: 0.05, WY: 0.04,
-      DC: 0.06
-    };
-
-    const rate = US_TAX_RATES[state?.toUpperCase()] ?? 0;
-    const tax = parseFloat((sub * rate).toFixed(2));
-
-    return res.json({ success: true, tax, tax_label: 'Sales Tax', rate });
+    const { country, state, subtotal, province } = req.body;
+    const result = await taxService.calculateTax(subtotal, country, province || state);
+    
+    return res.json({ 
+      success: true, 
+      tax: result.amount, 
+      tax_label: result.label, 
+      rate: result.rate 
+    });
   } catch (err) {
     logger.error(`POST /api/fulfillment/calculate-tax error: ${err.message}`);
     return res.json({ success: true, tax: 0, tax_label: 'Tax', rate: 0 });

@@ -357,7 +357,7 @@ router.get("/analytics", authenticateToken, requireAdmin, async (req, res) => {
 // GET /inventory - Dedicated Warehouse/SKU view
 router.get("/inventory", authenticateToken, requireAdmin, async (req, res) => {
   try {
-    const [skus] = await db.execute(`
+    const [legacySkus] = await db.execute(`
       SELECT 
         pcv.id,
         pcv.product_id,
@@ -371,17 +371,46 @@ router.get("/inventory", authenticateToken, requireAdmin, async (req, res) => {
         pcv.updated_at,
         p.target_country,
         COALESCE(SUM(oi.quantity), 0) as units_sold_all_time,
-        ANY_VALUE(pi.image_url) as image
+        ANY_VALUE(pi.image_url) as image,
+        'legacy' as table_source
       FROM product_color_variants pcv
       JOIN products p ON pcv.product_id = p.id
       LEFT JOIN product_images pi ON pcv.id = pi.color_variant_id AND (pi.image_type = 'color_variant' OR pi.is_primary = 1)
       LEFT JOIN order_items oi ON oi.product_variant_id = pcv.id
       WHERE pcv.is_active = 1 AND p.is_active = 1
       GROUP BY pcv.id
-      ORDER BY pcv.stock ASC, p.name ASC
     `);
 
-    res.json({ success: true, skus: deepFormatImages(skus) });
+    const [modernSkus] = await db.execute(`
+      SELECT 
+        pv.id,
+        pv.product_id,
+        p.name as product_name,
+        pv.variant_name,
+        pv.variant_name as color_name,
+        pv.amazon_sku,
+        pv.sku,
+        pv.stock,
+        pv.price,
+        pv.updated_at,
+        p.target_country,
+        COALESCE(SUM(oi.quantity), 0) as units_sold_all_time,
+        ANY_VALUE(pi.image_url) as image,
+        'modern' as table_source
+      FROM product_variants pv
+      JOIN products p ON pv.product_id = p.id
+      LEFT JOIN product_images pi ON pv.id = pi.color_variant_id AND (pi.image_type = 'color_variant' OR pi.is_primary = 1)
+      LEFT JOIN order_items oi ON oi.product_variant_id = pv.id
+      WHERE pv.is_active = 1 AND p.is_active = 1
+      GROUP BY pv.id
+    `);
+
+    const allSkus = [...legacySkus, ...modernSkus].sort((a, b) => {
+      if (a.stock !== b.stock) return a.stock - b.stock;
+      return String(a.product_name).localeCompare(String(b.product_name));
+    });
+
+    res.json({ success: true, skus: deepFormatImages(allSkus) });
   } catch (error) {
     console.error("Inventory list error:", error);
     res.status(500).json({ error: "Internal server error" });
@@ -496,21 +525,30 @@ router.get(
       try { product.images = typeof product.images === 'string' ? JSON.parse(product.images) : (product.images || []); } catch (e) { product.images = []; }
       try { product.tags = typeof product.tags === 'string' ? JSON.parse(product.tags) : (product.tags || []); } catch (e) { product.tags = []; }
 
-      // Get color variants with their images
-      let [variants] = await db.execute(
-        "SELECT * FROM product_color_variants WHERE product_id = ? ORDER BY sort_order ASC",
+      // 1. Get legacy variants
+      const [legacyVariants] = await db.execute(
+        "SELECT * FROM product_color_variants WHERE product_id = ? AND is_active = 1 ORDER BY sort_order ASC",
         [id]
       );
 
-      if (variants.length === 0 && product.color_options) {
-        // Fallback to legacy color_options JSON if the new table is empty
+      // 2. Get modern variants
+      const [modernVariantsRaw] = await db.execute(
+        "SELECT *, variant_name as color_name FROM product_variants WHERE product_id = ? AND is_active = 1",
+        [id]
+      );
+      const modernVariants = modernVariantsRaw;
+
+      let allVariants = [...legacyVariants, ...modernVariants];
+
+      if (allVariants.length === 0 && product.color_options) {
+        // Fallback to legacy color_options JSON if the new tables are empty
         try {
           const legacyColors = typeof product.color_options === 'string'
             ? JSON.parse(product.color_options)
             : product.color_options;
 
           if (Array.isArray(legacyColors)) {
-            variants = legacyColors.map(c => ({
+            allVariants = legacyColors.map(c => ({
               id: `legacy-${Math.random().toString(36).substr(2, 9)}`,
               color_name: c.name || c.color_name || c.value,
               color_code: c.color || c.color_code || "#CCCCCC",
@@ -523,7 +561,8 @@ router.get(
           }
         } catch (e) { console.error("Legacy color parse error:", e); }
       } else {
-        for (let v of variants) {
+        // Fetch images for all variants found in tables
+        for (let v of allVariants) {
           const [vImgs] = await db.execute(
             "SELECT id, image_url, is_primary FROM product_images WHERE color_variant_id = ? ORDER BY sort_order ASC",
             [v.id]
@@ -531,7 +570,7 @@ router.get(
           v.images = vImgs;
         }
       }
-      product.color_variants = variants;
+      product.color_variants = allVariants;
 
       res.json(product);
     } catch (error) {
@@ -777,7 +816,8 @@ router.put(
         youtube_url, image, images, about_section, aboutSection, 
         specifications, features, weight_kg, weight_lb, dimensions, 
         dimensions_imperial, material, warranty, return_policy,
-        color_variants, colorVariants, videos, tags
+        color_variants, colorVariants, videos, tags,
+        sku, canada_sku, amazon_sku, amazon_sku_ca
       } = req.body;
 
       const updates = {};
@@ -796,6 +836,10 @@ router.put(
       setUpdate(brand, 'brand');
       setUpdate(category, 'category');
       setUpdate(amazon_url, 'amazon_url');
+      setUpdate(sku, 'sku');
+      setUpdate(canada_sku, 'canada_sku');
+      setUpdate(amazon_sku, 'amazon_sku');
+      setUpdate(amazon_sku_ca, 'amazon_sku_ca');
       
       const parseNum = (val) => (val === "" || val === null || val === undefined) ? null : parseFloat(val);
       const parseStock = (val) => (val === "" || val === null || val === undefined) ? 0 : parseInt(val);
@@ -912,9 +956,23 @@ router.put(
             // If it's an amazon variant, we NEVER update its stock or SKUs manually
             const finalStock = (existingV && existingV.amazon_sku) ? existingV.stock : (parseInt(v.stock) || 0);
             
+            // Allow updating SKUs if they change in the payload
+            const finalSku = v.sku || existingV.sku;
+            const finalCanadaSku = v.canada_sku || existingV.canada_sku;
+            const finalAmazonSku = v.amazon_sku || existingV.amazon_sku;
+
             await connection.execute(
-              "UPDATE product_color_variants SET color_name=?, color_code=?, stock=?, price=?, is_active=1 WHERE id=?",
-              [v.color_name || v.color, v.color_code || v.colorCode || '#000000', finalStock, parseFloat(v.price) || 0, vId]
+              "UPDATE product_color_variants SET color_name=?, color_code=?, stock=?, price=?, sku=?, canada_sku=?, amazon_sku=?, is_active=1 WHERE id=?",
+              [
+                v.color_name || v.color, 
+                v.color_code || v.colorCode || '#000000', 
+                finalStock, 
+                parseFloat(v.price) || 0,
+                finalSku || null,
+                finalCanadaSku || null,
+                finalAmazonSku || null,
+                vId
+              ]
             );
           }
 
@@ -1417,10 +1475,19 @@ router.get("/orders", authenticateToken, requireAdmin, async (req, res) => {
         o.payment_status,
         JSON_UNQUOTE(JSON_EXTRACT(o.shipping_address, '$.country')) AS shipping_country,
         o.customer_email AS email,
-        u.first_name,
-        u.last_name,
+        COALESCE(u.first_name, o.shipping_first_name) AS first_name,
+        COALESCE(u.last_name, o.shipping_last_name) AS last_name,
         o.actual_shipping_cost,
-        o.shipping_profit_loss
+        o.shipping_cost,
+        o.shipping_profit_loss,
+        (SELECT JSON_ARRAYAGG(
+          JSON_OBJECT(
+            'name', oi.product_name_at_purchase,
+            'image', oi.image_url_at_purchase,
+            'price', oi.price_at_purchase,
+            'qty', oi.quantity
+          )
+        ) FROM order_items oi WHERE oi.order_id = o.id) as items
       FROM orders o
       LEFT JOIN users u ON o.user_id = u.id
       ${whereClause}
@@ -2317,9 +2384,9 @@ router.get(
       const [orders] = await db.execute(
         `SELECT 
            o.*,
-           u.first_name as customer_first_name,
-           u.last_name as customer_last_name,
-           u.email as customer_email,
+           COALESCE(u.first_name, o.shipping_first_name) as customer_first_name,
+           COALESCE(u.last_name, o.shipping_last_name) as customer_last_name,
+           COALESCE(u.email, o.customer_email) as customer_email,
            (SELECT JSON_ARRAYAGG(
               JSON_OBJECT(
                 'id', oi.id, 
@@ -2332,7 +2399,7 @@ router.get(
             ) FROM order_items oi WHERE oi.order_id = o.id
            ) as items
          FROM orders o 
-         JOIN users u ON o.user_id = u.id 
+         LEFT JOIN users u ON o.user_id = u.id 
          WHERE o.id = ?`,
         [id]
       );
