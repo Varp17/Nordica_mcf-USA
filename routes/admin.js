@@ -1418,7 +1418,9 @@ router.get("/orders", authenticateToken, requireAdmin, async (req, res) => {
         JSON_UNQUOTE(JSON_EXTRACT(o.shipping_address, '$.country')) AS shipping_country,
         o.customer_email AS email,
         u.first_name,
-        u.last_name
+        u.last_name,
+        o.actual_shipping_cost,
+        o.shipping_profit_loss
       FROM orders o
       LEFT JOIN users u ON o.user_id = u.id
       ${whereClause}

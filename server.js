@@ -1,4 +1,8 @@
 import 'dotenv/config';
+import dns from 'dns';
+// Force IPv4 as priority to prevent connectivity issues with local/remote services
+dns.setDefaultResultOrder('ipv4first');
+
 import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
