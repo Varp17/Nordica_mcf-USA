@@ -9,6 +9,7 @@ import { shippoClient } from "./shippo.js";
 import fetch from "node-fetch";
 import { deepFormatImages } from "../utils/helpers.js";
 import logger from "../utils/logger.js";
+import { calculateMCFShipping } from "../utils/shippingCalculator.js";
 
 
 const router = express.Router();
@@ -320,8 +321,22 @@ router.get("/analytics", authenticateToken, requireAdmin, async (req, res) => {
       `🏆 Top products: ${topProducts.length} found, products total: ${productCount[0].count}`
     );
 
+    // -------- Sustainability Metrics --------
+    const [sustainabilityData] = await db.query(
+      `SELECT 
+         SUM(actual_shipping_cost) as totalActualShipping, 
+         SUM(shipping_profit_loss) as totalShippingProfitLoss 
+       FROM orders WHERE payment_status = 'paid'`
+    );
+
     res.json({
-      stats,
+      stats: {
+        ...stats,
+        sustainability: {
+          totalActualShipping: Number(sustainabilityData[0].totalActualShipping || 0),
+          totalShippingProfitLoss: Number(sustainabilityData[0].totalShippingProfitLoss || 0)
+        }
+      },
       paymentRevenue,
       recentOrders: orders,
       monthlySales,
@@ -428,7 +443,18 @@ router.get("/products", authenticateToken, requireAdmin, async (req, res) => {
           images: safeParse(p.images),
           features: safeParse(p.key_features || p.features),
           specifications: safeParse(p.specifications),
-          tags: safeParse(p.tags)
+          tags: safeParse(p.tags),
+          shipping_sustainability: p.target_country === 'canada' ? null : (() => {
+            const estFee = calculateMCFShipping([{ 
+                weightLb: p.weight_lb || (p.weight_kg ? p.weight_kg * 2.20462 : 1.1), 
+                dimensionsImperial: p.dimensions_imperial || '10x10x1' 
+            }]);
+            return {
+                est_fee: estFee,
+                margin_std: 5.00 - estFee,
+                margin_exp: 7.00 - estFee
+            };
+          })()
         };
       }),
       pagination: {

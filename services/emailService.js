@@ -75,19 +75,8 @@ async function createTransporter() {
   const smtpPort = parseInt(process.env.SMTP_PORT || '465');
   const isSecure = (smtpPort === 465);
 
-  let connectHost = smtpHost;
-  try {
-    const ipv4Addresses = await resolve4(smtpHost);
-    if (ipv4Addresses.length > 0) {
-      connectHost = ipv4Addresses[0];
-      logger.info(`DNS resolved ${smtpHost} → ${connectHost} (IPv4)`);
-    }
-  } catch (dnsErr) {
-    logger.warn(`DNS resolve4 failed for ${smtpHost}, using hostname directly: ${dnsErr.message}`);
-  }
-
   const transport = nodemailer.createTransport({
-    host: connectHost,
+    host: smtpHost,
     port: smtpPort,
     secure: isSecure,
     auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
@@ -99,7 +88,7 @@ async function createTransporter() {
     family: 4
   });
 
-  logger.info(`SMTP transporter created: ${connectHost}:${smtpPort} (resolved from ${smtpHost}, secure=${isSecure})`);
+  logger.info(`SMTP transporter created: ${smtpHost}:${smtpPort} (secure=${isSecure})`);
   return transport;
 }
 
