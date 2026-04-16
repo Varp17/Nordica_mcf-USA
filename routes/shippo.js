@@ -1286,16 +1286,19 @@ const shippoFetch = async (path, options = {}) => {
         "SHIPPO-API-VERSION": "2018-02-08",
         ...(options.headers || {}),
       },
-      timeout: 15000 // 15s timeout
+      timeout: 15000 
     });
     
     return { ok: true, status: response.status, data: response.data };
   } catch (err) {
-    console.error(`🌐 Shippo API Error [${path}]:`, err.response?.data || err.message);
+    const errorData = err.response?.data;
+    const errorStatus = err.response?.status || 500;
+    console.error(`🌐 Shippo API Error [${path}] | Status: ${errorStatus}:`, JSON.stringify(errorData || err.message));
+    
     return { 
       ok: false, 
-      status: err.response?.status || 500, 
-      data: err.response?.data || { detail: err.message } 
+      status: errorStatus, 
+      data: errorData || { detail: err.message } 
     };
   }
 };
@@ -1466,7 +1469,16 @@ router.get(
            o.shipping_address,
            o.shippo_tracking_number, o.shippo_carrier,
            o.shippo_tracking_status, o.shippo_label_url,
-           u.first_name, u.last_name, u.email
+           o.shippo_tracking_raw,
+           u.first_name, u.last_name, u.email,
+           (SELECT JSON_ARRAYAGG(
+              JSON_OBJECT(
+                'name', oi.product_name_at_purchase,
+                'quantity', oi.quantity,
+                'price', oi.price_at_purchase,
+                'image', oi.image_url_at_purchase
+              )
+            ) FROM order_items oi WHERE oi.order_id = o.id) as items
          FROM orders o
          JOIN users u ON o.user_id = u.id
          WHERE ${where}
@@ -1488,6 +1500,7 @@ router.get(
         totalAmount: o.total_amount,
         shippingAddress: safeJson(o.shipping_address),
         customer: { firstName: o.first_name, lastName: o.last_name, email: o.email },
+        items: safeJson(o.items) || [],
         shippo: {
           trackingNumber: o.shippo_tracking_number || null,
           carrier: o.shippo_carrier || null,
@@ -1495,6 +1508,7 @@ router.get(
           labelUrl: o.shippo_label_url || null,
           hasLabel: !!o.shippo_label_url,
           hasTracking: !!o.shippo_tracking_number,
+          raw: safeJson(o.shippo_tracking_raw),
         },
       }));
 
@@ -1525,7 +1539,16 @@ router.get(
   async (req, res) => {
     try {
       const [rows] = await db.execute(
-        `SELECT o.*, u.first_name, u.last_name, u.email
+        `SELECT o.*, u.first_name, u.last_name, u.email,
+          (SELECT JSON_ARRAYAGG(
+            JSON_OBJECT(
+              'product_id', oi.product_id,
+              'product_name_at_purchase', oi.product_name_at_purchase,
+              'quantity', oi.quantity,
+              'price_at_purchase', oi.price_at_purchase,
+              'image_url_at_purchase', oi.image_url_at_purchase
+            )
+          ) FROM order_items oi WHERE oi.order_id = o.id) as items
          FROM orders o
          JOIN users u ON o.user_id = u.id
          WHERE o.id = ?`,
@@ -1550,30 +1573,27 @@ router.get(
             }
             : null,
         }))
-        .reverse(); // most-recent first
+        .reverse(); 
 
       res.json({
-        success: true,
-        data: {
-          id: o.id,
-          orderDate: o.order_date,
-          status: o.status,
-          paymentStatus: o.payment_status,
-          totalAmount: o.total_amount,
-          shippingAddress: safeJson(o.shipping_address),
-          customer: { firstName: o.first_name, lastName: o.last_name, email: o.email },
-          shippo: {
-            trackingNumber: o.shippo_tracking_number || null,
-            carrier: o.shippo_carrier || null,
-            trackingStatus: o.shippo_tracking_status || null,
-            labelUrl: o.shippo_label_url || null,
-            eta: trackingRaw?.eta || null,
-            currentLocation: trackingRaw?.tracking_status?.location || null,
-            trackingHistory,
-            hasLabel: !!o.shippo_label_url,
-            hasTracking: !!o.shippo_tracking_number,
-          },
-        },
+        id: o.id,
+        order_date: o.order_date,
+        created_at: o.created_at,
+        status: o.status,
+        payment_status: o.payment_status,
+        total_amount: o.total_amount,
+        shipping_address: safeJson(o.shipping_address),
+        first_name: o.first_name,
+        last_name: o.last_name,
+        email: o.email,
+        items: safeJson(o.items) || [],
+        shippo_tracking_number: o.shippo_tracking_number || null,
+        shippo_carrier: o.shippo_carrier || null,
+        shippo_tracking_status: o.shippo_tracking_status || null,
+        shippo_label_url: o.shippo_label_url || null,
+        tracking_history: trackingHistory,
+        actualShippingCost: o.actual_shipping_cost,
+        shippingProfitLoss: o.shipping_profit_loss
       });
     } catch (err) {
       console.error("❌ Order detail error:", err);

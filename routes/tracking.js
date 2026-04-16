@@ -1,7 +1,8 @@
 import express from 'express';
 import db from '../config/database.js';
 import logger from '../utils/logger.js';
-import { getTrackingStatus } from '../services/shippoService.js';
+import shippoService from '../services/shippoService.js';
+const { getTrackingStatus } = shippoService;
 
 const router = express.Router();
 

@@ -157,7 +157,9 @@ CREATE TABLE products (
   brand              VARCHAR(100)  NOT NULL,
   brand_id           CHAR(36)      DEFAULT NULL,
   sku                VARCHAR(100)  DEFAULT NULL UNIQUE,
+  canada_sku         VARCHAR(100)  DEFAULT NULL,
   amazon_sku         VARCHAR(100)  DEFAULT NULL UNIQUE,
+  amazon_sku_ca      VARCHAR(100)  DEFAULT NULL,
   asin               VARCHAR(20)   DEFAULT NULL,
   amazon_url         VARCHAR(500)  DEFAULT NULL,
   
@@ -172,6 +174,9 @@ CREATE TABLE products (
   weight_lb          DECIMAL(8,3)  DEFAULT NULL,
   dimensions         VARCHAR(100)  DEFAULT NULL,
   dimensions_imperial VARCHAR(100) DEFAULT NULL,
+  material           VARCHAR(100)  DEFAULT NULL,
+  warranty           VARCHAR(255)  DEFAULT NULL,
+  return_policy      TEXT          DEFAULT NULL,
   
   -- Legacy/Rich JSON Blobs
   features           JSON          DEFAULT NULL,
@@ -199,7 +204,19 @@ CREATE TABLE products (
   
   FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL,
   FOREIGN KEY (brand_id)    REFERENCES brands(id)    ON DELETE SET NULL,
-  FULLTEXT idx_products_search (name, description, category, brand)
+  
+  -- Indices
+  INDEX idx_canada_sku (canada_sku),
+  INDEX idx_amazon_sku_ca (amazon_sku_ca),
+  FULLTEXT idx_products_search (name, description, category, brand),
+
+  -- Constraints
+  CONSTRAINT chk_amazon_sku_usa CHECK (
+    amazon_sku IS NULL OR target_country = 'us'
+  ),
+  CONSTRAINT chk_canada_sku_canada CHECK (
+    canada_sku IS NULL OR target_country = 'canada'
+  )
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ------------------------------------------------------------
@@ -216,6 +233,8 @@ CREATE TABLE product_color_variants (
   size             VARCHAR(50)   DEFAULT NULL,
   country          VARCHAR(50)   DEFAULT 'US',
   amazon_sku       VARCHAR(100)  DEFAULT NULL,
+  canada_sku       VARCHAR(100)  DEFAULT NULL,
+  target_country   ENUM('us', 'canada', 'both') DEFAULT 'us',
   price            DECIMAL(12,2) DEFAULT NULL,
   compare_price    DECIMAL(12,2) DEFAULT NULL,
   stock            INT           NOT NULL DEFAULT 0,
@@ -225,7 +244,9 @@ CREATE TABLE product_color_variants (
   updated_at       DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
   INDEX idx_pcv_product (product_id),
-  INDEX idx_pcv_amazon_sku (amazon_sku)
+  INDEX idx_pcv_amazon_sku (amazon_sku),
+  INDEX idx_pcv_canada_sku (canada_sku),
+  INDEX idx_pcv_country (target_country)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ------------------------------------------------------------
@@ -237,6 +258,8 @@ CREATE TABLE product_variants (
   product_id       CHAR(36)      NOT NULL,
   sku              VARCHAR(100)  DEFAULT NULL,
   amazon_sku       VARCHAR(100)  DEFAULT NULL,
+  canada_sku       VARCHAR(100)  DEFAULT NULL,
+  target_country   ENUM('us', 'canada', 'both') DEFAULT 'us',
   asin             VARCHAR(20)   DEFAULT NULL,
   variant_name     VARCHAR(255)  DEFAULT NULL,
   price            DECIMAL(12,2) DEFAULT NULL,
@@ -252,7 +275,9 @@ CREATE TABLE product_variants (
   FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
   INDEX idx_pv_product (product_id),
   INDEX idx_pv_sku (sku),
-  INDEX idx_pv_amazon_sku (amazon_sku)
+  INDEX idx_pv_amazon_sku (amazon_sku),
+  INDEX idx_pv_canada_sku (canada_sku),
+  INDEX idx_pv_country (target_country)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ------------------------------------------------------------
@@ -2658,6 +2683,71 @@ UPDATE products SET category_id = (SELECT id FROM categories WHERE slug = 'detai
 UPDATE products SET category_id = (SELECT id FROM categories WHERE slug = 'kit-bundle' LIMIT 1) WHERE category = 'Kit-Bundle';
 UPDATE products SET category_id = (SELECT id FROM categories WHERE slug = 'apparels' LIMIT 1) WHERE category = 'Apparels';
 UPDATE products SET category_id = (SELECT id FROM categories WHERE slug = 'merchandise' LIMIT 1) WHERE category = 'Merchandise';
+
+SET SQL_SAFE_UPDATES = 1;
+
+-- ------------------------------------------------------------
+-- 29. CANADA LOGISTICS & SCHEMA MIGRATIONS (Post-Insert)
+-- ------------------------------------------------------------
+SET SQL_SAFE_UPDATES = 0;
+
+-- A. Migrate generic sku to canada_sku for Canada products
+-- This ensures SKU integrity between markets
+UPDATE products
+SET 
+  canada_sku = sku,
+  sku = NULL
+WHERE target_country = 'canada'
+  AND sku IS NOT NULL
+  AND sku LIKE 'CAD-%';
+
+-- B. Fix category string mismatch for category_id FK
+-- Ensures full connectivity to the categories table
+UPDATE products 
+SET category_id = (SELECT id FROM categories WHERE slug = 'detailing-accessories' LIMIT 1)
+WHERE category = 'Detailing-Accessories' AND category_id IS NULL;
+
+UPDATE products 
+SET category_id = (SELECT id FROM categories WHERE slug = 'kit-bundle' LIMIT 1)
+WHERE category = 'Kit-Bundle' AND category_id IS NULL;
+
+UPDATE products 
+SET category_id = (SELECT id FROM categories WHERE slug = 'apparels' LIMIT 1)
+WHERE category = 'Apparels' AND category_id IS NULL;
+
+UPDATE products 
+SET category_id = (SELECT id FROM categories WHERE slug = 'merchandise' LIMIT 1)
+WHERE category = 'Merchandise' AND category_id IS NULL;
+
+-- C. Clear USA Amazon SKU from Canada products (Cleanup)
+-- Standardizes regional separation
+UPDATE products
+SET amazon_sku = NULL
+WHERE target_country = 'canada'
+  AND amazon_sku IS NOT NULL;
+
+-- D. Inventory Cache Migration
+-- Use inventory_cache as a high-level stock indicator for Canada
+UPDATE products SET inventory_cache = 100 
+WHERE target_country = 'canada' AND slug LIKE 'cad-%';
+
+-- E. Seed Canada Variants (Example)
+INSERT INTO product_variants 
+  (id, product_id, canada_sku, variant_name, price, weight_kg, weight_lb, dimensions, dimensions_imperial, stock, target_country, attributes)
+SELECT 
+  UUID(),
+  p.id,
+  'CAD-C21-V-BLUE',
+  'Blue',
+  32.99,
+  0.49, 1.08,
+  '26.5x26.5x6.5', '10.4x10.4x2.6',
+  50,
+  'canada',
+  JSON_OBJECT('color', 'blue', 'color_name', 'Blue')
+FROM products p
+WHERE p.slug = 'cad-dirt-lock-insert'
+ON DUPLICATE KEY UPDATE product_id = product_id;
 
 SET SQL_SAFE_UPDATES = 1;
 

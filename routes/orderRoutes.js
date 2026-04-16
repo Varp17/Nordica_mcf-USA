@@ -6,6 +6,7 @@ import * as Product from '../models/Product.js';
 import { fulfillOrder, retryFailedOrder } from '../services/fulfillmentService.js';
 import mcfService from '../services/mcfService.js';
 import shippoService from '../services/shippoService.js';
+import { calculateTax } from '../services/taxService.js';
 import { authenticateToken as requireAuth, requireAdmin, requireVerified, optionalAuth } from '../middleware/auth.js';
 import { validateCreateOrder, validateOrderId } from '../middleware/validation.js';
 import { detectCountryFromRequest } from '../utils/helpers.js';
@@ -104,30 +105,20 @@ router.post('/', optionalAuth, validateCreateOrder, async (req, res) => {
     }
 
     // ── 2. Handle Regional Logic Separately ───────────────────────────────────
-    let serverSubtotal = validation.subtotal;
-    let serverTax = 0;
-    let serverShippingCost = parseFloat(shippingCost || 0);
+    const serverSubtotal = validation.subtotal;
+    const ship = shipping || {};
+    const provState = (ship.province || ship.state || '').toUpperCase();
+    
+    const taxRes = await calculateTax(serverSubtotal, country, provState);
+    const serverTax = taxRes.amount;
 
-    const provState = (shipping.province || shipping.state || '').toUpperCase();
+    let serverShippingCost = 0;
+    const totalQty = validatedItems.reduce((sum, item) => sum + (item.quantity || 1), 0);
 
     if (country === 'CA') {
-      // CANADA SPECIFIC LOGIC
-      const CA_TAX_RATES = {
-        'AB': 0.05, 'BC': 0.12, 'MB': 0.12, 'NB': 0.15, 'NL': 0.15, 'NS': 0.15, 'NT': 0.05, 'NU': 0.05, 'ON': 0.13, 'PE': 0.15, 'QC': 0.14975, 'SK': 0.11, 'YT': 0.05
-      };
-      const rate = CA_TAX_RATES[provState] ?? 0;
-      serverTax = parseFloat((serverSubtotal * rate).toFixed(2));
-
-      // ENFORCE FIXED SHIPPING: $10 PER PRODUCT for Canada
-      const totalQty = validatedItems.reduce((sum, item) => sum + (item.quantity || 1), 0);
       serverShippingCost = parseFloat((totalQty * 10).toFixed(2));
     } else {
       // USA SPECIFIC LOGIC
-      const US_TAX_RATES = {
-        CA: 0.0725, NY: 0.08, TX: 0.0625, FL: 0.06, WA: 0.065, IL: 0.0625, PA: 0.06, OH: 0.0575, GA: 0.04, NC: 0.0475, MI: 0.06, NJ: 0.0663, VA: 0.053, AZ: 0.056, TN: 0.07, MA: 0.0625, IN: 0.07, MO: 0.04225, MD: 0.06, WI: 0.05, CO: 0.029, MN: 0.06875, SC: 0.06, AL: 0.04, LA: 0.0445, KY: 0.06
-      };
-      const rate = US_TAX_RATES[provState] ?? 0;
-      serverTax = parseFloat((serverSubtotal * rate).toFixed(2));
 
       // ENFORCE FIXED SHIPPING: $5 (standard) or $7 (expedited) PER PRODUCT
       const totalQty = validatedItems.reduce((sum, item) => sum + (item.quantity || 1), 0);
@@ -140,9 +131,9 @@ router.post('/', optionalAuth, validateCreateOrder, async (req, res) => {
     // ── 3. Find or create customer entry ──────────────────────────────────────
     const customer = await Customer.findOrCreate({
       email,
-      firstName: shipping.firstName,
-      lastName: shipping.lastName,
-      phone: shipping.phone,
+      firstName: ship.firstName,
+      lastName: ship.lastName,
+      phone: ship.phone,
       country
     });
 
@@ -297,49 +288,7 @@ router.post('/shipping-rates', async (req, res) => {
   }
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  GET /api/orders/:orderId
-//  Public order lookup (customer checks their own order).
-//  Uses email as an ownership check if not authenticated.
-// ─────────────────────────────────────────────────────────────────────────────
-router.get('/:orderId', optionalAuth, validateOrderId, async (req, res) => {
-  try {
-    const order = await Order.findById(req.params.orderId);
-
-    if (!order) {
-      return res.status(404).json({ success: false, message: 'Order not found' });
-    }
-
-    // If not admin, require email match to view order details
-    let isFullDetail = false;
-    if (!req.user || req.user.role !== 'admin') {
-      const { email } = req.query;
-      if (!email || email.toLowerCase() !== order.customer_email?.toLowerCase()) {
-        if (req.user && req.user.role === 'customer' && req.user.id === order.customer_id) {
-          // Allow if customer is logged in and owns the order
-          isFullDetail = true;
-        } else {
-          return res.status(403).json({ success: false, message: 'Access denied' });
-        }
-      } else {
-        // Email match means public URL with token/email pair
-        isFullDetail = true;
-      }
-    } else {
-      isFullDetail = true;
-    }
-
-    return res.json({
-      success: true,
-      order: _sanitizeOrder(order, isFullDetail)
-    });
-
-  } catch (err) {
-    logger.error(`GET /api/orders/:orderId error: ${err.message}`);
-    return res.status(500).json({ success: false, message: 'Failed to fetch order' });
-  }
-});
-
+// EDGE CASE #16: Move /my BEFORE /:orderId to prevent route shadowing
 // ─────────────────────────────────────────────────────────────────────────────
 //  GET /api/orders/my
 //  Customer's order history.
@@ -372,10 +321,70 @@ router.get('/number/:orderNumber', optionalAuth, async (req, res) => {
       return res.status(404).json({ success: false, message: 'Order not found' });
     }
 
-    return res.json({ success: true, order: _sanitizeOrder(order) });
+    // EDGE CASE #20: Authorization check for lookup by order number
+    let isFullDetail = false;
+    if (!req.user || req.user.role !== 'admin') {
+      const { email } = req.query;
+      if (!email || email.toLowerCase() !== order.customer_email?.toLowerCase()) {
+        if (req.user && req.user.role === 'customer' && req.user.id === order.user_id) {
+          isFullDetail = true;
+        } else {
+          return res.status(403).json({ success: false, message: 'Access denied. Please provide order email or login.' });
+        }
+      } else {
+        isFullDetail = true;
+      }
+    } else {
+      isFullDetail = true;
+    }
+
+    return res.json({ success: true, order: _sanitizeOrder(order, isFullDetail) });
 
   } catch (err) {
     logger.error(`GET /api/orders/number/:orderNumber error: ${err.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to fetch order' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  GET /api/orders/:orderId
+//  Public order lookup (customer checks their own order).
+//  Uses email as an ownership check if not authenticated.
+// ─────────────────────────────────────────────────────────────────────────────
+router.get('/:orderId', optionalAuth, validateOrderId, async (req, res) => {
+  try {
+    const order = await Order.findById(req.params.orderId);
+
+    if (!order) {
+      return res.status(404).json({ success: false, message: 'Order not found' });
+    }
+
+    // If not admin, require email match to view order details
+    let isFullDetail = false;
+    if (!req.user || req.user.role !== 'admin') {
+      const { email } = req.query;
+      if (!email || email.toLowerCase() !== order.customer_email?.toLowerCase()) {
+        if (req.user && req.user.role === 'customer' && req.user.id === order.user_id) {
+          // Allow if customer is logged in and owns the order
+          isFullDetail = true;
+        } else {
+          return res.status(403).json({ success: false, message: 'Access denied' });
+        }
+      } else {
+        // Email match means public URL with token/email pair
+        isFullDetail = true;
+      }
+    } else {
+      isFullDetail = true;
+    }
+
+    return res.json({
+      success: true,
+      order: _sanitizeOrder(order, isFullDetail)
+    });
+
+  } catch (err) {
+    logger.error(`GET /api/orders/:orderId error: ${err.message}`);
     return res.status(500).json({ success: false, message: 'Failed to fetch order' });
   }
 });

@@ -123,15 +123,37 @@ export async function findByOrderNumber(orderNumber) {
 
 export async function findByCustomer(customerId, { page = 1, limit = 20 } = {}) {
   const offset = (page - 1) * limit;
+  
+  // EDGE CASE #99: Fetch user email to find guest orders associated with this account
+  const [userRows] = await db.query('SELECT email FROM users WHERE id = ?', [customerId]);
+  const userEmail = userRows[0]?.email || null;
+
   const [rows] = await db.query(
-    `SELECT * FROM orders WHERE user_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?`,
-    [customerId, limit, offset]
+    `SELECT * FROM orders 
+     WHERE user_id = ? 
+     ${userEmail ? 'OR (user_id IS NULL AND LOWER(customer_email) = LOWER(?))' : ''}
+     ORDER BY created_at DESC LIMIT ? OFFSET ?`,
+    userEmail ? [customerId, userEmail, limit, offset] : [customerId, limit, offset]
   );
+
   if (rows.length === 0) return { orders: [], total: 0, page, limit };
   const orderIds = rows.map(r => r.id);
-  const [allItems] = await db.query(`SELECT * FROM order_items WHERE order_id IN (?) ORDER BY created_at ASC`, [orderIds]);
+  
+  let allItems = [];
+  if (orderIds.length > 0) {
+    const [itemRows] = await db.query(`SELECT * FROM order_items WHERE order_id IN (?) ORDER BY created_at ASC`, [orderIds]);
+    allItems = itemRows;
+  }
+  
   const orders = rows.map(order => ({ ...order, items: allItems.filter(item => item.order_id === order.id) }));
-  const [[{ total }]] = await db.query(`SELECT COUNT(*) AS total FROM orders WHERE user_id = ?`, [customerId]);
+  
+  const [[{ total }]] = await db.query(
+    `SELECT COUNT(*) AS total FROM orders 
+     WHERE user_id = ? 
+     ${userEmail ? 'OR (user_id IS NULL AND LOWER(customer_email) = LOWER(?))' : ''}`,
+    userEmail ? [customerId, userEmail] : [customerId]
+  );
+  
   return { orders, total, page, limit };
 }
 
@@ -185,10 +207,38 @@ export async function updateOrderStatus(orderId, status, notes = null) {
   return findById(orderId);
 }
 
+// EDGE CASE #22: Whitelist allowed column names to prevent SQL injection
+const ALLOWED_ORDER_COLUMNS = new Set([
+  'status', 'payment_status', 'payment_reference', 'payment_method',
+  'fulfillment_status', 'fulfillment_channel', 'fulfillment_error',
+  'amazon_fulfillment_id', 'mcf_order_id',
+  'shippo_tracking_number', 'shippo_carrier', 'shippo_tracking_status',
+  'shippo_label_url', 'shippo_transaction_id', 'shippo_tracking_raw',
+  'service_name', 'estimated_delivery',
+  'tracking_number', 'tracking_url', 'carrier', 'label_url',
+  'actual_shipping_cost', 'shipping_profit_loss',
+  'notes', 'invoice_pdf_url',
+  'shipping_cost', 'tax', 'subtotal', 'total', 'currency'
+]);
+
 export async function updateOrder(orderId, fields) {
-  const setClauses = Object.keys(fields).map(k => `${k} = ?`).join(', ');
-  const values = [...Object.values(fields).map(v => v === undefined ? null : v), new Date(), orderId];
-  await db.query(`UPDATE orders SET ${setClauses}, updated_at = ? WHERE id = ?`, values);
+  // Filter to only whitelisted columns
+  const safeFields = {};
+  for (const [key, value] of Object.entries(fields)) {
+    if (ALLOWED_ORDER_COLUMNS.has(key)) {
+      safeFields[key] = value === undefined ? null : value;
+    } else {
+      logger.warn(`updateOrder: Rejected non-whitelisted column '${key}' for order ${orderId}`);
+    }
+  }
+  if (Object.keys(safeFields).length === 0) {
+    logger.warn(`updateOrder: No valid columns to update for order ${orderId}`);
+    return findById(orderId);
+  }
+  // EDGE CASE #23: Use NOW() instead of JS Date for consistent timezone
+  const setClauses = Object.keys(safeFields).map(k => `${k} = ?`).join(', ');
+  const values = [...Object.values(safeFields), orderId];
+  await db.query(`UPDATE orders SET ${setClauses}, updated_at = NOW() WHERE id = ?`, values);
   return findById(orderId);
 }
 

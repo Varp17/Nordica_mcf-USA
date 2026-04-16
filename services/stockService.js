@@ -12,16 +12,17 @@ import logger from "../utils/logger.js";
 export async function checkInventoryLevels() {
   try {
     logger.info("Running stock inventory check...");
+    const alerts = [];
 
     // 1. Check main products table
     const [lowStockProducts] = await db.execute(
-      `SELECT id, name, sku, in_stock, availability 
+      `SELECT id, name, sku, in_stock, availability, target_country 
        FROM products 
        WHERE (in_stock < 30 OR in_stock = 0) AND is_active = 1`
     );
 
     for (const product of lowStockProducts) {
-      const { id, name, sku, in_stock, availability } = product;
+      const { id, name, sku, in_stock, availability, target_country } = product;
       
       // Update availability if needed
       if (in_stock === 0 && availability !== "Out of Stock") {
@@ -32,9 +33,9 @@ export async function checkInventoryLevels() {
         logger.info(`Product ${name} (${sku}) updated back to In Stock`);
       }
 
-      // Send alert (Admin)
+      // Collect alert for bulk send
       if (in_stock === 0) {
-        await sendStockAlertEmail(name, in_stock, sku);
+        alerts.push({ productName: name, currentStock: in_stock, sku, region: target_country || 'us' });
       }
       
       // Notify users if back in stock
@@ -45,27 +46,32 @@ export async function checkInventoryLevels() {
 
     // 2. Check product variants table
     const [lowStockVariants] = await db.execute(
-      `SELECT v.id, v.product_id, p.name as product_name, v.color_name, v.amazon_sku, v.stock 
+      `SELECT v.id, v.product_id, p.name as product_name, p.target_country, v.color_name, v.amazon_sku, v.stock 
        FROM product_color_variants v
        JOIN products p ON v.product_id = p.id
        WHERE (v.stock < 30 OR v.stock = 0) AND v.is_active = 1`
     );
 
     for (const variant of lowStockVariants) {
-      const { product_name, color_name, amazon_sku, stock } = variant;
+      const { product_name, color_name, amazon_sku, stock, target_country } = variant;
       const fullName = `${product_name} (${color_name})`;
       
-      // Send alert (Admin)
+      // Collect alert for bulk send
       if (stock === 0) {
-        await sendStockAlertEmail(fullName, stock, amazon_sku);
+        alerts.push({ productName: fullName, currentStock: stock, sku: amazon_sku, region: target_country || 'us' });
       }
 
       // Notify users if back in stock
-      // We need a way to check if it was previously 0.
-      // For simplicity, we check if there are pending notifications.
       if (stock > 0) {
         await notifyUsersBackInStock(variant.product_id, variant.id, fullName, stock);
       }
+    }
+
+    // 3. Send consolidated bulk email if needed
+    if (alerts.length > 0) {
+      const { sendBulkStockAlertEmail } = await import("./emailService.js");
+      await sendBulkStockAlertEmail(alerts);
+      logger.info(`Sent consolidated stock alert email for ${alerts.length} items.`);
     }
 
     logger.info(`Stock check complete. Processed ${lowStockProducts.length} products and ${lowStockVariants.length} variants.`);
@@ -73,7 +79,8 @@ export async function checkInventoryLevels() {
     return {
       success: true,
       productsChecked: lowStockProducts.length,
-      variantsChecked: lowStockVariants.length
+      variantsChecked: lowStockVariants.length,
+      alertsSent: alerts.length
     };
   } catch (error) {
     logger.error("Stock check failed:", error);

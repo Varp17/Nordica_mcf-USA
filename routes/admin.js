@@ -360,8 +360,7 @@ router.get("/inventory", authenticateToken, requireAdmin, async (req, res) => {
       FROM product_color_variants pcv
       JOIN products p ON pcv.product_id = p.id
       LEFT JOIN product_images pi ON pcv.id = pi.color_variant_id AND (pi.image_type = 'color_variant' OR pi.is_primary = 1)
-      LEFT JOIN order_items oi ON oi.product_id = pcv.product_id 
-        AND (oi.color = pcv.color_name OR oi.color = pcv.color_code)
+      LEFT JOIN order_items oi ON oi.product_variant_id = pcv.id
       WHERE pcv.is_active = 1 AND p.is_active = 1
       GROUP BY pcv.id
       ORDER BY pcv.stock ASC, p.name ASC
@@ -622,7 +621,7 @@ router.post(
       const {
         name, name_ar, price, original_price, discount,
         short_description, description, description_ar, full_description,
-        brand, category, sku, in_stock, target_country, amazon_url,
+        brand, category, sku, canada_sku, amazon_sku_ca, in_stock, target_country, amazon_url,
         youtube_url, image, images, videos, aboutSection, specifications,
         color_variants, features
       } = req.body;
@@ -650,8 +649,8 @@ router.post(
 
       const stock = parseInt(in_stock) || 0;
       const availability = stock > 0 ? "In Stock" : "Out of Stock";
-      const validCountries = ['us', 'canada', 'both'];
-      let targetCountry = (target_country && validCountries.includes(target_country.toLowerCase())) ? target_country.toLowerCase() : 'both';
+      const validCountries = ['us', 'canada'];
+      let targetCountry = (target_country && validCountries.includes(target_country.toLowerCase())) ? target_country.toLowerCase() : 'us';
 
       const productId = uuidv4();
       
@@ -668,10 +667,10 @@ router.post(
           short_description, description, description_ar, long_description,
           image, images, youtube_url, videos,
           brand, category, category_id, brand_id,
-          availability, sku, in_stock, inventory_cache,
+          availability, sku, canada_sku, amazon_sku, amazon_sku_ca, in_stock, inventory_cache,
           about_section, specifications, features,
           target_country, amazon_url, is_active, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, NOW())`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, NOW())`,
         [
           productId, name, name_ar || null, parseFloat(price),
           original_price ? parseFloat(original_price) : null,
@@ -679,7 +678,7 @@ router.post(
           short_description || null, description || "", description_ar || null, full_description || description || "",
           image || null, gallery, youtube_url || null, videosJson,
           brand, category, categoryId, brandId,
-          availability, sku || null, stock, stock,
+          availability, sku || null, canada_sku || null, req.body.amazon_sku || null, amazon_sku_ca || null, stock, stock,
           aboutJson, specsJson, featuresJson,
           targetCountry, amazon_url || null
         ]
@@ -696,8 +695,8 @@ router.post(
         const vId = uuidv4();
 
         await connection.execute(
-          "INSERT INTO product_color_variants (id, product_id, color_name, color_code, stock, price, amazon_sku, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, NOW())",
-          [vId, productId, v.color_name || v.color, v.color_code || v.colorCode || '#000000', vStock, v.price || price, v.amazon_sku || null]
+          "INSERT INTO product_color_variants (id, product_id, sku, canada_sku, color_name, color_code, stock, price, amazon_sku, target_country, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())",
+          [vId, productId, v.sku || null, v.canada_sku || null, v.color_name || v.color, v.color_code || v.colorCode || '#000000', vStock, v.price || price, v.amazon_sku || null, targetCountry]
         );
 
         colorOptionsList.push({
@@ -748,7 +747,7 @@ router.put(
       const {
         name, name_ar, price, original_price, discount,
         short_description, description, description_ar, full_description,
-        brand, category, sku, in_stock, target_country, amazon_url,
+        brand, category, in_stock, amazon_url,
         youtube_url, image, images, about_section, aboutSection, 
         specifications, features, weight_kg, weight_lb, dimensions, 
         dimensions_imperial, material, warranty, return_policy,
@@ -770,7 +769,6 @@ router.put(
       setUpdate(youtube_url, 'youtube_url');
       setUpdate(brand, 'brand');
       setUpdate(category, 'category');
-      setUpdate(sku, 'sku');
       setUpdate(amazon_url, 'amazon_url');
       
       const parseNum = (val) => (val === "" || val === null || val === undefined) ? null : parseFloat(val);
@@ -792,10 +790,6 @@ router.put(
         setUpdate(stock > 0 ? 'In Stock' : 'Out of Stock', 'availability');
       }
 
-      if (target_country) {
-        const valid = ['us', 'canada', 'both'];
-        updates.target_country = valid.includes(target_country.toLowerCase()) ? target_country.toLowerCase() : 'both';
-      }
 
       // Handle standard JSON fields
       const processJson = (val) => (typeof val === 'string' ? val : JSON.stringify(val || null));
@@ -881,13 +875,20 @@ router.put(
           if (isNew) {
             vId = uuidv4();
             await connection.execute(
-              "INSERT INTO product_color_variants (id, product_id, sku, color_name, color_code, amazon_sku, stock, price, is_active) VALUES (?,?,?,?,?,?,?,?,1)",
-              [vId, id, v.sku || null, v.color_name || v.color, v.color_code || v.colorCode || '#000000', v.amazon_sku || null, parseInt(v.stock) || 0, parseFloat(v.price) || 0]
+              "INSERT INTO product_color_variants (id, product_id, sku, canada_sku, color_name, color_code, amazon_sku, target_country, stock, price, is_active) VALUES (?,?,?,?,?,?,?,?,?,?,1)",
+              [vId, id, v.sku || null, v.canada_sku || null, v.color_name || v.color, v.color_code || v.colorCode || '#000000', v.amazon_sku || null, (v.amazon_sku ? 'us' : 'canada'), parseInt(v.stock) || 0, parseFloat(v.price) || 0]
             );
           } else {
+            // Fetch existing variant to check for Amazon SKU and preserve it
+            const [vRows] = await connection.execute("SELECT amazon_sku, sku, canada_sku, stock, target_country FROM product_color_variants WHERE id = ?", [vId]);
+            const existingV = vRows[0];
+            
+            // If it's an amazon variant, we NEVER update its stock or SKUs manually
+            const finalStock = (existingV && existingV.amazon_sku) ? existingV.stock : (parseInt(v.stock) || 0);
+            
             await connection.execute(
-              "UPDATE product_color_variants SET sku=?, color_name=?, color_code=?, amazon_sku=?, stock=?, price=?, is_active=1 WHERE id=?",
-              [v.sku || null, v.color_name || v.color, v.color_code || v.colorCode || '#000000', v.amazon_sku || null, parseInt(v.stock) || 0, parseFloat(v.price) || 0, vId]
+              "UPDATE product_color_variants SET color_name=?, color_code=?, stock=?, price=?, is_active=1 WHERE id=?",
+              [v.color_name || v.color, v.color_code || v.colorCode || '#000000', finalStock, parseFloat(v.price) || 0, vId]
             );
           }
 

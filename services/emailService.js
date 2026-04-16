@@ -367,8 +367,9 @@ export async function sendOrderShippedEmail(order, tracking) {
 }
 
 export async function sendOrderDeliveredEmail(order) {
-  const firstName  = order.shipping_first_name || 'Customer';
-  const storeName  = process.env.STORE_NAME    || 'Our Store';
+  const firstName  = order.shipping_first_name || order.first_name || 'Customer';
+  const email      = order.customer_email || order.cust_email || order.email;
+  const storeName  = process.env.STORE_NAME    || 'Detail Guardz';
   const storeUrl   = process.env.STORE_WEBSITE  || 'https://yourstore.com';
 
   const body = `
@@ -388,7 +389,7 @@ export async function sendOrderDeliveredEmail(order) {
   `;
 
   return sendEmail({
-    to:      order.customer_email,
+    to:      email,
     subject: `Your Order Has Been Delivered! #${order.order_number}`,
     html:    wrapEmail('Package Delivered! ✅', `Order #${order.order_number}`, body)
   });
@@ -478,6 +479,70 @@ export async function sendWelcomeEmail(email, firstName) {
   });
 }
 
+export async function sendBulkStockAlertEmail(alerts) {
+  const adminEmail = process.env.ADMIN_ALERT_EMAIL || 'k7391356@gmail.com';
+  if (!alerts || alerts.length === 0) return;
+
+  // Group alerts by region
+  const usaAlerts = alerts.filter(a => (a.region || '').toLowerCase() === 'us' || (a.region || '').toLowerCase() === 'usa');
+  const caAlerts = alerts.filter(a => (a.region || '').toLowerCase() === 'ca' || (a.region || '').toLowerCase() === 'canada');
+  const otherAlerts = alerts.filter(a => {
+    const r = (a.region || '').toLowerCase();
+    return r !== 'us' && r !== 'usa' && r !== 'ca' && r !== 'canada';
+  });
+
+  const buildSection = (title, items, color) => {
+    if (items.length === 0) return '';
+    const rows = items.map(a => `
+      <div style="border-left: 4px solid ${color}; padding: 10px 15px; margin-bottom: 10px; background: #f9fafb; border-radius: 4px;">
+        <p style="margin: 0; font-weight: 600; color: #1E3A5F;">${a.productName}</p>
+        <p style="margin: 4px 0 0; font-size: 13px; color: #64748b;">SKU: ${a.sku || 'N/A'} | Stock: <strong style="color: ${color};">${a.currentStock}</strong></p>
+      </div>
+    `).join('');
+    return `
+      <h3 style="color: ${color}; margin-top: 25px; border-bottom: 2px solid #eee; padding-bottom: 8px;">${title}</h3>
+      ${rows}
+    `;
+  };
+
+  const bodyContent = `
+    <p>The following items have reached critical stock levels and require attention:</p>
+    ${buildSection('🇺🇸 USA Inventory (Amazon FBA)', usaAlerts, '#dc2626')}
+    ${buildSection('🇨🇦 Canada Inventory (Shippo)', caAlerts, '#dc2626')}
+    ${buildSection('🌐 Other Regions', otherAlerts, '#dc2626')}
+    <p style="margin-top: 30px; font-size: 13px; color: #94a3b8; border-top: 1px solid #eee; pt: 15px;">
+      This is an automated consolidated alert from the Nordica Inventory System.
+    </p>
+  `;
+
+  // We send separate emails for USA and Canada if the user wants different emails for each region
+  // "usa different email and canda different email"
+  
+  if (usaAlerts.length > 0) {
+    const usaEmail = process.env.USA_ADMIN_EMAIL || adminEmail;
+    await sendEmail({
+      to: usaEmail,
+      subject: `[INVENTORY] USA Stock Alert — ${usaAlerts.length} items`,
+      html: wrapEmail('USA Stock Alert 🇺🇸', 'Inventory Management', `
+        <p>The following items are out of stock in the <strong>USA region</strong>:</p>
+        ${buildSection('', usaAlerts, '#dc2626')}
+      `)
+    });
+  }
+
+  if (caAlerts.length > 0) {
+    const caEmail = process.env.CA_ADMIN_EMAIL || adminEmail;
+    await sendEmail({
+      to: caEmail,
+      subject: `[INVENTORY] Canada Stock Alert — ${caAlerts.length} items`,
+      html: wrapEmail('Canada Stock Alert 🇨🇦', 'Inventory Management', `
+        <p>The following items are out of stock in the <strong>Canada region</strong>:</p>
+        ${buildSection('', caAlerts, '#dc2626')}
+      `)
+    });
+  }
+}
+
 export async function sendStockAlertEmail(productName, currentStock, sku) {
   const adminEmail = process.env.ADMIN_ALERT_EMAIL || 'k7391356@gmail.com';
   const isOutOfStock = currentStock <= 0;
@@ -504,7 +569,7 @@ export async function sendStockAlertEmail(productName, currentStock, sku) {
 
 export async function sendTrackingUpdateEmail(order, tracking) {
   const firstName = order.shipping_first_name || order.first_name || 'Customer';
-  const email     = order.customer_email || order.email;
+  const email     = order.customer_email || order.cust_email || order.email;
   const orderNum  = order.order_number || order.id;
 
   const statusLabels = {
@@ -646,6 +711,7 @@ export default {
   sendOTPEmail,
   sendWelcomeEmail,
   sendStockAlertEmail,
+  sendBulkStockAlertEmail,
   sendBackInStockEmail,
   sendPasswordResetOTPEmail,
   sendPasswordChangedEmail

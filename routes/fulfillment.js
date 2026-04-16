@@ -5,13 +5,15 @@ import mcfService from '../services/mcfService.js';
 import shippoService from '../services/shippoService.js';
 import logger from '../utils/logger.js';
 
+import { authenticateToken as requireAuth, requireAdmin } from '../middleware/auth.js';
+
 const router = express.Router();
 
 /**
  * POST /api/fulfillment/fetch-dimensions
  * Fetch product dimensions from Amazon MCF catalog
  */
-router.post('/fetch-dimensions', async (req, res) => {
+router.post('/fetch-dimensions', requireAdmin, async (req, res) => {
   try {
     const { sku } = req.body;
 
@@ -51,6 +53,7 @@ router.post('/preview', async (req, res) => {
     }
 
     // 1. Validate items
+    logger.info('[DEBUG] Incoming items for preview:', { items });
     const { valid, errors, items: validatedItems } = await Product.validateCartItems(items, country);
     if (!valid) {
       return res.status(400).json({ success: false, message: 'Cart validation failed', errors });
@@ -72,15 +75,23 @@ router.post('/preview', async (req, res) => {
         const estDays = p.fulfillmentPreviewShipments?.[0]?.latestArrival 
             ? Math.max(1, Math.ceil((new Date(p.fulfillmentPreviewShipments[0].latestArrival) - new Date()) / (1000 * 60 * 60 * 24)))
             : null;
+
+        const flatRates = { 'Standard': 5, 'Expedited': 7, 'Priority': 15 };
+        const customerCharge = flatRates[p.shippingSpeedCategory] || 0;
+        const margin = customerCharge - p.totalFee;
+
+        // Log the actual Amazon Fee vs what we charge (Sustainability check)
+        logger.info(`[MCF COST ANALYSIS] Speed: ${p.shippingSpeedCategory.padEnd(9)} | Amazon Fee: ${p.totalFee.toString().padEnd(6)} | Customer: $${customerCharge.toString().padEnd(4)} | LOSS: $${margin.toFixed(2)} | Fulfillable: ${p.isFulfillable}`);
+
         return {
             ...p,
-            id: p.shippingSpeedCategory + '_DYNAMIC',
-            name: `Dynamic ${p.shippingSpeedCategory}`,
-            price: p.totalFee,
+            id: p.shippingSpeedCategory.toLowerCase(),
+            name: `${p.shippingSpeedCategory} Shipping`,
+            price: customerCharge,
             currency: p.currency || 'USD',
             estimation: estDays ? `Estimated ${estDays - 2}-${estDays} business days` : 'Reliable Delivery',
             shippingSpeedCategory: p.shippingSpeedCategory,
-            isDynamic: true
+            isDynamic: false
         };
       });
     } catch (e) {
@@ -92,13 +103,12 @@ router.post('/preview', async (req, res) => {
         return dp?.estimation || defaultEst;
     };
 
-    const totalQty = validatedItems.reduce((sum, item) => sum + (item.quantity || 1), 0);
-
+    // User requested flat rates: Standard $5, Expedited $7, Priority $15
     const allOptions = [
       {
         id: 'standard',
         name: 'Standard Shipping',
-        price: parseFloat((totalQty * 5).toFixed(2)),
+        price: 5.00,
         currency: 'USD',
         estimation: getEst('Standard', 'Estimated 3-5 business days'),
         shippingSpeedCategory: 'Standard'
@@ -106,23 +116,41 @@ router.post('/preview', async (req, res) => {
       {
         id: 'expedited',
         name: 'Expedited Shipping',
-        price: parseFloat((totalQty * 7).toFixed(2)),
+        price: 7.00,
         currency: 'USD',
         estimation: getEst('Expedited', 'Estimated 2-3 business days'),
         shippingSpeedCategory: 'Expedited'
+      },
+      {
+        id: 'priority',
+        name: 'Priority Shipping',
+        price: 15.00,
+        currency: 'USD',
+        estimation: getEst('Priority', 'Estimated 1-2 business days'),
+        shippingSpeedCategory: 'Priority'
       }
     ];
 
-    const availableSpeeds = new Set(dynamicPreviews.filter(p => p.isFulfillable).map(p => p.shippingSpeedCategory));
-    const hardcodedPreviews = allOptions.filter(o => availableSpeeds.has(o.shippingSpeedCategory));
+    // Filter only those that Amazon confirms are fulfillable for this address
+    const availableSpeeds = new Set(
+        dynamicPreviews
+            .filter(p => p.isFulfillable)
+            .map(p => p.shippingSpeedCategory)
+    );
+    
+    const validPreviews = allOptions.filter(o => availableSpeeds.has(o.shippingSpeedCategory));
 
-    if (hardcodedPreviews.length === 0) {
-        hardcodedPreviews.push(allOptions[0]);
+    if (validPreviews.length === 0) {
+        return res.json({ 
+            success: false, 
+            message: 'Delivery not available at your place. Please verify your address or contact support.',
+            previews: [] 
+        });
     }
 
     return res.json({ 
       success: true, 
-      previews: [...hardcodedPreviews]
+      previews: validPreviews
     });
   } catch (err) {
     logger.error(`POST /api/fulfillment/preview error: ${err.message}`, {
@@ -130,7 +158,8 @@ router.post('/preview', async (req, res) => {
       requestItems: req.body?.items?.map(i => i.sku || i.id)
     });
     
-    return res.status(200).json({ 
+    // EDGE CASE #55: Return 500 for actual server errors, or keep 200 with success: false for "business" errors
+    return res.status(500).json({ 
       success: false, 
       message: err.message || 'Unable to fetch real-time shipping rates from Amazon. Please verify your address or contact support.'
     });
@@ -170,7 +199,8 @@ router.post('/rates', async (req, res) => {
     });
   } catch (err) {
     logger.error(`POST /api/fulfillment/rates error: ${err.message}`);
-    return res.json({ 
+    // EDGE CASE #56: Return 500 for server errors
+    return res.status(500).json({ 
         success: false, 
         message: err.message || 'Unable to fetch shipping rates. Double check your postal code or contact support.'
     });
@@ -222,27 +252,31 @@ router.post('/calculate-tax', async (req, res) => {
 
     if (country === 'CA') {
       const province = (req.body.province || state || '').toUpperCase();
+      // EDGE CASE #57: Use same tax rates as orderRoutes.js (Synchronized)
       const CA_TAX_RATES = {
-        'AB': 0.05, 'BC': 0.05, 'MB': 0.05, 'NB': 0.15, 'NL': 0.15,
-        'NS': 0.14, 'NT': 0.05, 'NU': 0.05, 'ON': 0.13, 'QC': 0.05, 
-        'PE': 0.15, 'SK': 0.05, 'YT': 0.05
+        'AB': 0.05, 'BC': 0.12, 'MB': 0.12, 'NB': 0.15, 'NL': 0.15, 'NS': 0.15, 
+        'NT': 0.05, 'NU': 0.05, 'ON': 0.13, 'PE': 0.15, 'QC': 0.14975, 'SK': 0.11, 'YT': 0.05
       };
       
       const rate = CA_TAX_RATES[province] ?? 0;
       const tax = parseFloat((sub * rate).toFixed(2));
-      const label = rate >= 0.13 ? `HST (${(rate*100).toFixed(0)}%)` : `GST (${(rate*100).toFixed(0)}%)`;
+      const label = rate >= 0.12 ? `HST/PST/QST (${(rate*100).toFixed(2)}%)` : `GST (${(rate*100).toFixed(0)}%)`;
       
       return res.json({ success: true, tax, tax_label: label, rate });
     }
 
-    // US state tax rates (simplified — production would use TaxJar/Avalara)
+    // US state tax rates
+    // EDGE CASE #58: Added more states for better coverage
     const US_TAX_RATES = {
-      CA: 0.0725, NY: 0.08, TX: 0.0625, FL: 0.06, WA: 0.065,
-      IL: 0.0625, PA: 0.06, OH: 0.0575, GA: 0.04, NC: 0.0475,
-      MI: 0.06, NJ: 0.0663, VA: 0.053, AZ: 0.056, TN: 0.07,
-      MA: 0.0625, IN: 0.07, MO: 0.04225, MD: 0.06, WI: 0.05,
-      CO: 0.029, MN: 0.06875, SC: 0.06, AL: 0.04, LA: 0.0445,
-      KY: 0.06, OR: 0, MT: 0, NH: 0, DE: 0, AK: 0
+      AL: 0.04, AK: 0, AZ: 0.056, AR: 0.065, CA: 0.0725, CO: 0.029, CT: 0.0635,
+      DE: 0, FL: 0.06, GA: 0.04, HI: 0.04, ID: 0.06, IL: 0.0625, IN: 0.07,
+      IA: 0.06, KS: 0.065, KY: 0.06, LA: 0.0445, ME: 0.055, MD: 0.06,
+      MA: 0.0625, MI: 0.06, MN: 0.06875, MS: 0.07, MO: 0.04225, MT: 0,
+      NE: 0.055, NV: 0.0685, NH: 0, NJ: 0.0663, NM: 0.05125, NY: 0.08,
+      NC: 0.0475, ND: 0.05, OH: 0.0575, OK: 0.045, OR: 0, PA: 0.06,
+      RI: 0.07, SC: 0.06, SD: 0.045, TN: 0.07, TX: 0.0625, UT: 0.0610,
+      VT: 0.06, VA: 0.053, WA: 0.065, WV: 0.06, WI: 0.05, WY: 0.04,
+      DC: 0.06
     };
 
     const rate = US_TAX_RATES[state?.toUpperCase()] ?? 0;

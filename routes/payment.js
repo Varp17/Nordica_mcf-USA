@@ -4,6 +4,7 @@ import db from '../config/database.js';
 import Order from '../models/Order.js';
 import * as Product from '../models/Product.js';
 import { fulfillOrder } from '../services/fulfillmentService.js';
+import { calculateTax } from '../services/taxService.js';
 import logger from '../utils/logger.js';
 import { optionalAuth, requireVerified } from '../middleware/auth.js';
 
@@ -11,11 +12,21 @@ const router = express.Router();
 
 const PAYPAL_API = 'https://api-m.paypal.com';
 
+// EDGE CASE #14: Add timeout to prevent hanging if PayPal is down
+const PAYPAL_TIMEOUT_MS = 15000;
+
 /**
  * Get PayPal Access Token
  */
 async function getPayPalAccessToken() {
-  const auth = Buffer.from(`${process.env.PAYPAL_CLIENT_ID}:${process.env.PAYPAL_CLIENT_SECRET}`).toString('base64');
+  const clientId = process.env.PAYPAL_CLIENT_ID;
+  const clientSecret = process.env.PAYPAL_CLIENT_SECRET;
+
+  if (!clientId || !clientSecret) {
+    throw new Error('PayPal credentials not configured');
+  }
+
+  const auth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
   const params = new URLSearchParams();
   params.append('grant_type', 'client_credentials');
 
@@ -27,6 +38,7 @@ async function getPayPalAccessToken() {
       Authorization: `Basic ${auth}`,
       'Content-Type': 'application/x-www-form-urlencoded',
     },
+    timeout: PAYPAL_TIMEOUT_MS,
   });
   return response.data.access_token;
 }
@@ -56,6 +68,34 @@ router.post('/create-order', optionalAuth, async (req, res, next) => {
   try {
     const { country, currency, items, shipping, shippingCost, subtotal, tax, total, email, shippingSpeed, guestOtpCode } = req.body;
     
+    // EDGE CASE #6: Validate country
+    if (!country || !['US', 'CA'].includes(country)) {
+      return res.status(400).json({ success: false, message: 'Invalid country. Must be US or CA.' });
+    }
+
+    // EDGE CASE #7: Validate email
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ success: false, message: 'A valid email address is required.' });
+    }
+
+    // EDGE CASE #9: Validate items
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ success: false, message: 'At least one item is required.' });
+    }
+
+    // EDGE CASE #8: Validate shipping fields
+    if (!shipping || !shipping.firstName || !shipping.lastName || !shipping.address1 || !shipping.city) {
+      return res.status(400).json({ success: false, message: 'Shipping address is incomplete. First name, last name, address, and city are required.' });
+    }
+
+    if (country === 'US' && (!shipping.state || !shipping.zip)) {
+      return res.status(400).json({ success: false, message: 'State and ZIP code are required for US orders.' });
+    }
+
+    if (country === 'CA' && (!shipping.province && !shipping.state)) {
+      return res.status(400).json({ success: false, message: 'Province is required for Canadian orders.' });
+    }
+
     // 0. Guest Verification (for unauthenticated users)
     if (!req.user && !req.headers['authorization']) {
       if (!guestOtpCode) {
@@ -83,33 +123,26 @@ router.post('/create-order', optionalAuth, async (req, res, next) => {
 
     // 1.1 Recalculate Financials for Security (Production Level)
     const serverSubtotal = validation.subtotal;
-    let serverShippingCost = 0;
-    
-    // Server-side Tax Recalculation
-    let serverTax = 0;
     const provState = (shipping.province || shipping.state || '').toUpperCase();
+    
+    // EDGE CASE #57: Use Centralized Tax Service
+    const taxCalculation = await calculateTax(serverSubtotal, country, provState);
+    const serverTax = taxCalculation.amount;
+
+    let serverShippingCost = 0;
     const totalQty = validation.items.reduce((sum, item) => sum + (item.quantity || 1), 0);
 
     if (country === 'CA') {
-      const CA_TAX_RATES = {
-        'AB': 0.05, 'BC': 0.05, 'MB': 0.05, 'NB': 0.15, 'NL': 0.15,
-        'NS': 0.14, 'NT': 0.05, 'NU': 0.05, 'ON': 0.13, 'QC': 0.05, 
-        'PE': 0.15, 'SK': 0.05, 'YT': 0.05
-      };
-      const rate = CA_TAX_RATES[provState] ?? 0;
-      serverTax = parseFloat((serverSubtotal * rate).toFixed(2));
       serverShippingCost = parseFloat((totalQty * 10).toFixed(2));
     } else if (country === 'US') {
-      const US_TAX_RATES = {
-        CA: 0.0725, NY: 0.08, TX: 0.0625, FL: 0.06, WA: 0.065, IL: 0.0625, PA: 0.06, OH: 0.0575, GA: 0.04, NC: 0.0475,
-        MI: 0.06, NJ: 0.0663, VA: 0.053, AZ: 0.056, TN: 0.07, MA: 0.0625, IN: 0.07, MO: 0.04225, MD: 0.06, WI: 0.05,
-        CO: 0.029, MN: 0.06875, SC: 0.06, AL: 0.04, LA: 0.0445, KY: 0.06
-      };
-      const rate = US_TAX_RATES[provState] ?? 0;
-      serverTax = parseFloat((serverSubtotal * rate).toFixed(2));
-      
-      const isExpedited = (shippingSpeed || '').toLowerCase().includes('expedited');
-      serverShippingCost = parseFloat((totalQty * (isExpedited ? 7 : 5)).toFixed(2));
+      const speed = (shippingSpeed || '').toLowerCase();
+      if (speed.includes('priority')) {
+        serverShippingCost = 15.00;
+      } else if (speed.includes('expedited')) {
+        serverShippingCost = 7.00;
+      } else {
+        serverShippingCost = 5.00;
+      }
     }
 
     const serverTotal = parseFloat((serverSubtotal + serverShippingCost + serverTax).toFixed(2));
@@ -187,6 +220,7 @@ router.post('/create-order', optionalAuth, async (req, res, next) => {
           'Content-Type': 'application/json',
         },
         data: paypalOrder,
+        timeout: PAYPAL_TIMEOUT_MS,
       });
     } catch (apiErr) {
       // 🚨 CRITICAL: If PayPal fails, we MUST restore the stock we just deducted
@@ -198,6 +232,7 @@ router.post('/create-order', optionalAuth, async (req, res, next) => {
       await Order.updateOrder(internalOrder.id, { 
         status: 'cancelled', 
         payment_status: 'failed',
+        fulfillment_status: 'cancelled',
         notes: `PayPal API Error: ${apiErr.response?.data?.message || apiErr.message}`
       });
 
@@ -225,7 +260,7 @@ router.post('/create-order', optionalAuth, async (req, res, next) => {
       data: err.response?.data,
       body: req.body 
     });
-    res.status(500).json({ success: false, message: 'Failed to create PayPal order' });
+    res.status(500).json({ success: false, message: 'Failed to create PayPal order. Please try again.' });
   }
 });
 
@@ -237,19 +272,32 @@ router.post('/create-order', optionalAuth, async (req, res, next) => {
  */
 router.post('/capture', async (req, res) => {
   let order = null;
+  let connection = null;
   try {
     const { paypalOrderId } = req.body;
-    if (!paypalOrderId) throw new Error('paypalOrderId is required');
+    if (!paypalOrderId || typeof paypalOrderId !== 'string') {
+      return res.status(400).json({ success: false, message: 'paypalOrderId is required and must be a string' });
+    }
 
-    // 1. Find the internal order by its PayPal reference
-    const [orders] = await db.query('SELECT * FROM orders WHERE payment_reference = ?', [paypalOrderId]);
+    // EDGE CASE #4: Use SELECT ... FOR UPDATE to prevent race condition
+    // between frontend capture call and PayPal webhook auto-capture.
+    connection = await db.getConnection();
+    await connection.beginTransaction();
+
+    const [orders] = await connection.execute(
+      'SELECT * FROM orders WHERE payment_reference = ? FOR UPDATE',
+      [paypalOrderId]
+    );
+
     if (!orders.length) {
+      await connection.rollback();
       return res.status(404).json({ success: false, message: 'Order not found for this payment reference.' });
     }
     order = orders[0];
 
     // 2. Idempotency: Check if already processed
     if (order.payment_status === 'paid') {
+      await connection.rollback();
       logger.info(`Capture already completed for PayPal ID ${paypalOrderId}`);
       return res.json({
         success: true,
@@ -258,17 +306,58 @@ router.post('/capture', async (req, res) => {
       });
     }
 
+    // If already failed/cancelled, don't retry capture
+    if (['cancelled', 'refunded'].includes(order.payment_status)) {
+      await connection.rollback();
+      return res.status(400).json({ success: false, message: `Order payment is ${order.payment_status}. Cannot capture.` });
+    }
+
     const accessToken = await getPayPalAccessToken();
 
     // 3. Capture Payment
-    const captureResponse = await axios({
-      url: `${PAYPAL_API}/v2/checkout/orders/${paypalOrderId}/capture`,
-      method: 'post',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
+    let captureResponse;
+    try {
+      captureResponse = await axios({
+        url: `${PAYPAL_API}/v2/checkout/orders/${paypalOrderId}/capture`,
+        method: 'post',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        timeout: PAYPAL_TIMEOUT_MS,
+      });
+    } catch (captureErr) {
+      // EDGE CASE #13: Handle 422 UNPROCESSABLE_ENTITY — order may already be captured
+      if (captureErr.response?.status === 422) {
+        const ppIssue = captureErr.response?.data?.details?.[0]?.issue;
+        if (ppIssue === 'ORDER_ALREADY_CAPTURED') {
+          logger.info(`PayPal order ${paypalOrderId} was already captured. Syncing status.`);
+          // Fetch the order from PayPal to get capture details
+          try {
+            const ppOrderRes = await axios.get(`${PAYPAL_API}/v2/checkout/orders/${paypalOrderId}`, {
+              headers: { Authorization: `Bearer ${accessToken}` },
+              timeout: PAYPAL_TIMEOUT_MS,
+            });
+            if (ppOrderRes.data.status === 'COMPLETED') {
+              const captureMeta = ppOrderRes.data.purchase_units?.[0]?.payments?.captures?.[0];
+              if (captureMeta) {
+                await connection.execute(
+                  `UPDATE orders SET payment_status = 'paid', payment_reference = ?, paid_at = NOW(), updated_at = NOW() WHERE id = ?`,
+                  [captureMeta.id, order.id]
+                );
+                await connection.commit();
+                connection = null;
+                fulfillOrder(order.id).catch(err => logger.error(`Background fulfillment error [${order.id}]: ${err.message}`));
+                return res.json({ success: true, alreadyProcessed: true, order: { id: order.id, orderNumber: order.order_number, total: order.total } });
+              }
+            }
+          } catch (syncErr) {
+            logger.error(`Failed to sync already-captured PayPal order: ${syncErr.message}`);
+          }
+        }
       }
-    });
+      throw captureErr;
+    }
 
     if (captureResponse.data.status !== 'COMPLETED') {
       throw new Error(`PayPal payment NOT completed (Status: ${captureResponse.data.status})`);
@@ -279,21 +368,44 @@ router.post('/capture', async (req, res) => {
     const captureAmount = parseFloat(captureMeta.amount.value);
 
     // 4. Double check amount matches internal order
-    if (Math.abs(captureAmount - parseFloat(order.total)) > 0.01) {
+    if (Math.abs(captureAmount - parseFloat(order.total)) > 0.02) {
       logger.error(`CRITICAL: Amount mismatch on capture! PayPal: ${captureAmount}, Internal Order ${order.order_number}: ${order.total}`);
-      await Order.updateOrder(order.id, { 
-        payment_status: 'flagged_mismatch', 
-        notes: `CRITICAL: Mismatched capture. Recieved ${captureAmount}, expected ${order.total}. ID: ${captureId}`
-      });
+      await connection.execute(
+        `UPDATE orders SET payment_status = 'flagged_mismatch', notes = ?, updated_at = NOW() WHERE id = ?`,
+        [`CRITICAL: Mismatched capture. Received ${captureAmount}, expected ${order.total}. Capture ID: ${captureId}`, order.id]
+      );
+      await connection.commit();
+      connection = null;
       return res.status(400).json({ success: false, message: 'Payment amount mismatch. Order flagged for review.' });
     }
 
-    // 5. Success - Finalize internal order
-    const finalOrder = await Order.updatePaymentStatus(order.id, {
-      paymentStatus: 'paid',
-      paymentReference: captureId, // Update to actual Capture ID
-      paymentMethod: 'paypal'
-    });
+    // 5. Success - Finalize internal order within the same transaction
+    await connection.execute(
+      `UPDATE orders SET payment_status = 'paid', payment_reference = ?, payment_method = 'paypal', paid_at = NOW(), updated_at = NOW() WHERE id = ?`,
+      [captureId, order.id]
+    );
+
+    await connection.commit();
+    connection = null;
+
+    // EDGE CASE #5: Update user stats outside transaction (non-critical)
+    try {
+      if (order.user_id) {
+        await db.execute(
+          `UPDATE users u
+           SET u.total_orders = (SELECT COUNT(*) FROM orders WHERE user_id = ? AND payment_status = 'paid'),
+               u.total_spent = (SELECT COALESCE(SUM(total), 0) FROM orders WHERE user_id = ? AND payment_status = 'paid'),
+               u.updated_at = NOW()
+           WHERE u.id = ?`,
+          [order.user_id, order.user_id, order.user_id]
+        );
+      }
+    } catch (statsErr) {
+      logger.error(`Failed to update customer stats: ${statsErr.message}`);
+    }
+
+    // Fetch the updated order for response
+    const finalOrder = await Order.findById(order.id);
 
     // 6. Async fulfillment trigger
     fulfillOrder(order.id).catch(err => logger.error(`Background fulfillment error [${order.id}]: ${err.message}`));
@@ -304,18 +416,31 @@ router.post('/capture', async (req, res) => {
     });
 
   } catch (err) {
+    // Rollback if connection is still active
+    if (connection) {
+      try { await connection.rollback(); } catch (rbErr) { logger.error(`Rollback error: ${rbErr.message}`); }
+    }
+
     const errorMsg = err.response?.data?.message || err.message;
     logger.error(`PayPal Capture Error: ${errorMsg}`);
     
     // Explicitly mark as failed if it's not already paid
     if (order && order.id && order.payment_status !== 'paid') {
-      await Order.updatePaymentStatus(order.id, { 
-        paymentStatus: 'failed', 
-        notes: `Payment capture failed: ${errorMsg}` 
-      });
+      try {
+        await db.execute(
+          `UPDATE orders SET payment_status = 'failed', notes = ?, updated_at = NOW() WHERE id = ? AND payment_status != 'paid'`,
+          [`Payment capture failed: ${errorMsg}`, order.id]
+        );
+      } catch (updateErr) {
+        logger.error(`Failed to update order status after capture failure: ${updateErr.message}`);
+      }
     }
 
     res.status(500).json({ success: false, message: `Payment failed: ${errorMsg}` });
+  } finally {
+    if (connection) {
+      try { connection.release(); } catch (e) { /* already released */ }
+    }
   }
 });
 
@@ -323,33 +448,83 @@ router.post('/capture', async (req, res) => {
  * POST /api/payment/cancel-order
  * Restores stock and marks order as cancelled if user backs out of PayPal
  */
-router.post('/cancel-order', async (req, res) => {
+router.post('/cancel-order', optionalAuth, async (req, res) => {
+  let connection = null;
   try {
     const { orderId } = req.body;
-    const [rows] = await db.query('SELECT * FROM orders WHERE id = ?', [orderId]);
-    if (!rows.length) return res.status(404).json({ success: false, message: 'Order not found' });
+
+    if (!orderId) {
+      return res.status(400).json({ success: false, message: 'orderId is required' });
+    }
+
+    // EDGE CASE #11 & #12: Use transaction with FOR UPDATE lock to prevent race conditions
+    // and add ownership check
+    connection = await db.getConnection();
+    await connection.beginTransaction();
+
+    const [rows] = await connection.execute('SELECT * FROM orders WHERE id = ? FOR UPDATE', [orderId]);
+    if (!rows.length) {
+      await connection.rollback();
+      return res.status(404).json({ success: false, message: 'Order not found' });
+    }
     
     const order = rows[0];
+
+    // EDGE CASE #11: Auth check — only allow cancellation by:
+    // 1. The authenticated user who owns the order
+    // 2. Or match by customer_email if the request includes it
+    if (req.user) {
+      // Logged-in user must own the order
+      if (order.user_id && order.user_id !== req.user.id && req.user.role !== 'admin') {
+        await connection.rollback();
+        return res.status(403).json({ success: false, message: 'You do not have permission to cancel this order.' });
+      }
+    }
+    // Note: For unauthenticated cancellations triggered by PayPal cancel_url redirect,
+    // the orderId in the URL acts as a bearer token (only the user who started checkout has it).
+    // This is acceptable for pending/unpaid orders.
+
     if (order.status !== 'pending' || order.payment_status === 'paid') {
-      return res.json({ success: true, message: 'Order cannot be cancelled in current state' });
+      await connection.rollback();
+      return res.json({ success: true, message: 'Order cannot be cancelled in current state.' });
+    }
+
+    // Already cancelled — idempotent response
+    if (order.status === 'cancelled') {
+      await connection.rollback();
+      return res.json({ success: true, message: 'Order is already cancelled.' });
     }
 
     // Get items to restore stock
-    const [items] = await db.query('SELECT * FROM order_items WHERE order_id = ?', [orderId]);
+    const [items] = await connection.execute('SELECT * FROM order_items WHERE order_id = ?', [orderId]);
     
-    // Restore Stock & Delete/Cancel Order
-    await Product.restoreStock(items);
-    await Order.updateOrder(orderId, {
-      status: 'cancelled',
-      payment_status: 'cancelled',
-      notes: 'Customer cancelled at PayPal checkout'
-    });
+    // Restore Stock & Cancel Order
+    if (items.length > 0) {
+      await Product.restoreStock(items, connection);
+    }
+
+    await connection.execute(
+      `UPDATE orders SET status = 'cancelled', payment_status = 'cancelled', fulfillment_status = 'cancelled',
+       notes = CONCAT(COALESCE(notes,''), ' Customer cancelled at PayPal checkout'), updated_at = NOW()
+       WHERE id = ?`,
+      [orderId]
+    );
+
+    await connection.commit();
+    connection = null;
 
     logger.info(`Customer cancelled checkout - Order ${order.order_number} marked cancelled, stock restored`);
     res.json({ success: true, message: 'Checkout cancelled, stock restored.' });
   } catch (err) {
+    if (connection) {
+      try { await connection.rollback(); } catch (e) { /* ignore */ }
+    }
     logger.error(`Payment Cancel Error: ${err.message}`);
     res.status(500).json({ success: false, message: 'Internal error during cancellation' });
+  } finally {
+    if (connection) {
+      try { connection.release(); } catch (e) { /* already released */ }
+    }
   }
 });
 

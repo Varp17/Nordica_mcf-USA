@@ -5,6 +5,11 @@ import { authenticateToken, optionalAuth } from "../middleware/auth.js";
 import { sendOrderConfirmationEmail } from "../utils/mailer.js";
 import { generateInvoiceBuffer } from "../utils/pdfGenerator.js";
 import { uploadBuffer } from "../services/s3Service.js";
+import Order from "../models/Order.js";
+import * as Product from "../models/Product.js";
+import fulfillmentService from "../services/fulfillmentService.js";
+
+
 
 
 
@@ -43,43 +48,84 @@ const router = express.Router()
 //     res.status(500).json({ error: "Failed to fetch orders" })
 //   }
 // })
-router.get("/",authenticateToken, async (req, res) => {
+router.get("/", authenticateToken, async (req, res) => {
   try {
-    const userId = req.user.id;
-    
-    // Your performant query is correct
-    const query = `
-      SELECT 
-        o.*,
-        o.actual_shipping_cost as actualShippingCost,
-        o.shipping_profit_loss as shippingProfitLoss,
-        (SELECT JSON_ARRAYAGG(JSON_OBJECT('id', oi.id, 'product_id', oi.product_id, 'quantity', oi.quantity, 'price_at_purchase', oi.price_at_purchase, 'product_name_at_purchase', oi.product_name_at_purchase, 'image_url_at_purchase', oi.image_url_at_purchase)) FROM order_items oi WHERE oi.order_id = o.id) as items
-      FROM orders o
-      WHERE o.user_id = ?
-      ORDER BY o.created_at DESC
-    `;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
 
-    const [orders] = await db.execute(query, [userId]);
+    const result = await Order.findByCustomer(req.user.id, { page, limit });
     
-    const formattedOrders = orders.map(order => ({
-      ...order,
-      items: order.items || [] 
-    }));
-
-    // --- THIS IS THE KEY FIX ---
-    // Always wrap the response in a structured object.
     res.json({
-      orders: formattedOrders,
-      total: formattedOrders.length, // Calculate total from the array length
-      page: 1,
-      totalPages: 1
+      success: true,
+      orders: result.orders,
+      total: result.total,
+      page,
+      totalPages: Math.ceil(result.total / limit)
     });
-
   } catch (error) {
     console.error("Get orders error:", error);
     res.status(500).json({ error: "Failed to fetch orders" });
   }
 });
+
+/**
+ * POST /api/orders/:id/cancel
+ * Allows users to cancel an order if it has not been shipped yet.
+ */
+router.post("/:id/cancel", authenticateToken, async (req, res) => {
+  try {
+    const orderId = req.params.id;
+    const order = await Order.findById(orderId);
+
+    if (!order) {
+      return res.status(404).json({ error: "Order not found" });
+    }
+
+    // Ownership check
+    if (order.user_id !== req.user.id && req.user.role !== 'admin') {
+      return res.status(403).json({ error: "Unauthorized" });
+    }
+
+    // Shippability check - can't cancel if already handled by fulfillment provider
+    const nonCancellable = ['submitted_to_amazon', 'shipped', 'delivered', 'label_created'];
+    if (nonCancellable.includes(order.fulfillment_status)) {
+      return res.status(400).json({ 
+        error: "Order cannot be cancelled as it is already being fulfilled or shipped." 
+      });
+    }
+
+    if (order.status === 'cancelled') {
+      return res.json({ success: true, message: "Order is already cancelled." });
+    }
+
+    // Restore stock and mark as cancelled
+    await Order.updateOrder(orderId, {
+      status: 'cancelled',
+      payment_status: order.payment_status === 'paid' ? 'refund_pending' : 'cancelled', // Flag for manual refund if paid
+      fulfillment_status: 'cancelled',
+      notes: (order.notes || '') + `\nCancelled by user on ${new Date().toISOString()}`
+    });
+
+    // Proactively cancel in Amazon if already submitted
+    if (order.fulfillment_status === 'submitted_to_amazon') {
+      try {
+        await fulfillmentService.cancelFulfillment(orderId);
+      } catch (err) {
+        logger.error(`Failed to cancel fulfillment at provider for order ${orderId}: ${err.message}`);
+        // We still proceed with local cancellation
+      }
+    }
+
+    // Restore stock
+    await Product.restoreStock(order.items);
+
+    res.json({ success: true, message: "Order cancelled successfully. Stock has been restored." });
+  } catch (error) {
+    console.error("Cancel order error:", error);
+    res.status(500).json({ error: "Failed to cancel order" });
+  }
+});
+
 
 // Create order
 // router.post("/", authenticateToken, async (req, res) => {

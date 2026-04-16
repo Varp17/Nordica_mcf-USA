@@ -237,10 +237,8 @@
  * ────────────────────────────────────────────────────────────
  * ✅ HMAC signature verification (rejects spoofed requests)
  * ✅ Idempotency — skips DB write if status hasn't changed
- * ✅ GAP 3: Smart email — only fires on STATUS-level changes,
- *    not on every carrier scan (prevents email spam)
- * ✅ Non-fatal email — failed SMTP never causes a non-2xx
- *    response (Shippo would retry the webhook endlessly)
+ * ✅ Smart email — only fires on STATUS-LEVEL changes
+ * ✅ Non-fatal email — failed SMTP never causes a non-2xx response
  * ✅ Always returns 200 — even on internal errors
  */
 
@@ -248,6 +246,7 @@ import express from "express";
 import crypto from "crypto";
 import db from "../config/database.js";
 import { sendTrackingUpdateEmail } from "../utils/mailer.js";
+import logger from "../utils/logger.js";
 
 const router = express.Router();
 
@@ -289,9 +288,9 @@ const shouldEmailCustomer = (oldStatus, newStatus) => {
   return newLevel > oldLevel;
 };
 
-/* ══════════════════════════════════════════════════════════ */
-/* POST /api/webhooks/shippo                               */
-/* ══════════════════════════════════════════════════════════ */
+/**
+ * POST /api/webhooks/shippo
+ */
 router.post(
   "/",
   express.raw({ type: "application/json" }),
@@ -302,25 +301,29 @@ router.post(
       const secret = process.env.SHIPPO_WEBHOOK_SECRET;
 
       if (!signature) {
-        console.warn("⚠️ Webhook: missing x-shippo-signature");
+        logger.warn("Shippo Webhook: Missing signature");
         return res.status(401).json({ error: "Missing signature" });
       }
       if (!secret) {
-        console.error("❌ SHIPPO_WEBHOOK_SECRET is not set");
+        logger.error("Shippo Webhook: Secret not configured");
         return res.status(500).json({ error: "Webhook secret not configured" });
       }
 
+      // EDGE CASE #68: timingSafeEqual requires buffers of identical length
       const expected = crypto
         .createHmac("sha256", secret)
         .update(req.body)
         .digest("hex");
 
-      if (!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) {
-        console.warn("⚠️ Webhook: invalid signature — possible spoofed request");
+      const sigBuffer = Buffer.from(signature);
+      const expectedBuffer = Buffer.from(expected);
+
+      if (sigBuffer.length !== expectedBuffer.length || !crypto.timingSafeEqual(sigBuffer, expectedBuffer)) {
+        logger.warn("Shippo Webhook: Invalid signature");
         return res.status(401).json({ error: "Invalid signature" });
       }
 
-      /* ── 2. Parse + filter event type ────────────────────────── */
+      /* ── 2. Parse payload ────────────────────────── */
       const payload = JSON.parse(req.body.toString());
 
       if (payload.event !== "track_updated") {
@@ -335,17 +338,17 @@ router.post(
       const location = data?.tracking_status?.location || null;
 
       if (!carrier || !trackingNumber) {
-        console.warn("⚠️ Webhook: missing carrier or tracking_number");
         return res.status(200).json({ received: true, missing: true });
       }
 
-      /* ── 3. Fetch current DB status (needed for dedup + email) ── */
+      /* ── 3. Fetch current DB status ── */
+      // EDGE CASE #69: Use LEFT JOIN to support guest orders (no user_id)
       const [existing] = await db.execute(
         `SELECT
-           o.id, o.shippo_tracking_status,
-           u.email, u.first_name, u.last_name
+           o.id, o.shippo_tracking_status, o.customer_email,
+           u.email as user_email, u.first_name, u.last_name
          FROM orders o
-         JOIN users u ON o.user_id = u.id
+         LEFT JOIN users u ON o.user_id = u.id
          WHERE o.shippo_tracking_number = ?
            AND o.shippo_carrier = ?
          LIMIT 1`,
@@ -353,16 +356,16 @@ router.post(
       );
 
       if (!existing.length) {
-        console.warn(`⚠️ Webhook: no order found for ${trackingNumber} / ${carrier}`);
+        logger.warn(`Shippo Webhook: No order found for ${trackingNumber}`);
         return res.status(200).json({ received: true, noMatch: true });
       }
 
       const order = existing[0];
       const oldStatus = order.shippo_tracking_status;
+      const recipientEmail = order.user_email || order.customer_email;
 
-      /* ── 4. Idempotency — skip write if status unchanged ─────── */
+      /* ── 4. Idempotency ─────── */
       if (oldStatus === newStatus) {
-        console.log(`ℹ️ Webhook: status unchanged (${newStatus}) for ${trackingNumber} — skipped`);
         return res.status(200).json({ received: true, unchanged: true });
       }
 
@@ -370,40 +373,33 @@ router.post(
       await db.execute(
         `UPDATE orders
          SET shippo_tracking_status = ?,
-             shippo_tracking_raw    = ?
+             shippo_tracking_raw    = ?,
+             updated_at             = NOW()
          WHERE id = ?`,
         [newStatus, JSON.stringify(data), order.id]
       );
 
-      console.log(
-        `✅ Webhook: order #${order.id} — ${oldStatus || "null"} → ${newStatus} [${trackingNumber}]`
-      );
-
-      /* ── 6. GAP 3: Email only on status-level change ─────────── */
-      if (shouldEmailCustomer(oldStatus, newStatus)) {
+      /* ── 6. Email only on status-level change ─────────── */
+      if (shouldEmailCustomer(oldStatus, newStatus) && recipientEmail) {
         try {
           await sendTrackingUpdateEmail({
-            to: order.email,
-            name: `${order.first_name || ""} ${order.last_name || ""}`.trim() || "Customer",
+            to: recipientEmail,
+            name: `${order.first_name || ""} ${order.last_name || ""}`.trim() || "Valued Customer",
             orderNumber: order.id,
             trackingNumber,
             status: newStatus,
             statusDate,
             location,
           });
-          console.log(`📧 Tracking email sent (${oldStatus} → ${newStatus}) to ${order.email}`);
+          logger.info(`Shippo Webhook: Tracking email sent to ${recipientEmail} for #${order.id}`);
         } catch (emailErr) {
-          // Non-fatal: log and continue — never let email kill the webhook response
-          console.error("⚠️ Tracking email failed (non-fatal):", emailErr.message);
+          logger.error("Shippo Webhook Email Failure (Non-fatal)", { error: emailErr.message });
         }
-      } else {
-        console.log(`ℹ️ Webhook: email skipped — same level (${oldStatus} → ${newStatus})`);
       }
 
-      return res.status(200).json({ received: true, trackingNumber, oldStatus, newStatus });
+      return res.status(200).json({ received: true, trackingNumber, carrier, newStatus });
     } catch (err) {
-      console.error("❌ Shippo webhook error:", err);
-      // Always 200 — Shippo must not retry due to our own internal errors
+      logger.error(`Shippo Webhook Processing Error: ${err.message}`);
       return res.status(200).json({ received: true, error: true });
     }
   }

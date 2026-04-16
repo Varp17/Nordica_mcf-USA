@@ -15,7 +15,15 @@ export function handleValidation(req, res, next) {
 export const validateCreateOrder = [
   body('country').isIn(['US', 'CA']).withMessage('Country must be US or CA'),
   body('items').isArray({ min: 1 }).withMessage('At least one item is required'),
-  body('items.*.sku').notEmpty().withMessage('Item SKU is required').isString().trim(),
+  body('items.*').custom((item) => {
+    // EDGE CASE #84: Support either SKU or variantId (needed specifically for CA logic)
+    if (!item.sku && !item.variantId && !item.productId) {
+      throw new Error('Each item must have a sku, variantId, or productId');
+    }
+    const qty = parseInt(item.quantity);
+    if (isNaN(qty) || qty < 1) throw new Error('Quantity must be at least 1');
+    return true;
+  }),
   body('items.*.quantity').isInt({ min: 1, max: 100 }).withMessage('Quantity must be between 1 and 100'),
   body('shipping.firstName').notEmpty().trim().withMessage('First name is required'),
   body('shipping.lastName').notEmpty().trim().withMessage('Last name is required'),
@@ -45,7 +53,14 @@ export const validateFulfillmentPreview = [
 
 export const validateCustomerAuth = [
   body('email').isEmail().normalizeEmail().withMessage('Valid email is required'),
-  body('password').isString().withMessage('Password must be a string').isLength({ min: 8 }).withMessage('Password must be at least 8 characters long').matches(/[A-Z]/).withMessage('Password must contain at least one uppercase letter').matches(/[a-z]/).withMessage('Password must contain at least one lowercase letter').matches(/\d/).withMessage('Password must contain at least one number').isLength({ max: 64 }).withMessage('Password must not exceed 64 characters'),
+  // EDGE CASE #85: Standardized to match auth.js length requirements
+  body('password')
+    .isString()
+    .withMessage('Password must be a string')
+    .isLength({ min: 8 })
+    .withMessage('Password must be at least 8 characters long')
+    .isLength({ max: 64 })
+    .withMessage('Password must not exceed 64 characters'),
   body('firstName').optional({ checkFalsy: true }).isString().trim().isLength({ max: 100 }).withMessage('First name cannot exceed 100 characters'),
   body('lastName').optional({ checkFalsy: true }).isString().trim().isLength({ max: 100 }).withMessage('Last name cannot exceed 100 characters'),
   handleValidation
