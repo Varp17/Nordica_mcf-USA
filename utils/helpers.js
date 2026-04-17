@@ -5,7 +5,7 @@ import { v4 as uuidv4 } from 'uuid';
  */
 export function generateOrderNumber() {
   const date = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-  const rand = Math.random().toString(36).toUpperCase().substring(2, 6);
+  const rand = Math.random().toString(36).toUpperCase().substring(2, 8); // Increased to 6 chars
   return `ORD-${date}-${rand}`;
 }
 

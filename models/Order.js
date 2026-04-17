@@ -10,9 +10,21 @@ export async function createOrder(orderData) {
 
     // 1. Deduct Stock first (will fail if not enough or error)
     await Product.deductStock(orderData.items, conn);
-
+    
+    // 1.5 Generate Serial Order Number via Stored Procedure
+    await conn.execute('CALL generate_order_number(@orderNum)');
+    const [[{ orderNumber: serialNum }]] = await conn.execute('SELECT @orderNum AS orderNumber');
+    
     const orderId = generateUUID();
-    const orderNumber = generateOrderNumber();
+    const orderNumber = serialNum || generateOrderNumber(); // Fallback to random if proc fails
+    
+    // Final check for collision in the DB (Safety Constraint)
+    const [existing] = await conn.execute('SELECT id FROM orders WHERE order_number = ?', [orderNumber]);
+    if (existing.length > 0) {
+      // If by some miracle it exists, retry once with a random suffix or fail
+      throw new Error(`Order collision detected on ${orderNumber}. Please try again.`);
+    }
+
     const isUS = orderData.country === 'US';
     const s = orderData.shipping;
 

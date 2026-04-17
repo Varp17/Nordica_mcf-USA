@@ -1,179 +1,183 @@
 import PDFDocument from 'pdfkit';
 import { PassThrough } from "stream";
 
-
 /**
  * utils/pdfGenerator.js
  * 
- * Generates professional PDF invoices and packing slips for Nordica Ecom.
+ * Generates professional, high-fidelity PDF invoices for Nordica Ecom / Detail Guardz.
  */
 
-const LOGO_TEXT = "NORDICA PLASTICS";
+const LOGO_TEXT = "DETAIL GUARDZ";
+const PRIMARY_COLOR = "#2563eb"; // Modern Blue
+const TEXT_COLOR = "#1f2937";
+const LIGHT_GRAY = "#f3f4f6";
+const BORDER_COLOR = "#e5e7eb";
 
 /**
  * Helper to get PDF as Buffer
  */
-async function getPdfBuffer(generateFn, order) {
+async function getPdfBuffer(generateFn, data) {
+  const doc = new PDFDocument({ size: 'A4', margin: 50 });
   const stream = new PassThrough();
   const chunks = [];
-  stream.on('data', (chunk) => chunks.push(chunk));
   
-  const promise = new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
+    stream.on('data', (chunk) => chunks.push(chunk));
     stream.on('end', () => resolve(Buffer.concat(chunks)));
-  });
+    stream.on('error', reject);
 
-  await generateFn(order, stream);
-  return await promise;
+    doc.pipe(stream);
+    generateFn(doc, data);
+    doc.end();
+  });
 }
 
-export const generateInvoiceBuffer = (order) => getPdfBuffer(generateInvoicePDF, order);
-export const generatePackingSlipBuffer = (order) => getPdfBuffer(generatePackingSlipPDF, order);
+/**
+ * Formats date to a readable string
+ */
+function formatDate(date) {
+  if (!date) return new Date().toLocaleDateString();
+  return new Date(date).toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+}
 
 /**
- * Generate Invoice PDF
- * @param {object} order - Full order object with items
+ * Core Invoice Drawing Logic
  */
-export async function generateInvoicePDF(order, stream) {
-  const doc = new PDFDocument({ margin: 50, size: 'A4' });
-
-  // Pipe to the output stream (could be a file or express response)
-  doc.pipe(stream);
-
+function drawInvoice(doc, data) {
   // --- HEADER ---
-  doc.fillColor("#444444").fontSize(20).text(LOGO_TEXT, 50, 45);
-  doc.fontSize(10).text("1905 Sismet Rd", 200, 50, { align: "right" });
-  doc.text("Mississauga, ON L4W 4H4", 200, 65, { align: "right" });
-  doc.text("Canada", 200, 80, { align: "right" });
-  doc.moveDown();
+  doc.fontSize(24).fillColor(PRIMARY_COLOR).font('Helvetica-Bold').text(LOGO_TEXT, 50, 50);
 
-  // --- INVOICE TITLE ---
-  doc.fillColor("#1a1a2e").fontSize(20).text("INVOICE", 50, 160);
-  
-  generateHr(doc, 185);
+  doc
+    .fontSize(10)
+    .font('Helvetica')
+    .fillColor(TEXT_COLOR)
+    .text("1905 Sismet Rd", 50, 80)
+    .text("Mississauga, ON L4W 4H4", 50, 95)
+    .text("Canada", 50, 110)
+    .text("Email: info@nordicaplastics.ca", 50, 125);
 
-  const customerInfoTop = 200;
+  doc
+    .fontSize(28)
+    .fillColor(PRIMARY_COLOR)
+    .font('Helvetica-Bold')
+    .text('INVOICE', 350, 50, { align: 'right' });
 
-  doc.fontSize(10)
-     .text("Order Number:", 50, customerInfoTop)
-     .font("Helvetica-Bold").text(order.id, 150, customerInfoTop)
-     .font("Helvetica").text("Invoice Date:", 50, customerInfoTop + 15)
-     .text(new Date(order.created_at || order.order_date).toLocaleDateString(), 150, customerInfoTop + 15)
-     .text("Payment Status:", 50, customerInfoTop + 30)
-     .text((order.payment_status || 'Paid').toUpperCase(), 150, customerInfoTop + 30);
+  doc
+    .fontSize(10)
+    .font('Helvetica')
+    .fillColor(TEXT_COLOR)
+    .text(`Invoice #: ${data.invoice_number || 'PENDING'}`, 350, 85, { align: 'right' })
+    .text(`Order #: ${data.order_number || data.id}`, 350, 100, { align: 'right' })
+    .text(`Date: ${formatDate(data.created_at || new Date())}`, 350, 115, { align: 'right' });
 
-  const shipping = typeof order.shipping_address === 'string' ? JSON.parse(order.shipping_address) : order.shipping_address;
-  
-  doc.font("Helvetica-Bold").text("Ship To:", 300, customerInfoTop);
-  doc.font("Helvetica")
-     .text(shipping?.name || `${order.first_name} ${order.last_name}`, 300, customerInfoTop + 15)
-     .text(shipping?.address1 || shipping?.line1, 300, customerInfoTop + 30)
-     if (shipping?.address2) doc.text(shipping.address2, 300, customerInfoTop + 45);
-  doc.text(`${shipping?.city}, ${shipping?.state || shipping?.province} ${shipping?.postal_code || shipping?.zip}`, 300, customerInfoTop + (shipping?.address2 ? 60 : 45))
-     .text(shipping?.country || "Canada", 300, customerInfoTop + (shipping?.address2 ? 75 : 60));
-
-  generateHr(doc, 300);
-
-  // --- ITEMS TABLE ---
-  let i;
-  const invoiceTableTop = 330;
-
-  doc.font("Helvetica-Bold");
-  generateTableRow(doc, invoiceTableTop, "Item", "Quantity", "Unit Cost", "Total");
-  generateHr(doc, invoiceTableTop + 20);
-  doc.font("Helvetica");
-
-  let position = 0;
-  const items = order.items || [];
-  for (i = 0; i < items.length; i++) {
-    const item = items[i];
-    position = invoiceTableTop + 30 + (i * 30);
-    generateTableRow(
-      doc,
-      position,
-      item.product_name_at_purchase || item.name || "Product",
-      item.quantity.toString(),
-      `$${parseFloat(item.price_at_purchase || item.price).toFixed(2)}`,
-      `$${(parseFloat(item.price_at_purchase || item.price) * item.quantity).toFixed(2)}`
-    );
-    generateHr(doc, position + 20);
+  if (data.workflow) {
+    doc.fontSize(9).fillColor('#6b7280').text(`Fulfillment: ${data.workflow}`, 350, 130, { align: 'right' });
   }
 
-  const subtotalPosition = position + 40;
-  generateTableRow(doc, subtotalPosition, "", "", "Subtotal", `$${parseFloat(order.subtotal || 0).toFixed(2)}`);
+  // Status Badge
+  const statusY = 135;
+  const statusText = String(data.payment_status || 'PAID').toUpperCase();
+  const statusColor = data.payment_status === 'paid' ? '#10b981' : '#f59e0b';
 
-  const shippingPosition = subtotalPosition + 20;
-  generateTableRow(doc, shippingPosition, "", "", "Shipping", `$${parseFloat(order.shipping_cost || 0).toFixed(2)}`);
+  doc.rect(480, statusY, 65, 18).fill(statusColor);
+  doc.fillColor('#ffffff').fontSize(8).font('Helvetica-Bold').text(statusText, 480, statusY + 5, { width: 65, align: 'center' });
 
-  const taxPosition = shippingPosition + 20;
-  generateTableRow(doc, taxPosition, "", "", "Tax", `$${parseFloat(order.tax_amount || 0).toFixed(2)}`);
+  // --- BILLING / SHIPPING ---
+  let currentY = 180;
+  doc.fontSize(11).fillColor(PRIMARY_COLOR).font('Helvetica-Bold').text('BILL TO:', 50, currentY);
+  doc.fontSize(11).text('SHIP TO:', 320, currentY);
 
-  const duePosition = taxPosition + 25;
-  doc.font("Helvetica-Bold");
-  generateTableRow(doc, duePosition, "", "", "Grand Total", `$${parseFloat(order.total || order.total_amount).toFixed(2)}`);
-  doc.font("Helvetica");
+  doc.fontSize(10).font('Helvetica').fillColor(TEXT_COLOR);
+  
+  // Bill To (Customer Info)
+  const name = data.shipping_first_name ? `${data.shipping_first_name} ${data.shipping_last_name}` : (data.customer_name || 'Valued Customer');
+  doc.text(name, 50, currentY + 20)
+     .text(data.customer_email || '', 50, currentY + 35);
+
+  // Ship To (Address)
+  const s = data.shipping_address && typeof data.shipping_address === 'string' ? JSON.parse(data.shipping_address) : (data.shipping_address || {});
+  doc.text(name, 320, currentY + 20)
+     .text(s.address1 || s.address || '', 320, currentY + 35)
+     .text(`${s.city || ''}, ${s.state || s.province || ''} ${s.zip || s.postalCode || ''}`, 320, currentY + 50)
+     .text(s.country || (data.country === 'CA' ? 'Canada' : 'USA'), 320, currentY + 65);
+
+  currentY += 100;
+
+  // --- ITEMS TABLE ---
+  doc.rect(50, currentY, 495, 25).fill(LIGHT_GRAY);
+  doc.fontSize(10).fillColor(TEXT_COLOR).font('Helvetica-Bold');
+  doc.text('Item', 60, currentY + 8)
+     .text('Qty', 320, currentY + 8, { width: 40, align: 'center' })
+     .text('Price', 370, currentY + 8, { width: 60, align: 'right' })
+     .text('Total', 480, currentY + 8, { width: 60, align: 'right' });
+
+  currentY += 30;
+  doc.font('Helvetica').fontSize(9);
+
+  const items = data.items || [];
+  items.forEach((item, index) => {
+    if (currentY > 700) {
+      doc.addPage();
+      currentY = 50;
+    }
+
+    if (index % 2 === 0) {
+      doc.rect(50, currentY - 5, 495, 25).fill('#fafafa');
+    }
+
+    const price = parseFloat(item.unit_price || item.price_at_purchase || 0);
+    const qty = parseInt(item.quantity || 1);
+    const total = parseFloat((price * qty).toFixed(2));
+
+    doc.fillColor(TEXT_COLOR)
+       .text(item.product_name_at_purchase || item.product_name || 'Product', 60, currentY, { width: 250 })
+       .text(qty.toString(), 320, currentY, { width: 40, align: 'center' })
+       .text(`$${price.toFixed(2)}`, 370, currentY, { width: 60, align: 'right' })
+       .text(`$${total.toFixed(2)}`, 480, currentY, { width: 60, align: 'right' });
+
+    currentY += 25;
+    doc.moveTo(50, currentY).lineTo(545, currentY).strokeColor(BORDER_COLOR).lineWidth(0.5).stroke();
+    currentY += 5;
+  });
+
+  // --- TOTALS ---
+  currentY += 20;
+  const totalsX = 350;
+  const amountX = 480;
+
+  doc.fontSize(10).font('Helvetica');
+  doc.text('Subtotal:', totalsX, currentY)
+     .text(`$${parseFloat(data.subtotal || 0).toFixed(2)}`, amountX, currentY, { width: 60, align: 'right' });
+  
+  currentY += 20;
+  doc.text(`Tax (${data.tax_type || 'Tax'}):`, totalsX, currentY)
+     .text(`$${parseFloat(data.tax || data.tax_amount || 0).toFixed(2)}`, amountX, currentY, { width: 60, align: 'right' });
+
+  currentY += 20;
+  doc.text('Shipping:', totalsX, currentY)
+     .text(`$${parseFloat(data.shipping_cost || data.shipping_amount || 0).toFixed(2)}`, amountX, currentY, { width: 60, align: 'right' });
+
+  currentY += 30;
+  doc.rect(totalsX - 10, currentY - 5, 205, 30).fill(PRIMARY_COLOR);
+  doc.fontSize(12).font('Helvetica-Bold').fillColor('#ffffff');
+  doc.text('TOTAL:', totalsX, currentY + 5)
+     .text(`$${parseFloat(data.total || data.total_amount || 0).toFixed(2)}`, amountX, currentY + 5, { width: 60, align: 'right' });
 
   // --- FOOTER ---
-  doc.fontSize(10).text("Thank you for your business. For support, email info@nordicaplastics.ca", 50, 750, { align: "center", width: 500 });
-
-  doc.end();
+  const footerY = 750;
+  doc.moveTo(50, footerY).lineTo(545, footerY).strokeColor(BORDER_COLOR).stroke();
+  doc.fontSize(8).fillColor('#6b7280').font('Helvetica')
+     .text('Thank you for choosing Detail Guardz!', 50, footerY + 10)
+     .text('For support, please contact info@nordicaplastics.ca', 50, footerY + 22);
 }
 
 /**
- * Generate Packing Slip PDF
+ * Public API
  */
-export async function generatePackingSlipPDF(order, stream) {
-    const doc = new PDFDocument({ margin: 50, size: 'A4' });
-    doc.pipe(stream);
+export const generateInvoiceBuffer = (data) => getPdfBuffer(drawInvoice, data);
 
-    doc.fillColor("#444444").fontSize(20).text(LOGO_TEXT, 50, 45);
-    doc.fontSize(20).text("PACKING SLIP", 200, 50, { align: "right" });
-    
-    generateHr(doc, 85);
-
-    const infoTop = 110;
-    doc.fontSize(10)
-       .font("Helvetica-Bold").text("Order #:", 50, infoTop)
-       .font("Helvetica").text(order.id, 100, infoTop)
-       .font("Helvetica-Bold").text("Date:", 50, infoTop + 15)
-       .font("Helvetica").text(new Date(order.created_at || order.order_date).toLocaleDateString(), 100, infoTop + 15);
-
-    const shipping = typeof order.shipping_address === 'string' ? JSON.parse(order.shipping_address) : order.shipping_address;
-
-    doc.rect(50, 160, 500, 100).fill("#f9f9f9").stroke("#eeeeee");
-    doc.fillColor("#1a1a2e").font("Helvetica-Bold").text("SHIP TO:", 70, 180);
-    doc.fillColor("#444444").font("Helvetica")
-       .text(shipping?.name || `${order.first_name} ${order.last_name}`, 70, 195)
-       .text(shipping?.address1 || shipping?.line1, 70, 210);
-    if (shipping?.address2) doc.text(shipping.address2, 70, 225);
-    doc.text(`${shipping?.city}, ${shipping?.state || shipping?.province} ${shipping?.postal_code || shipping?.zip}`, 70, shipping?.address2 ? 240 : 225);
-
-    const tableTop = 300;
-    doc.font("Helvetica-Bold").fontSize(12).text("Items to Pack", 50, tableTop);
-    generateHr(doc, tableTop + 20);
-
-    doc.fontSize(10);
-    let position = tableTop + 30;
-    const items = order.items || [];
-    
-    items.forEach((item, index) => {
-        position = tableTop + 40 + (index * 35);
-        
-        doc.font("Helvetica-Bold").text(`${item.quantity} x`, 50, position);
-        doc.font("Helvetica").text(item.product_name_at_purchase || item.name || "Product", 100, position);
-        generateHr(doc, position + 20);
-    });
-
-    doc.end();
-}
-
-function generateHr(doc, y) {
-  doc.strokeColor("#aaaaaa").lineWidth(1).moveTo(50, y).lineTo(550, y).stroke();
-}
-
-function generateTableRow(doc, y, item, qty, unit, total) {
-  doc.fontSize(10)
-    .text(item, 50, y, { width: 250 })
-    .text(qty, 300, y, { width: 50, align: "right" })
-    .text(unit, 360, y, { width: 90, align: "right" })
-    .text(total, 470, y, { width: 80, align: "right" });
-}
+export default { generateInvoiceBuffer };

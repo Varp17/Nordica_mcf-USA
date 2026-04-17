@@ -195,10 +195,13 @@ router.post('/', optionalAuth, validateCreateOrder, async (req, res) => {
       }
     }
 
-    // ── 6. Trigger fulfillment (async) ────────────────────────────────────────
+    // ── 6. Trigger fulfillment (async) & Invoice Generation ──────────────────
     fulfillOrder(order.id).catch((err) => {
       logger.error(`Background fulfillment failed for order ${order.id}: ${err.message}`);
     });
+
+    import('../services/invoiceService.js').then(m => m.createInvoiceFromOrder(order.id))
+      .catch(err => logger.error(`Background invoice error [${order.id}]: ${err.message}`));
 
     logger.info(`Order created: ${order.order_number} | Country: ${country} | Total: ${serverTotal}`);
 
@@ -424,12 +427,45 @@ router.post('/:orderId/retry', requireAuth, requireRole('admin'), validateOrderI
     return res.status(400).json({ success: false, message: err.message });
   }
 });
+// ─────────────────────────────────────────────────────────────────────────────
+//  POST /api/orders/:orderId/cancel-otp
+//  Trigger a verification code for guest cancellation.
+// ─────────────────────────────────────────────────────────────────────────────
+router.post('/:orderId/cancel-otp', async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const { email } = req.body;
+
+    const order = await Order.findById(orderId);
+    if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
+    
+    if (order.customer_email?.toLowerCase() !== email?.toLowerCase()) {
+      return res.status(403).json({ success: false, message: 'Email does not match order record' });
+    }
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiry = new Date(Date.now() + 10 * 60 * 1000); // 10 mins
+
+    await db.execute(
+      "INSERT INTO guest_verifications (email, otp_code, otp_expiry) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE otp_code = ?, otp_expiry = ?",
+      [email, otp, expiry, otp, expiry]
+    );
+
+    const emailService = (await import('../services/emailService.js')).default;
+    await emailService.sendOTPEmail(email, otp);
+
+    return res.json({ success: true, message: 'Verification code sent' });
+  } catch (err) {
+    logger.error(`POST /api/orders/:orderId/cancel-otp error: ${err.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to send verification code' });
+  }
+});
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  POST /api/orders/:orderId/cancel
 //  Cancel an order, refund Shippo label if exists, restore stock.
 // ─────────────────────────────────────────────────────────────────────────────
-router.post('/:orderId/cancel', requireAuth, validateOrderId, async (req, res) => {
+router.post('/:orderId/cancel', optionalAuth, validateOrderId, async (req, res) => {
   try {
     const { orderId } = req.params;
     const order = await Order.findById(orderId);
@@ -438,14 +474,55 @@ router.post('/:orderId/cancel', requireAuth, validateOrderId, async (req, res) =
       return res.status(404).json({ success: false, message: 'Order not found' });
     }
 
-    // Authorization: Admin or the customer who owns the order
-    if (req.user.role !== 'admin' && req.user.id !== order.user_id) {
+    const { email, guestOtpCode } = req.body;
+    
+    // ── 1. Authorization Check ──────────────────────────────────────────────
+    let isAuthorized = false;
+    
+    if (req.user && req.user.role === 'admin') {
+      isAuthorized = true;
+    } else if (req.user && req.user.id === order.user_id) {
+      isAuthorized = true;
+    } else if (email && email.toLowerCase() === order.customer_email?.toLowerCase()) {
+      // Guest cancellation requires OTP verification
+      if (!guestOtpCode) {
+        return res.status(401).json({ success: false, message: 'Verification code required for cancellation', requiresOtp: true });
+      }
+
+      const [otpRows] = await db.execute(
+        "SELECT id FROM guest_verifications WHERE email = ? AND otp_code = ? AND otp_expiry > NOW() ORDER BY created_at DESC LIMIT 1",
+        [email, guestOtpCode]
+      );
+
+      if (otpRows.length === 0) {
+        return res.status(401).json({ success: false, message: 'Invalid or expired verification code' });
+      }
+      isAuthorized = true;
+      // Cleanup OTP
+      await db.execute("DELETE FROM guest_verifications WHERE email = ?", [email]);
+    }
+
+    if (!isAuthorized) {
       return res.status(403).json({ success: false, message: 'Access denied' });
     }
+
 
     // Check if order can be cancelled
     if (['shipped', 'delivered', 'cancelled', 'returned'].includes(order.fulfillment_status)) {
       return res.status(400).json({ success: false, message: `Order cannot be cancelled in current state: ${order.fulfillment_status}` });
+    }
+
+    // Special check for Amazon - if already submitted, we try to cancel there first
+    if (order.fulfillment_channel === 'amazon_mcf' && order.amazon_fulfillment_id) {
+        try {
+            const fulfillmentService = (await import('../services/fulfillmentService.js')).default;
+            await fulfillmentService.cancelFulfillment(order.id);
+        } catch (mcfErr) {
+            logger.error(`MCF Cancellation failed for ${order.order_number}: ${mcfErr.message}`);
+            if (mcfErr.message.includes('Shipping')) {
+                return res.status(400).json({ success: false, message: 'Order is already being shipped by Amazon and cannot be cancelled.' });
+            }
+        }
     }
 
     // 1. Refund Shippo Label if it was already created (Canada orders)
@@ -455,9 +532,9 @@ router.post('/:orderId/cancel', requireAuth, validateOrderId, async (req, res) =
          logger.info(`Shippo label refund requested for order ${order.order_number}`);
        } catch (refundErr) {
          logger.error(`Shippo refund request failed for order ${order.order_number}: ${refundErr.message}`);
-         // Non-blocking: we continue with order cancellation
        }
     }
+
 
     // 2. Restore Stock
     if (order.items && order.items.length > 0) {

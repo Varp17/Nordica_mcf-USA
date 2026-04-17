@@ -2,7 +2,6 @@ import express from 'express';
 import db from '../config/database.js';
 import logger from '../utils/logger.js';
 import shippoService from '../services/shippoService.js';
-const { getTrackingStatus } = shippoService;
 
 const router = express.Router();
 
@@ -19,8 +18,7 @@ router.get('/:orderId', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Order ID is required' });
     }
 
-    // Look up order. If email is provided, verify it. 
-    // In many checkout successes, we might have the ID but not auth yet.
+    // Look up order. Verify email if provided. 
     let query = 'SELECT * FROM orders WHERE id = ? OR order_number = ?';
     let params = [orderId, orderId];
 
@@ -39,40 +37,67 @@ router.get('/:orderId', async (req, res) => {
     const carrier = order.shippo_carrier || order.carrier;
     const trackingNumber = order.shippo_tracking_number || order.tracking_number;
 
-    let liveTracking = null;
-    if (trackingNumber && carrier) {
-      try {
-        liveTracking = await getTrackingStatus(carrier.toLowerCase(), trackingNumber);
-      } catch (err) {
-        logger.warn(`Live tracking fetch failed for ${carrier}/${trackingNumber}: ${err.message}`);
-      }
-    }
+    let liveStatus = null;
+    let liveEvents = [];
+    let liveTrackingUrl = order.tracking_url;
 
-    // Return tracking info
-    return res.json({
-      success: true,
-      orderId: order.id,
-      orderNumber: order.order_number,
-      fulfillmentStatus: order.fulfillment_status,
-      carrier,
-      trackingNumber,
-      trackingUrl: order.tracking_url || (trackingNumber ? `https://goshippo.com/tracking/${trackingNumber}` : null),
-      estimatedDelivery: order.estimated_delivery,
-      // Shippo Live Data
-      status: liveTracking?.status || order.fulfillment_status,
-      tracking: liveTracking ? {
-        status: liveTracking.status,
-        statusDetails: liveTracking.tracking_status?.status_details,
-        statusDate: liveTracking.tracking_status?.status_date,
-        location: liveTracking.tracking_status?.location,
-        events: (liveTracking.tracking_history || []).map(h => ({
+    // ── 1. SHIPPO TRACKING (Canada) ──────────────────────────────────────────
+    if (order.country === 'CA' && trackingNumber && carrier) {
+      try {
+        const liveTracking = await shippoService.getTrackingStatus(carrier.toLowerCase(), trackingNumber);
+        liveStatus = liveTracking.status;
+        liveEvents = (liveTracking.tracking_history || []).map(h => ({
           status: h.status,
           label: h.status_details,
           time: h.status_date,
           location: h.location ? `${h.location.city}, ${h.location.state} ${h.location.country}` : null,
           description: h.status_details
-        }))
-      } : null
+        }));
+        if (!liveTrackingUrl) liveTrackingUrl = `https://goshippo.com/tracking/${trackingNumber}`;
+      } catch (err) {
+        logger.warn(`Shippo live tracking failed for ${order.order_number}: ${err.message}`);
+      }
+    } 
+    // ── 2. AMAZON MCF TRACKING (USA) ──────────────────────────────────────────
+    else if (order.country === 'US' && (order.amazon_fulfillment_id || order.mcf_order_id)) {
+      try {
+        const mcfService = (await import('../services/mcfService.js')).default;
+        const mcfRes = await mcfService.getFulfillmentOrder(order.amazon_fulfillment_id || order.mcf_order_id);
+        
+        liveStatus = mcfRes.status;
+        if (mcfRes.tracking && mcfRes.tracking.length > 0) {
+            liveEvents = mcfRes.tracking.map(t => ({
+                status: t.status,
+                label: t.status,
+                time: t.estimatedArrival || new Date().toISOString(),
+                location: t.carrierCode,
+                description: `Package moving via ${t.carrierCode}. Tracking ID: ${t.trackingNumber}`
+            }));
+            
+            if (!liveTrackingUrl && mcfRes.primaryTracking) {
+                liveTrackingUrl = `https://www.amazon.com/progress-tracker/package-tracking/${mcfRes.primaryTracking}`;
+            }
+        }
+      } catch (err) {
+        logger.warn(`MCF live tracking failed for ${order.order_number}: ${err.message}`);
+      }
+    }
+
+    return res.json({
+      success: true,
+      orderId: order.id,
+      orderNumber: order.order_number,
+      fulfillmentStatus: order.fulfillment_status,
+      carrier: carrier || (order.country === 'US' ? 'Amazon Logistics' : null),
+      trackingNumber,
+      trackingUrl: liveTrackingUrl,
+      estimatedDelivery: order.estimated_delivery,
+      status: liveStatus || order.fulfillment_status,
+      tracking: {
+        status: liveStatus,
+        events: liveEvents,
+        trackingUrl: liveTrackingUrl
+      }
     });
 
   } catch (err) {
@@ -82,3 +107,4 @@ router.get('/:orderId', async (req, res) => {
 });
 
 export default router;
+

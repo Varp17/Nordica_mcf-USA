@@ -410,8 +410,17 @@ router.post('/capture', async (req, res) => {
     // Fetch the updated order for response
     const finalOrder = await Order.findById(order.id);
 
-    // 6. Async fulfillment trigger
+    // 6. Async fulfillment trigger & Invoice Generation
     fulfillOrder(order.id).catch(err => logger.error(`Background fulfillment error [${order.id}]: ${err.message}`));
+    
+    // EDGE CASE: Background invoice generation (record + PDF + S3 + Email)
+    import('../services/invoiceService.js').then(m => {
+      if (order.country === 'US') {
+        return m.createMCFInvoice(order.id);
+      } else {
+        return m.createShippoInvoice(order.id);
+      }
+    }).catch(err => logger.error(`Background invoice error [${order.id}]: ${err.message}`));
 
     res.json({
       success: true,

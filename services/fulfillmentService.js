@@ -2,7 +2,7 @@ import db from '../config/database.js';
 import mcfService from './mcfService.js';
 import shippoService from './shippoService.js';
 import emailService from './emailService.js';
-import { createInvoiceFromOrder } from './invoiceService.js';
+// import { createInvoiceFromOrder } from './invoiceService.js'; // Removed: handled by payment/order routes
 import logger from '../utils/logger.js';
 import Product from '../models/Product.js';
 
@@ -22,26 +22,25 @@ export async function fulfillOrder(orderId) {
 
   const terminalStatuses = ['shipped', 'delivered', 'submitted_to_amazon', 'label_created'];
   if (terminalStatuses.includes(order.fulfillment_status)) {
-    logger.warn(`Order ${orderId} already fulfilled/submitted (status: ${order.fulfillment_status}) — skipping`);
-    return { success: true, alreadyFulfilled: true, status: order.fulfillment_status };
+    // If the order is already submitted/shipped but we are missing the cost, 
+    // we allow it to proceed to capture the cost if this is a manual retry or repair.
+    if (order.actual_shipping_cost && parseFloat(order.actual_shipping_cost) > 0) {
+      logger.warn(`Order ${orderId} already fulfilled/submitted with cost — skipping`);
+      return { success: true, alreadyFulfilled: true, status: order.fulfillment_status };
+    }
+    logger.info(`Order ${orderId} is in terminal status (${order.fulfillment_status}) but missing cost. Permitting re-processing to capture metrics.`);
   }
 
   await _updateOrderStatus(orderId, { fulfillment_status: 'processing', fulfillment_error: null });
   
-  let invoicePdf = null;
-  try {
-    const inv = await createInvoiceFromOrder(orderId);
-    invoicePdf = inv.pdfPath;
-  } catch (err) {
-    logger.error(`Invoice generation failed for order ${orderId}: ${err.message}`);
-  }
+  // Invoice generation is now handled asynchronously in routes/payment.js or routes/orderRoutes.js
 
   try {
     let result;
     if (order.country === 'US') {
-      result = await _fulfillUS(order, invoicePdf);
+      result = await _fulfillUS(order);
     } else if (order.country === 'CA') {
-      result = await _fulfillCA(order, invoicePdf);
+      result = await _fulfillCA(order);
     } else {
       throw new Error(`Unsupported fulfillment country: ${order.country}`);
     }
@@ -93,7 +92,8 @@ async function _fulfillUS(order, invoicePdf = null) {
      shipping_profit_loss: profitLoss
   });
 
-  await emailService.sendOrderConfirmationEmail(order, invoicePdf).catch(e => logger.error("Confirmation Email Error", e));
+  // Confirmation email is now handled in routes via invoiceService
+  // await emailService.sendOrderConfirmationEmail(order, invoicePdf).catch(e => logger.error("Confirmation Email Error", e));
   return { success: true, fulfillmentChannel: 'amazon_mcf', status: 'submitted_to_amazon', amazonFulfillmentId: mcfResult.sellerFulfillmentOrderId };
 }
 
@@ -130,7 +130,8 @@ async function _fulfillCA(order, invoicePdf = null) {
     shipping_profit_loss: profitLoss
   });
   try { await shippoService.registerTracking(shipResult.carrier, shipResult.trackingNumber); } catch (e) {}
-  await emailService.sendOrderConfirmationEmail(order, invoicePdf).catch(e => logger.error("Conf email err", e));
+  // Confirmation email is now handled in routes via invoiceService
+  // await emailService.sendOrderConfirmationEmail(order, invoicePdf).catch(e => logger.error("Conf email err", e));
   await emailService.sendOrderShippedEmail(order, { 
     carrier: shipResult.carrier, 
     trackingNumber: shipResult.trackingNumber, 

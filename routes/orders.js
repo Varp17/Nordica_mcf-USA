@@ -258,7 +258,7 @@ router.post("/", optionalAuth, async (req, res, next) => {
     let cartItems = [];
     if (cartId) {
       [cartItems] = await connection.execute(
-        `SELECT ci.product_id, ci.quantity, p.name, p.price, p.image, p.in_stock 
+        `SELECT ci.product_id, ci.quantity, p.name, p.price, p.image as image_url, p.in_stock 
          FROM cart_items ci JOIN products p ON ci.product_id = p.id 
          WHERE ci.cart_id = ?`,
         [cartId]
@@ -268,7 +268,7 @@ router.post("/", optionalAuth, async (req, res, next) => {
       const itemIds = req.body.items.map(i => i.product_id);
       if (itemIds.length > 0) {
         const [products] = await connection.execute(
-          `SELECT id as product_id, name, price, image, in_stock FROM products WHERE id IN (${itemIds.map(() => '?').join(',')})`,
+          `SELECT id as product_id, name, price, image as image_url, in_stock FROM products WHERE id IN (${itemIds.map(() => '?').join(',')})`,
           itemIds
         );
         cartItems = req.body.items.map(item => {
@@ -429,8 +429,8 @@ router.get("/:orderId", optionalAuth, async (req, res) => {
         o.id, o.created_at, o.total, o.status, o.subtotal, 
         o.shipping_cost, o.tax_amount, o.payment_method, o.payment_status,
         o.shipping_address, o.user_id, o.guest_email,
-        o.actual_shipping_cost as actualShippingCost,
-        o.shipping_profit_loss as shippingProfitLoss,
+        o.actual_shipping_cost,
+        o.shipping_profit_loss,
         (SELECT JSON_ARRAYAGG(
           JSON_OBJECT(
             'id', oi.id, 

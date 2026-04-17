@@ -1,4 +1,5 @@
 import db from '../config/database.js';
+import { generateUUID } from '../utils/helpers.js';
 
 export const Address = {
   async findAllByUserId(userId) {
@@ -18,35 +19,37 @@ export const Address = {
     const { 
       userId, firstName, lastName, phone, 
       address1, address2, city, state, zip, country, 
-      isDefault 
+      isDefault, label
     } = data;
+
+    const id = generateUUID();
 
     // If setting as default, unset others first
     if (isDefault) {
       await db.execute('UPDATE addresses SET is_default = 0 WHERE user_id = ?', [userId]);
     }
 
-    const [result] = await db.execute(
+    await db.execute(
       `INSERT INTO addresses (
-        user_id, first_name, last_name, phone, 
+        id, user_id, label, first_name, last_name, phone, 
         address1, address2, city, state, zip, country, 
         is_default
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        userId, firstName, lastName, phone || null, 
+        id, userId, label || 'Home', firstName, lastName, phone || null, 
         address1, address2 || null, city, state || null, zip, country, 
         isDefault ? 1 : 0
       ]
     );
 
-    return result.insertId;
+    return id;
   },
 
   async update(id, userId, data) {
     const { 
       firstName, lastName, phone, 
       address1, address2, city, state, zip, country, 
-      isDefault 
+      isDefault, label
     } = data;
 
     if (isDefault) {
@@ -55,12 +58,12 @@ export const Address = {
 
     await db.execute(
       `UPDATE addresses SET 
-        first_name = ?, last_name = ?, phone = ?, 
+        label = ?, first_name = ?, last_name = ?, phone = ?, 
         address1 = ?, address2 = ?, city = ?, state = ?, zip = ?, country = ?, 
         is_default = ? 
       WHERE id = ? AND user_id = ?`,
       [
-        firstName, lastName, phone || null, 
+        label || 'Home', firstName, lastName, phone || null, 
         address1, address2 || null, city, state || null, zip, country, 
         isDefault ? 1 : 0,
         id, userId

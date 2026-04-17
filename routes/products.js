@@ -28,6 +28,8 @@ const productSchema = Joi.object({
   image: Joi.string().allow(null, "").optional(),
   sku: Joi.string().allow(null, "").optional(),
   amazon_sku: Joi.string().allow(null, "").optional(),
+  canada_sku: Joi.string().allow(null, "").optional(),
+  amazon_sku_ca: Joi.string().allow(null, "").optional(),
   asin: Joi.string().allow(null, "").optional(),
   weight_kg: Joi.number().allow(null).optional(),
   dimensions: Joi.string().allow(null, "").optional(),
@@ -291,8 +293,14 @@ router.get("/slug/:slug", async (req, res) => {
        FROM products p
        LEFT JOIN categories c ON p.category_id = c.id
        LEFT JOIN brands b ON p.brand_id = b.id
-       WHERE p.slug = ? AND ${countryCondition}`,
-      [req.params.slug, ...countryTarget],
+       WHERE (
+         p.slug = ? 
+         OR p.id = ? 
+         OR EXISTS (SELECT 1 FROM product_variants pv WHERE pv.product_id = p.id AND pv.id = ?)
+         OR EXISTS (SELECT 1 FROM product_color_variants pcv WHERE pcv.product_id = p.id AND pcv.id = ?)
+       ) 
+       AND ${countryCondition}`,
+      [req.params.slug, req.params.slug, req.params.slug, req.params.slug, ...countryTarget],
     )
 
     if (products.length === 0) {
@@ -444,8 +452,14 @@ router.get("/:id", async (req, res) => {
        FROM products p
        LEFT JOIN categories c ON p.category_id = c.id
        LEFT JOIN brands b ON p.brand_id = b.id
-       WHERE (p.id = ? OR p.slug = ?) AND ${countryCondition}`,
-      [req.params.id, req.params.id, ...countryTarget],
+       WHERE (
+         p.id = ? 
+         OR p.slug = ? 
+         OR EXISTS (SELECT 1 FROM product_variants pv WHERE pv.product_id = p.id AND pv.id = ?)
+         OR EXISTS (SELECT 1 FROM product_color_variants pcv WHERE pcv.product_id = p.id AND pcv.id = ?)
+       ) 
+       AND ${countryCondition}`,
+      [req.params.id, req.params.id, req.params.id, req.params.id, ...countryTarget],
     )
 
     if (products.length === 0) {
@@ -586,6 +600,7 @@ router.post("/", authenticateToken, requireAdmin, async (req, res) => {
 
   let { 
     name, name_ar, price, original_price, description, description_ar, image, sku, amazon_sku,
+    canada_sku, amazon_sku_ca,
     weight_kg, dimensions, in_stock, category, brand, category_id, brand_id, target_country 
   } = value;
 
@@ -603,14 +618,16 @@ router.post("/", authenticateToken, requireAdmin, async (req, res) => {
     const sql = `
       INSERT INTO products (
         id, name, name_ar, price, original_price, description, description_ar, image, images, sku, amazon_sku,
+        canada_sku, amazon_sku_ca,
         weight_kg, dimensions, in_stock, availability, category_id, brand_id, category, brand, target_country
       ) 
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
     
     await db.execute(sql, [
       newProductId, name, name_ar || null, parseFloat(price), original_price ? parseFloat(original_price) : null,
       description || null, description_ar || null, image || null, JSON.stringify([]), sku || null, amazon_sku || null,
+      canada_sku || null, amazon_sku_ca || null,
       weight_kg || null, dimensions || null, stockCount, availability, category_id, brand_id, category, brand, target_country || 'both'
     ]);
 
@@ -656,7 +673,8 @@ router.put("/:id", authenticateToken, requireAdmin, async (req, res) => {
 
     const { 
       name, name_ar, price, original_price, description, description_ar, image, brand, category, 
-      sku, amazon_sku, weight_kg, dimensions, key_features, specifications, target_country 
+      sku, amazon_sku, canada_sku, amazon_sku_ca,
+      weight_kg, dimensions, key_features, specifications, target_country 
     } = value;
 
     // Get category and brand IDs
@@ -670,6 +688,7 @@ router.put("/:id", authenticateToken, requireAdmin, async (req, res) => {
       `UPDATE products SET 
        name = ?, name_ar = ?, price = ?, original_price = ?, description = ?, description_ar = ?, 
        image = ?, brand = ?, category = ?, category_id = ?, brand_id = ?, sku = ?, amazon_sku = ?,
+       canada_sku = ?, amazon_sku_ca = ?,
        weight_kg = ?, dimensions = ?, key_features = ?, specifications = ?, target_country = ?, updated_at = NOW()
        WHERE id = ?`,
       [
@@ -686,6 +705,8 @@ router.put("/:id", authenticateToken, requireAdmin, async (req, res) => {
         brandId,
         sku || null,
         amazon_sku || null,
+        canada_sku || null,
+        amazon_sku_ca || null,
         weight_kg || null,
         dimensions || null,
         key_features ? JSON.stringify(key_features) : null,

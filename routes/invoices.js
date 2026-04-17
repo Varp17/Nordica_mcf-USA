@@ -6,6 +6,9 @@ import PDFDocument from 'pdfkit';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import logger from '../utils/logger.js';
+import { generateInvoiceBuffer } from '../utils/pdfGenerator.js';
+import { uploadBuffer } from '../services/s3Service.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -13,563 +16,32 @@ const __dirname = path.dirname(__filename);
 const router = express.Router();
 
 // ============================================
-// TAX CALCULATION HELPERS
+// ADMIN STATS: GET /api/admin/invoices/stats
 // ============================================
-
-async function getTaxRate(country, stateProvince) {
-  const [rates] = await db.execute(
-    `SELECT * FROM tax_rates 
-     WHERE country = ? 
-     AND state_province = ? 
-     AND is_active = TRUE 
-     AND (effective_from IS NULL OR effective_from <= CURDATE())
-     AND (effective_to IS NULL OR effective_to >= CURDATE())
-     ORDER BY tax_type`,
-    [country, stateProvince]
-  );
-
-  return rates;
-}
-
-function calculateUSTax(subtotal, stateCode) {
-  return async function () {
-    const rates = await getTaxRate('US', stateCode);
-
-    if (rates.length === 0) {
-      return {
-        tax_amount: 0,
-        tax_rate: 0,
-        tax_type: 'sales_tax',
-        tax_jurisdiction: stateCode,
-        tax_breakdown: [],
-      };
-    }
-
-    const rate = rates[0];
-    const taxAmount = (subtotal * rate.tax_rate) / 100;
-
-    return {
-      tax_amount: Math.round(taxAmount * 100) / 100,
-      tax_rate: rate.tax_rate,
-      tax_type: rate.tax_type,
-      tax_jurisdiction: stateCode,
-      tax_breakdown: [
-        {
-          type: rate.tax_type,
-          rate: rate.tax_rate,
-          amount: Math.round(taxAmount * 100) / 100,
-        },
-      ],
-    };
-  };
-}
-
-function calculateCanadaTax(subtotal, provinceCode) {
-  return async function () {
-    const rates = await getTaxRate('CA', provinceCode);
-
-    if (rates.length === 0) {
-      return {
-        tax_amount: 0,
-        tax_rate: 0,
-        tax_type: 'gst',
-        tax_jurisdiction: provinceCode,
-        tax_breakdown: [],
-      };
-    }
-
-    let totalTax = 0;
-    let totalRate = 0;
-    const breakdown = [];
-
-    const hst = rates.find((r) => r.tax_type === 'hst');
-    if (hst) {
-      const taxAmount = (subtotal * hst.tax_rate) / 100;
-      return {
-        tax_amount: Math.round(taxAmount * 100) / 100,
-        tax_rate: hst.tax_rate,
-        tax_type: 'hst',
-        tax_jurisdiction: provinceCode,
-        tax_breakdown: [
-          {
-            type: 'hst',
-            rate: hst.tax_rate,
-            amount: Math.round(taxAmount * 100) / 100,
-          },
-        ],
-      };
-    }
-
-    for (const rate of rates) {
-      const taxAmount = (subtotal * rate.tax_rate) / 100;
-      totalTax += taxAmount;
-      totalRate += rate.tax_rate;
-
-      breakdown.push({
-        type: rate.tax_type,
-        rate: rate.tax_rate,
-        amount: Math.round(taxAmount * 100) / 100,
-      });
-    }
-
-    return {
-      tax_amount: Math.round(totalTax * 100) / 100,
-      tax_rate: Math.round(totalRate * 100) / 100,
-      tax_type: rates.map((r) => r.tax_type).join('+'),
-      tax_jurisdiction: provinceCode,
-      tax_breakdown: breakdown,
-    };
-  };
-}
-
-async function calculateTax(subtotal, country, stateProvince) {
-  if (country === 'US') {
-    return await calculateUSTax(subtotal, stateProvince)();
-  } else if (country === 'CA') {
-    return await calculateCanadaTax(subtotal, stateProvince)();
-  }
-
-  return {
-    tax_amount: 0,
-    tax_rate: 0,
-    tax_type: 'none',
-    tax_jurisdiction: stateProvince,
-    tax_breakdown: [],
-  };
-}
-
-// ============================================
-// INVOICE NUMBER GENERATION
-// ============================================
-
-async function generateInvoiceNumber() {
-  const connection = await db.getConnection();
-
+router.get('/stats', authenticateToken, requireAdmin, async (req, res) => {
   try {
-    await connection.beginTransaction();
-
-    const currentYear = new Date().getFullYear();
-    const currentMonth = new Date().getMonth() + 1;
-    const prefix = 'INV';
-
-    await connection.execute(
-      `INSERT INTO invoice_sequences (year, month, last_number, prefix)
-       VALUES (?, ?, 1, ?)
-       ON DUPLICATE KEY UPDATE last_number = last_number + 1`,
-      [currentYear, currentMonth, prefix]
-    );
-
-    const [rows] = await connection.execute(
-      `SELECT last_number FROM invoice_sequences 
-       WHERE year = ? AND month = ?`,
-      [currentYear, currentMonth]
-    );
-
-    const nextNumber = rows[0].last_number;
-
-    const invoiceNumber = `${prefix}-${currentYear}-${String(currentMonth).padStart(
-      2,
-      '0'
-    )}-${String(nextNumber).padStart(5, '0')}`;
-
-    await connection.commit();
-    return invoiceNumber;
+    const [totalRows] = await db.execute("SELECT COUNT(*) as count, COALESCE(SUM(total_amount), 0) as revenue FROM invoices");
+    const [unpaidRows] = await db.execute("SELECT COUNT(*) as count FROM invoices WHERE status = 'unpaid'");
+    const [mcfRows] = await db.execute("SELECT COUNT(*) as count FROM invoices WHERE fulfillment_channel = 'MCF'");
+    const [shippoRows] = await db.execute("SELECT COUNT(*) as count FROM invoices WHERE fulfillment_channel = 'SHIPPO'");
+    
+    res.json({
+      totalInvoices: totalRows[0].count,
+      totalRevenue: totalRows[0].revenue,
+      unpaidInvoices: unpaidRows[0].count,
+      mcfInvoices: mcfRows[0].count,
+      shippoInvoices: shippoRows[0].count
+    });
   } catch (error) {
-    await connection.rollback();
-    throw error;
-  } finally {
-    connection.release();
+    res.status(500).json({ error: error.message });
   }
-}
-
-// ============================================
-// PDF GENERATION HELPER
-// ============================================
-
-function formatDate(date) {
-  if (!date) return 'N/A';
-  const d = new Date(date);
-  return d.toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  });
-}
-
-async function generateInvoicePDF(invoiceData) {
-  return new Promise(async (resolve, reject) => {
-    try {
-      const doc = new PDFDocument({
-        size: 'A4',
-        margin: 50,
-        info: {
-          Title: `Invoice ${invoiceData.invoice_number}`,
-          Author: 'Detail Gurdz',
-          Subject: 'Invoice',
-        },
-      });
-
-      const pdfDir = path.join(process.cwd(), 'uploads', 'invoices');
-
-      if (!fs.existsSync(pdfDir)) {
-        fs.mkdirSync(pdfDir, { recursive: true });
-      }
-
-      const filename = `invoice-${invoiceData.invoice_number}.pdf`;
-      const filepath = path.join(pdfDir, filename);
-      const writeStream = fs.createWriteStream(filepath);
-
-      doc.pipe(writeStream);
-
-      const primaryColor = '#2563eb';
-      const textColor = '#1f2937';
-      const lightGray = '#f3f4f6';
-      const borderColor = '#e5e7eb';
-
-      // HEADER
-      doc.fontSize(24).fillColor(primaryColor).text('Detail Gurdz', 50, 50);
-
-      doc
-        .fontSize(10)
-        .fillColor(textColor)
-        .text('123 Business St', 50, 80)
-        .text('City, State 12345', 50, 95)
-        .text('Phone: (555) 123-4567', 50, 110)
-        .text('Email: billing@Detail Guardz.com', 50, 125);
-
-      doc
-        .fontSize(28)
-        .fillColor(primaryColor)
-        .text('INVOICE', 350, 50, { align: 'right' });
-
-      doc
-        .fontSize(10)
-        .fillColor(textColor)
-        .text(`Invoice #: ${invoiceData.invoice_number}`, 350, 85, {
-          align: 'right',
-        })
-        .text(`Invoice Date: ${formatDate(invoiceData.invoice_date)}`, 350, 100, {
-          align: 'right',
-        })
-        .text(`Due Date: ${formatDate(invoiceData.due_date)}`, 350, 115, {
-          align: 'right',
-        });
-
-      const statusY = 135;
-      const statusText = String(invoiceData.status || '').toUpperCase();
-      const statusColor =
-        invoiceData.status === 'paid'
-          ? '#10b981'
-          : invoiceData.status === 'cancelled'
-          ? '#ef4444'
-          : '#f59e0b';
-
-      doc.rect(480, statusY, 60, 20).fillAndStroke(statusColor, statusColor);
-
-      doc
-        .fontSize(9)
-        .fillColor('#ffffff')
-        .text(statusText, 480, statusY + 5, { width: 60, align: 'center' });
-
-      // BILL TO / SHIP TO
-      let currentY = 180;
-
-      doc.fontSize(11).fillColor(primaryColor).text('BILL TO:', 50, currentY);
-
-      doc
-        .fontSize(10)
-        .fillColor(textColor)
-        .text(invoiceData.billing_name || '', 50, currentY + 20)
-        .text(invoiceData.billing_email || '', 50, currentY + 35);
-
-      if (invoiceData.billing_address) {
-        const addr = invoiceData.billing_address;
-        doc
-          .text(addr.address || addr.street1 || '', 50, currentY + 50)
-          .text(
-            `${addr.city || ''}, ${
-              addr.state || addr.province || ''
-            } ${addr.zip || addr.postal_code || ''}`,
-            50,
-            currentY + 65
-          )
-          .text(addr.country || '', 50, currentY + 80);
-      }
-
-      doc.fontSize(11).fillColor(primaryColor).text('SHIP TO:', 320, currentY);
-
-      if (invoiceData.shipping_address) {
-        const ship = invoiceData.shipping_address;
-        doc
-          .fontSize(10)
-          .fillColor(textColor)
-          .text(ship.name || invoiceData.billing_name || '', 320, currentY + 20)
-          .text(ship.address || ship.street1 || '', 320, currentY + 35)
-          .text(
-            `${ship.city || ''}, ${
-              ship.state || ship.province || ''
-            } ${ship.zip || ship.postal_code || ''}`,
-            320,
-            currentY + 50
-          )
-          .text(ship.country || '', 320, currentY + 65);
-      }
-
-      currentY += 120;
-
-      // ITEMS TABLE HEADER
-      doc.rect(50, currentY, 495, 25).fill(lightGray);
-
-      doc
-        .fontSize(10)
-        .fillColor(textColor)
-        .text('Item', 60, currentY + 8)
-        .text('Qty', 320, currentY + 8, { width: 40, align: 'center' })
-        .text('Price', 370, currentY + 8, { width: 60, align: 'right' })
-        .text('Tax', 440, currentY + 8, { width: 45, align: 'right' })
-        .text('Total', 495, currentY + 8, { width: 45, align: 'right' });
-
-      currentY += 30;
-
-      // ITEMS
-      (invoiceData.items || []).forEach((item, index) => {
-        if (currentY > 700) {
-          doc.addPage();
-          currentY = 50;
-        }
-
-        const rowHeight = 30;
-
-        if (index % 2 === 0) {
-          doc.rect(50, currentY - 5, 495, rowHeight).fill('#fafafa');
-        }
-
-        doc.fontSize(9).fillColor(textColor);
-
-        let itemText = item.product_name;
-        if (item.color_name) itemText += `\n(${item.color_name})`;
-
-        doc.text(itemText, 60, currentY, { width: 250 });
-        doc.text(String(item.quantity), 320, currentY, {
-          width: 40,
-          align: 'center',
-        });
-        doc.text(`$${parseFloat(item.unit_price).toFixed(2)}`, 370, currentY, {
-          width: 60,
-          align: 'right',
-        });
-        doc.text(`$${parseFloat(item.tax_per_item || 0).toFixed(2)}`, 440, currentY, {
-          width: 45,
-          align: 'right',
-        });
-        doc.text(`$${parseFloat(item.total).toFixed(2)}`, 495, currentY, {
-          width: 45,
-          align: 'right',
-        });
-
-        currentY += rowHeight;
-
-        doc
-          .moveTo(50, currentY)
-          .lineTo(545, currentY)
-          .strokeColor(borderColor)
-          .stroke();
-      });
-
-      currentY += 20;
-
-      // TOTALS
-      const totalsX = 350;
-      const labelX = totalsX;
-      const amountX = totalsX + 145;
-
-      doc.fontSize(10).fillColor(textColor);
-
-      doc
-        .text('Subtotal:', labelX, currentY)
-        .text(
-          `$${parseFloat(invoiceData.subtotal).toFixed(2)}`,
-          amountX,
-          currentY,
-          { width: 45, align: 'right' }
-        );
-      currentY += 20;
-
-      if (invoiceData.discount_amount > 0) {
-        doc
-          .text('Discount:', labelX, currentY)
-          .fillColor('#ef4444')
-          .text(
-            `-$${parseFloat(invoiceData.discount_amount).toFixed(2)}`,
-            amountX,
-            currentY,
-            { width: 45, align: 'right' }
-          )
-          .fillColor(textColor);
-
-        if (invoiceData.discount_code) {
-          doc
-            .fontSize(8)
-            .fillColor('#6b7280')
-            .text(`(${invoiceData.discount_code})`, labelX, currentY + 12);
-          doc.fontSize(10);
-        }
-        currentY += 20;
-      }
-
-      if (invoiceData.shipping_amount > 0) {
-        doc
-          .text('Shipping:', labelX, currentY)
-          .text(
-            `$${parseFloat(invoiceData.shipping_amount).toFixed(2)}`,
-            amountX,
-            currentY,
-            { width: 45, align: 'right' }
-          );
-        currentY += 20;
-      }
-
-      doc
-        .text(
-          `Tax (${invoiceData.tax_type || 'Sales Tax'}):`,
-          labelX,
-          currentY
-        )
-        .text(
-          `$${parseFloat(invoiceData.tax_amount).toFixed(2)}`,
-          amountX,
-          currentY,
-          { width: 45, align: 'right' }
-        );
-
-      if (invoiceData.tax_rate) {
-        doc
-          .fontSize(8)
-          .fillColor('#6b7280')
-          .text(
-            `(${parseFloat(invoiceData.tax_rate).toFixed(2)}%)`,
-            labelX,
-            currentY + 12
-          );
-        doc.fontSize(10);
-      }
-
-      currentY += 30;
-
-      doc
-        .rect(labelX - 10, currentY - 5, 205, 30)
-        .fillAndStroke(primaryColor, primaryColor);
-
-      doc
-        .fontSize(12)
-        .fillColor('#ffffff')
-        .text('TOTAL:', labelX, currentY + 5)
-        .text(
-          `$${parseFloat(invoiceData.total_amount).toFixed(2)}`,
-          amountX,
-          currentY + 5,
-          { width: 45, align: 'right' }
-        );
-
-      currentY += 50;
-
-      // PAYMENT INFO
-      doc
-        .fontSize(11)
-        .fillColor(primaryColor)
-        .text('PAYMENT INFORMATION', 50, currentY);
-
-      currentY += 20;
-
-      doc
-        .fontSize(9)
-        .fillColor(textColor)
-        .text(
-          `Payment Method: ${invoiceData.payment_method || 'N/A'}`,
-          50,
-          currentY
-        )
-        .text(
-          `Payment Status: ${invoiceData.payment_status || 'pending'}`,
-          50,
-          currentY + 15
-        );
-
-      if (invoiceData.payment_reference) {
-        doc.text(
-          `Transaction ID: ${invoiceData.payment_reference}`,
-          50,
-          currentY + 30
-        );
-      }
-
-      if (invoiceData.paid_at) {
-        doc.text(`Paid Date: ${formatDate(invoiceData.paid_at)}`, 50, currentY + 45);
-      }
-
-      // FOOTER
-      const footerY = 750;
-
-      doc
-        .moveTo(50, footerY)
-        .lineTo(545, footerY)
-        .strokeColor(borderColor)
-        .stroke();
-
-      doc
-        .fontSize(8)
-        .fillColor('#6b7280')
-        .text('Thank you for your business!', 50, footerY + 10)
-        .text(
-          'If you have any questions, please contact us at support@detailguradz.com',
-          50,
-          footerY + 25
-        );
-
-      const pages = doc.bufferedPageRange();
-      for (let i = 0; i < pages.count; i++) {
-        doc.switchToPage(i);
-        doc
-          .fontSize(8)
-          .fillColor('#9ca3af')
-          .text(`Page ${i + 1} of ${pages.count}`, 50, 770, {
-            align: 'right',
-          });
-      }
-
-      doc.end();
-
-      writeStream.on('finish', () => {
-        resolve({
-          filepath,
-          filename,
-          url: `/uploads/invoices/${filename}`,
-        });
-      });
-
-      writeStream.on('error', reject);
-    } catch (error) {
-      reject(error);
-    }
-  });
-}
-
-// ============================================
-// ROUTES
-// ============================================
+});
 
 // ADMIN LIST: GET /api/admin/invoices
-router.get('/invoices', authenticateToken, requireAdmin, async (req, res) => {
+// ============================================
+router.get('/', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const { page = 1, limit = 20, status, search, user_id } = req.query;
-
-    console.log('📊 GET /invoices request:', {
-      page,
-      limit,
-      status,
-      search,
-      user_id,
-    });
 
     const pageNum = parseInt(String(page), 10) || 1;
     const limitNum = parseInt(String(limit), 10) || 20;
@@ -597,14 +69,14 @@ router.get('/invoices', authenticateToken, requireAdmin, async (req, res) => {
 
     const [invoices] = await db.execute(
       `SELECT i.*, 
-              u.email as customer_email, 
-              u.first_name, 
-              u.last_name,
+              COALESCE(u.email, i.billing_email) as customer_email, 
+              COALESCE(u.first_name, '') as first_name, 
+              COALESCE(u.last_name, '') as last_name,
               i.order_id,
               (SELECT COUNT(*) FROM invoice_items WHERE invoice_id = i.id) as item_count
        FROM invoices i
-       JOIN orders o ON i.order_id = o.id
-       JOIN users u ON o.user_id = u.id
+       LEFT JOIN orders o ON i.order_id = o.id
+       LEFT JOIN users u ON i.user_id = u.id
        WHERE ${whereClause}
        ORDER BY i.invoice_date DESC
        LIMIT ${limitNum} OFFSET ${offset}`,
@@ -618,15 +90,13 @@ router.get('/invoices', authenticateToken, requireAdmin, async (req, res) => {
 
     const [count] = await db.execute(
       `SELECT COUNT(*) as total FROM invoices i 
-       JOIN orders o ON i.order_id = o.id
-       JOIN users u ON o.user_id = u.id
+       LEFT JOIN orders o ON i.order_id = o.id
+       LEFT JOIN users u ON o.user_id = u.id
        WHERE ${whereClause}`,
       params
     );
 
     const total = count[0]?.total || 0;
-
-    console.log('✅ Found', invoices.length, 'invoices, total:', total);
 
     res.json({
       invoices: invoicesWithOrderNumber,
@@ -647,223 +117,60 @@ router.get('/invoices', authenticateToken, requireAdmin, async (req, res) => {
 });
 
 // GENERATE INVOICE FROM ORDER: POST /api/admin/invoices/generate/:orderId
+// ============================================
 router.post(
-  '/invoices/generate/:orderId',
+  '/generate/:orderId',
   authenticateToken,
   requireAdmin,
   async (req, res) => {
-    const connection = await db.getConnection();
-
     try {
-      await connection.beginTransaction();
-
       const { orderId } = req.params;
-
-      // Check if invoice already exists
-      const [existing] = await connection.execute(
-        'SELECT id FROM invoices WHERE order_id = ?',
-        [orderId]
-      );
-
-      if (existing.length > 0) {
-        await connection.rollback();
-        return res.status(400).json({
-          error: 'Invoice already exists for this order',
-          invoice_id: existing[0].id,
-        });
+      
+      const [orderRows] = await db.execute("SELECT country FROM orders WHERE id = ?", [orderId]);
+      if (!orderRows.length) return res.status(404).json({ error: "Order not found" });
+      
+      const country = orderRows[0].country;
+      
+      const invoiceService = (await import('../services/invoiceService.js')).default;
+      let result;
+      
+      if (country === 'US') {
+        result = await invoiceService.createMCFInvoice(orderId);
+      } else {
+        result = await invoiceService.createShippoInvoice(orderId);
       }
 
-      // Get order details with items
-      const [orders] = await connection.execute(
-        `SELECT o.*, u.email, u.first_name, u.last_name, u.phone_number
-         FROM orders o
-         JOIN users u ON o.user_id = u.id
-         WHERE o.id = ?`,
-        [orderId]
-      );
-
-      if (orders.length === 0) {
-        await connection.rollback();
-        return res.status(404).json({ error: 'Order not found' });
+      if (!result.success) {
+        return res.status(400).json({ error: result.error });
       }
 
-      const order = orders[0];
-
-      // Get order items
-      const [orderItems] = await connection.execute(
-        `SELECT oi.*, p.name, p.sku, p.description, p.image_url,
-                cv.color_name, cv.color_code
-         FROM order_items oi
-         JOIN products p ON oi.product_id = p.id
-         LEFT JOIN product_color_variants cv ON oi.color_variant_id = cv.id
-         WHERE oi.order_id = ?`,
-        [orderId]
-      );
-
-      // Parse shipping address
-      let shippingAddress = {};
-      try {
-        shippingAddress =
-          typeof order.shipping_address === 'string'
-            ? JSON.parse(order.shipping_address)
-            : order.shipping_address;
-      } catch (e) {
-        console.error('Error parsing shipping address:', e);
-      }
-
-      // Calculate subtotal from items
-      let subtotal = 0;
-      orderItems.forEach((item) => {
-        subtotal += parseFloat(item.price_at_purchase) * item.quantity;
-      });
-
-      // Get country and state/province from shipping address
-      const country = shippingAddress.country || 'US';
-      const stateProvince =
-        shippingAddress.state || shippingAddress.province || 'CA';
-
-      // Calculate tax
-      const taxInfo = await calculateTax(subtotal, country, stateProvince);
-
-      // Calculate discount (if any)
-      const discountAmount = parseFloat(req.body.discount_amount || 0);
-      const discountCode = req.body.discount_code || null;
-
-      // Calculate shipping (get from order or request)
-      const shippingAmount = parseFloat(
-        order.shipping_cost || req.body.shipping_amount || 0
-      );
-
-      // Calculate total
-      const totalAmount =
-        subtotal - discountAmount + taxInfo.tax_amount + shippingAmount;
-
-      // Generate invoice number
-      const invoiceNumber = await generateInvoiceNumber();
-
-      // Create invoice
-      const invoiceId = uuidv4();
-      const invoiceDate = new Date();
-      const dueDate = new Date();
-      dueDate.setDate(dueDate.getDate() + 30); // 30 days from now
-
-      await connection.execute(
-        `INSERT INTO invoices (
-          id, invoice_number, order_id, user_id,
-          status, subtotal, tax_amount, discount_amount, shipping_amount, total_amount,
-          tax_rate, tax_type, tax_jurisdiction, currency,
-          billing_name, billing_email, billing_phone, billing_address, shipping_address,
-          payment_method, payment_status, payment_reference,
-          discount_code, invoice_date, due_date
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          invoiceId,
-          invoiceNumber,
-          orderId,
-          order.user_id,
-          'issued',
-          subtotal,
-          taxInfo.tax_amount,
-          discountAmount,
-          shippingAmount,
-          totalAmount,
-          taxInfo.tax_rate,
-          taxInfo.tax_type,
-          taxInfo.tax_jurisdiction,
-          'USD', // or get from order/request
-          `${order.first_name} ${order.last_name}`,
-          order.email,
-          order.phone_number,
-          JSON.stringify(shippingAddress), // Using shipping as billing for now
-          JSON.stringify(shippingAddress),
-          order.payment_method || 'credit_card',
-          order.payment_status || 'paid',
-          order.payment_reference || null,
-          discountCode,
-          invoiceDate,
-          dueDate,
-        ]
-      );
-
-      // Create invoice items
-      for (let i = 0; i < orderItems.length; i++) {
-        const item = orderItems[i];
-        const itemSubtotal =
-          parseFloat(item.price_at_purchase) * item.quantity;
-        const itemTax = (itemSubtotal * taxInfo.tax_rate) / 100;
-        const itemTotal = itemSubtotal + itemTax;
-
-        await connection.execute(
-          `INSERT INTO invoice_items (
-            id, invoice_id, product_id, product_name, product_sku, product_description, product_image_url,
-            color_variant_id, color_name, color_code,
-            unit_price, quantity, subtotal, tax_per_item, total,
-            is_taxable, tax_rate, line_item_number
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [
-            uuidv4(),
-            invoiceId,
-            item.product_id,
-            item.name,
-            item.sku,
-            item.description,
-            item.image_url,
-            item.color_variant_id,
-            item.color_name,
-            item.color_code,
-            item.price_at_purchase,
-            item.quantity,
-            itemSubtotal,
-            itemTax,
-            itemTotal,
-            true,
-            taxInfo.tax_rate,
-            i + 1,
-          ]
-        );
-      }
-
-      // Log invoice creation
-      await connection.execute(
-        `INSERT INTO invoice_audit_log (invoice_id, action, performed_by, new_status, ip_address)
-         VALUES (?, 'created', ?, 'issued', ?)`,
-        [invoiceId, req.user.id, req.ip]
-      );
-
-      await connection.commit();
-
-      res.status(201).json({
-        message: 'Invoice generated successfully',
-        invoice_id: invoiceId,
-        invoice_number: invoiceNumber,
-        total_amount: totalAmount,
+      res.json({
+        success: true,
+        message: "Invoice generated successfully",
+        invoice_number: result.invoiceNumber,
+        pdf_url: result.s3Url
       });
     } catch (error) {
-      await connection.rollback();
-      console.error('Generate invoice error:', error);
-      res.status(500).json({
-        error: 'Failed to generate invoice',
-        details: error.message,
-      });
-    } finally {
-      connection.release();
+      console.error('❌ Manual invoice generation failed:', error);
+      res.status(500).json({ error: 'Internal Server Error' });
     }
   }
 );
 
 // GET SINGLE INVOICE BY ID: GET /api/admin/invoices/:id
-router.get('/invoices/:id', authenticateToken, async (req, res) => {
+// ============================================
+router.get('/:id', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
 
     const [invoices] = await db.execute(
       `SELECT i.*, 
-              u.email as customer_email, 
-              u.first_name, 
-              u.last_name,
+              COALESCE(u.email, i.billing_email) as customer_email, 
+              COALESCE(u.first_name, '') as first_name, 
+              COALESCE(u.last_name, '') as last_name,
               i.order_id
        FROM invoices i
-       JOIN users u ON i.user_id = u.id
+       LEFT JOIN users u ON i.user_id = u.id
        WHERE i.id = ?`,
       [id]
     );
@@ -873,37 +180,24 @@ router.get('/invoices/:id', authenticateToken, async (req, res) => {
     }
 
     const invoice = invoices[0];
-
-    if (req.user.role !== 'admin' && invoice.user_id !== req.user.id) {
-      return res.status(403).json({ error: 'Access denied' });
-    }
-
-    invoice.order_number = `ORD-${String(invoice.order_id).substring(0, 8)}`;
-
+    
+    // Get invoice items
     const [items] = await db.execute(
       `SELECT * FROM invoice_items WHERE invoice_id = ? ORDER BY line_item_number`,
       [id]
     );
-
-    if (invoice.billing_address && typeof invoice.billing_address === 'string') {
-      invoice.billing_address = JSON.parse(invoice.billing_address);
-    }
-    if (invoice.shipping_address && typeof invoice.shipping_address === 'string') {
-      invoice.shipping_address = JSON.parse(invoice.shipping_address);
-    }
-
+    
     invoice.items = items;
-
     res.json(invoice);
   } catch (error) {
-    console.error('Get invoice error:', error);
+    console.error('❌ Get single invoice error:', error);
     res.status(500).json({ error: 'Failed to fetch invoice' });
   }
 });
 
 // GET INVOICE BY ORDER: GET /api/admin/invoices/order/:orderId
 router.get(
-  '/invoices/order/:orderId',
+  '/order/:orderId',
   authenticateToken,
   async (req, res) => {
     try {
@@ -963,6 +257,36 @@ router.get(
   }
 );
 
+// VIEW INVOICE PDF BY ORDER ID: GET /api/admin/invoices/order/:orderId/view
+router.get('/order/:orderId/view', authenticateToken, async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const [rows] = await db.execute(
+      'SELECT pdf_url FROM invoices WHERE order_id = ? ORDER BY created_at DESC LIMIT 1',
+      [orderId]
+    );
+
+    if (rows.length && rows[0].pdf_url) {
+      return res.redirect(rows[0].pdf_url);
+    }
+
+    // Fallback to order table's invoice_pdf_url
+    const [orderRows] = await db.execute(
+      'SELECT invoice_pdf_url FROM orders WHERE id = ?',
+      [orderId]
+    );
+
+    if (orderRows.length && orderRows[0].invoice_pdf_url) {
+      return res.redirect(orderRows[0].invoice_pdf_url);
+    }
+
+    res.status(404).send('Invoice not found for this order.');
+  } catch (err) {
+    console.error('View invoice by order error:', err);
+    res.status(500).send('Internal server error');
+  }
+});
+
 // CUSTOMER INVOICES: GET /api/admin/customers/:userId/invoices
 router.get(
   '/customers/:userId/invoices',
@@ -1020,15 +344,15 @@ router.get(
 );
 
 // GENERATE PDF: GET /api/admin/invoices/:id/pdf
-router.get('/invoices/:id/pdf', authenticateToken, async (req, res) => {
+router.get('/:id/pdf', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
 
     // Get full invoice data
     const [invoices] = await db.execute(
-      `SELECT i.*, u.email, u.first_name, u.last_name
+      `SELECT i.*, COALESCE(u.email, i.billing_email) as email, COALESCE(u.first_name, '') as first_name, COALESCE(u.last_name, '') as last_name
        FROM invoices i
-       JOIN users u ON i.user_id = u.id
+       LEFT JOIN users u ON i.user_id = u.id
        WHERE i.id = ?`,
       [id]
     );
@@ -1064,12 +388,16 @@ router.get('/invoices/:id/pdf', authenticateToken, async (req, res) => {
     invoice.items = items;
 
     // Generate PDF
-    const pdfInfo = await generateInvoicePDF(invoice);
+    const pdfBuffer = await generateInvoiceBuffer(invoice);
+
+    // Upload to S3
+    const s3Key = `invoices/invoice_${id}.pdf`;
+    const s3Url = await uploadBuffer(pdfBuffer, s3Key, "application/pdf");
 
     // Update invoice with PDF URL
     await db.execute(
       `UPDATE invoices SET pdf_url = ?, pdf_generated_at = NOW() WHERE id = ?`,
-      [pdfInfo.url, id]
+      [s3Url, id]
     );
 
     // Log PDF generation
@@ -1083,11 +411,10 @@ router.get('/invoices/:id/pdf', authenticateToken, async (req, res) => {
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader(
       'Content-Disposition',
-      `attachment; filename="${pdfInfo.filename}"`
+      `attachment; filename="Invoice-${invoice.invoice_number}.pdf"`
     );
 
-    const fileStream = fs.createReadStream(pdfInfo.filepath);
-    fileStream.pipe(res);
+    res.send(pdfBuffer);
   } catch (error) {
     console.error('Generate PDF error:', error);
     res
@@ -1098,7 +425,7 @@ router.get('/invoices/:id/pdf', authenticateToken, async (req, res) => {
 
 // UPDATE INVOICE STATUS: PUT /api/admin/invoices/:id/status
 router.put(
-  '/invoices/:id/status',
+  '/:id/status',
   authenticateToken,
   requireAdmin,
   async (req, res) => {
@@ -1167,7 +494,7 @@ router.put(
 
 // DELETE/CANCEL INVOICE: DELETE /api/admin/invoices/:id
 router.delete(
-  '/invoices/:id',
+  '/:id',
   authenticateToken,
   requireAdmin,
   async (req, res) => {
@@ -1256,5 +583,54 @@ router.get(
     }
   }
 );
+
+// ============================================
+// SECURE VIEW/DOWNLOAD: GET /api/invoices/:id/view OR /api/admin/invoices/:id/view
+// ============================================
+router.get('/:id/view', authenticateToken, async (req, res) => {
+  try {
+    const [rows] = await db.execute("SELECT pdf_url, user_id FROM invoices WHERE id = ?", [req.params.id]);
+    if (!rows.length || !rows[0].pdf_url) return res.status(404).json({ error: "Invoice PDF not found." });
+    
+    if (req.user.role !== 'admin' && rows[0].user_id !== req.user.id) {
+      return res.status(403).json({ error: "Access denied." });
+    }
+
+    if (rows[0].pdf_url.startsWith('http')) return res.redirect(rows[0].pdf_url);
+    res.sendFile(path.resolve(rows[0].pdf_url));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET INVOICE VIEW BY ORDER ID: GET /api/admin/invoices/order/:orderId/view
+router.get('/order/:orderId/view', authenticateToken, async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const [rows] = await db.execute(
+      "SELECT pdf_url, user_id FROM invoices WHERE order_id = ? ORDER BY created_at DESC LIMIT 1",
+      [orderId]
+    );
+
+    if (!rows.length || !rows[0].pdf_url) {
+      return res.status(404).send(`
+        <div style="font-family: sans-serif; text-align: center; padding: 50px;">
+          <h2 style="color: #64748b;">Invoice Not Found</h2>
+          <p style="color: #94a3b8;">The invoice for this order hasn't been generated yet or is still processing.</p>
+          <button onclick="window.close()" style="background: #0f172a; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; margin-top: 20px;">Close Window</button>
+        </div>
+      `);
+    }
+
+    if (req.user.role !== 'admin' && rows[0].user_id !== req.user.id) {
+      return res.status(403).json({ error: "Access denied." });
+    }
+
+    if (rows[0].pdf_url.startsWith('http')) return res.redirect(rows[0].pdf_url);
+    res.sendFile(path.resolve(rows[0].pdf_url));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
 
 export default router;

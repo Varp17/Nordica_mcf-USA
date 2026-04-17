@@ -23,7 +23,7 @@ import nodemailer from "nodemailer";
 /* ─────────────────────────────────────────────────── */
 const transporter = nodemailer.createTransport({
   host:   process.env.SMTP_HOST || "smtp.gmail.com",
-  port:   Number(process.env.SMTP_PORT) || 465, // Prefer 465 for SSL or 587 for TLS
+  port:   Number(process.env.SMTP_PORT) || 587, 
   secure: (Number(process.env.SMTP_PORT) === 465), 
   auth: {
     user: process.env.SMTP_USER,
@@ -31,9 +31,11 @@ const transporter = nodemailer.createTransport({
   },
   // Reliability settings
   connectionTimeout: 20000,
-  greetingTimeout: 10000,
+  greetingTimeout: 30000,
   socketTimeout: 30000,
   family: 4, // Force IPv4 to prevent ENETUNREACH address resolving
+  logger: true,
+  debug: true,
   tls: {
     rejectUnauthorized: false,
     minVersion: 'TLSv1.2'

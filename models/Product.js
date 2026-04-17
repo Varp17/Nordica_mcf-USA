@@ -85,8 +85,14 @@ export async function findVariantById(identifier, connection = null) {
         const v = vRows[0];
         return {
           id: v.id, product_id: v.product_id, name: `${p.name} (${v.color_name || v.variant_name})`,
-          price: parseFloat(v.price), stock: v.stock, sku: v.sku || v.amazon_sku, amazon_sku: v.amazon_sku || v.sku,
-          country: v.country, image: v.image_url, weight_kg: v.weight_kg, dimensions: v.dimensions
+          price: parseFloat(v.price), stock: v.stock, 
+          sku: v.sku, 
+          amazon_sku: v.amazon_sku, 
+          canada_sku: v.canada_sku, 
+          amazon_sku_ca: v.amazon_sku_ca,
+          target_country: v.target_country || p.target_country,
+          country: v.country || p.country, 
+          image: v.image_url, weight_kg: v.weight_kg, dimensions: v.dimensions
         };
       }
     }
@@ -96,12 +102,21 @@ export async function findVariantById(identifier, connection = null) {
   let [rows] = await dbConn.query(`SELECT * FROM products WHERE (id = ? OR slug = ? OR sku = ? OR amazon_sku = ?) AND is_active = 1`, [identifier, identifier, identifier, identifier]);
   if (rows.length) {
     const p = _parseProduct(rows[0]);
-    return { ...p, product_id: p.id, variant_name: 'Default', sku: p.sku || p.amazon_sku, amazon_sku: p.amazon_sku || p.sku };
+    return { 
+      ...p, 
+      product_id: p.id, 
+      variant_name: 'Default', 
+      sku: p.sku, 
+      amazon_sku: p.amazon_sku,
+      canada_sku: p.canada_sku,
+      amazon_sku_ca: p.amazon_sku_ca,
+      target_country: p.target_country
+    };
   }
 
   // 2. New product_variants table (Prefer modern table)
   [rows] = await dbConn.query(`
-    SELECT v.*, p.name as product_name, p.image as product_image, p.country as p_country 
+    SELECT v.*, p.name as product_name, p.image as product_image, p.country as p_country, p.target_country as p_target_country
     FROM product_variants v 
     JOIN products p ON v.product_id = p.id 
     WHERE (v.id = ? OR v.sku = ? OR v.amazon_sku = ?) AND v.is_active = 1
@@ -111,14 +126,21 @@ export async function findVariantById(identifier, connection = null) {
     const v = rows[0];
     return {
       id: v.id, product_id: v.product_id, name: `${v.product_name} (${v.variant_name || v.sku})`,
-      price: parseFloat(v.price), stock: v.stock, sku: v.sku || v.amazon_sku, amazon_sku: v.amazon_sku || v.sku,
-      country: v.p_country, image: v.product_image, inventory_sync_enabled: v.inventory_sync_enabled ?? 1
+      price: parseFloat(v.price), stock: v.stock, 
+      sku: v.sku, 
+      amazon_sku: v.amazon_sku,
+      canada_sku: v.canada_sku,
+      amazon_sku_ca: v.amazon_sku_ca,
+      target_country: v.target_country || v.p_target_country,
+      country: v.p_country, 
+      image: v.product_image, 
+      inventory_sync_enabled: v.inventory_sync_enabled ?? 1
     };
   }
 
   // 3. Legacy product_color_variants
   [rows] = await dbConn.query(`
-    SELECT cv.*, p.name as product_name FROM product_color_variants cv 
+    SELECT cv.*, p.name as product_name, p.target_country as p_target_country FROM product_color_variants cv 
     JOIN products p ON cv.product_id = p.id 
     WHERE (cv.id = ? OR cv.amazon_sku = ? OR cv.sku = ?) AND cv.is_active = 1
   `, [identifier, identifier, identifier]);
@@ -127,7 +149,12 @@ export async function findVariantById(identifier, connection = null) {
     const v = rows[0];
     return {
       id: v.id, product_id: v.product_id, name: `${v.product_name} (${v.color_name || v.variant_name})`,
-      price: parseFloat(v.price), stock: v.stock, sku: v.sku || v.amazon_sku, amazon_sku: v.amazon_sku || v.sku,
+      price: parseFloat(v.price), stock: v.stock, 
+      sku: v.sku, 
+      amazon_sku: v.amazon_sku,
+      canada_sku: v.canada_sku,
+      amazon_sku_ca: v.amazon_sku_ca,
+      target_country: v.target_country || v.p_target_country,
       country: v.country, image: v.image_url, weight_kg: v.weight_kg, dimensions: v.dimensions
     };
   }
@@ -326,9 +353,11 @@ export async function validateCartItems(cartItems, country = 'US') {
        continue;
     }
 
-    // Region restriction
-    let isCaRestriction = (country === 'US' && product.country === 'CA');
-    let isUsRestriction = (country === 'CA' && (product.country === 'US' || product.country === 'USA'));
+    // Region restriction logic - checking both product.country and product.target_country
+    const productTargets = (product.target_country || product.country || 'both').toLowerCase();
+    
+    let isCaRestriction = (country === 'US' && (productTargets === 'canada' || product.country === 'CA'));
+    let isUsRestriction = (country === 'CA' && (productTargets === 'us' || product.country === 'US' || product.country === 'USA'));
 
     if (isCaRestriction) {
       errors.push(`"${product.name}" is only available for Canadian customers.`);
@@ -346,20 +375,28 @@ export async function validateCartItems(cartItems, country = 'US') {
       continue;
     }
 
-    // US needs Amazon SKU
-    if (country === 'US' && !product.amazon_sku) {
-      errors.push(`"${product.name}" is currently unavailable for US fulfillment.`);
-      continue;
+    // Resolve Correct Regional SKU
+    let resolvedSku = product.sku;
+    if (country === 'US') {
+      if (!product.amazon_sku) {
+        errors.push(`"${product.name}" is currently unavailable for US fulfillment (Amazon FBA link missing).`);
+        continue;
+      }
+      resolvedSku = product.amazon_sku;
+    } else if (country === 'CA') {
+      resolvedSku = product.canada_sku || product.sku;
     }
+
     validItems.push({
       variantId: identifier,
       productId: product.product_id,
-      sku: product.sku,
-      sellerSku: product.amazon_sku || product.sku,
+      sku: resolvedSku, // This is the regional SKU (for Invoice & Fulfillment)
+      originalSku: product.sku, // Keep internal SKU for reference
+      sellerSku: country === 'US' ? product.amazon_sku : (product.canada_sku || product.sku),
       productName: product.name,
       quantity,
       unitPrice: product.price,
-      image: product.image, // CAPTURE IMAGE FOR ORDER HISTORY
+      image: product.image,
       weight_kg: product.weight_kg || 0.5,
       dimensions: product.dimensions || '20x15x10',
       country

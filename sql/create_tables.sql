@@ -61,6 +61,7 @@ DROP TABLE IF EXISTS addresses;
 CREATE TABLE addresses (
   id           CHAR(36)      PRIMARY KEY DEFAULT (UUID()),
   user_id      CHAR(36)      NOT NULL,
+  label        VARCHAR(50)   NOT NULL DEFAULT 'Home',
   first_name   VARCHAR(100)  NOT NULL,
   last_name    VARCHAR(100)  NOT NULL,
   phone        VARCHAR(30)   DEFAULT NULL,
@@ -102,6 +103,7 @@ CREATE TABLE categories (
   description TEXT          DEFAULT NULL,
   image_url   VARCHAR(500)  DEFAULT NULL,
   is_active   TINYINT(1)    NOT NULL DEFAULT 1,
+  hide_for_usa TINYINT(1)   NOT NULL DEFAULT 0,
   sort_order  INT           NOT NULL DEFAULT 0,
   created_at  DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at  DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
@@ -322,6 +324,7 @@ DROP TABLE IF EXISTS customer_addresses;
 CREATE TABLE customer_addresses (
   id               CHAR(36)      PRIMARY KEY DEFAULT (UUID()),
   user_id          CHAR(36)      NOT NULL,
+  label            VARCHAR(50)   NOT NULL DEFAULT 'Home',
   first_name       VARCHAR(100)  NOT NULL,
   last_name        VARCHAR(100)  NOT NULL,
   address1         VARCHAR(255)  NOT NULL,
@@ -542,6 +545,18 @@ CREATE TABLE invoice_sequences (
   month        INT NOT NULL,
   last_number  INT NOT NULL DEFAULT 0,
   prefix       VARCHAR(10) DEFAULT 'INV',
+  PRIMARY KEY (year, month)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ------------------------------------------------------------
+-- 16b. ORDER SEQUENCES (Sequential numbering for orders)
+-- ------------------------------------------------------------
+DROP TABLE IF EXISTS order_sequences;
+CREATE TABLE order_sequences (
+  year         INT NOT NULL,
+  month        INT NOT NULL,
+  last_number  INT NOT NULL DEFAULT 0,
+  prefix       VARCHAR(10) DEFAULT 'ORD',
   PRIMARY KEY (year, month)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -774,6 +789,37 @@ BEGIN
   );
 END$$
 
+-- ------------------------------------------------------------
+-- 22b. STORED PROCEDURE — Generate Order Number
+-- ------------------------------------------------------------
+
+DROP PROCEDURE IF EXISTS generate_order_number$$
+
+CREATE PROCEDURE generate_order_number(OUT new_order_number VARCHAR(25))
+BEGIN
+  DECLARE current_year  INT;
+  DECLARE current_month INT;
+  DECLARE next_number   INT;
+  
+  SET current_year  = YEAR(CURDATE());
+  SET current_month = MONTH(CURDATE());
+  
+  INSERT INTO order_sequences (year, month, last_number, prefix)
+    VALUES (current_year, current_month, 1, 'ORD')
+  ON DUPLICATE KEY UPDATE last_number = last_number + 1;
+  
+  SELECT last_number INTO next_number
+  FROM order_sequences
+  WHERE year = current_year AND month = current_month;
+  
+  SET new_order_number = CONCAT(
+    'ORD-',
+    LPAD(current_year,  4, '0'), '-',
+    LPAD(current_month, 2, '0'), '-',
+    LPAD(next_number,   6, '0')
+  );
+END$$
+
 DELIMITER ;
 -- ------------------------------------------------------------
 -- 23. SAMPLE / SEED DATA
@@ -795,12 +841,12 @@ VALUES (UUID(), 'test.ca.customer@example.com', '$2y$10$test-hash-placeholder', 
 ON DUPLICATE KEY UPDATE email = email;
 
 -- Categories
-INSERT INTO categories (id, name, slug, description, is_active, sort_order) VALUES
-  (UUID(), 'Detailing Accessories', 'detailing-accessories', 'Professional car detailing tools and accessories', 1, 1),
-  (UUID(), 'Kit / Bundle', 'kit-bundle', 'Complete kits and bundles for professional detailing', 1, 2),
-  (UUID(), 'Apparels', 'apparels', 'Premium detailing apparel and merchandise', 1, 3),
-  (UUID(), 'Merchandise', 'merchandise', 'Branded merchandise and collectibles', 1, 4)
-ON DUPLICATE KEY UPDATE name = VALUES(name);
+INSERT INTO categories (id, name, slug, description, is_active, hide_for_usa, sort_order) VALUES
+  (UUID(), 'Detailing Accessories', 'detailing-accessories', 'Professional car detailing tools and accessories', 1, 0, 1),
+  (UUID(), 'Kit / Bundle', 'kit-bundle', 'Complete kits and bundles for professional detailing', 1, 1, 2),
+  (UUID(), 'Apparels', 'apparels', 'Premium detailing apparel and merchandise', 1, 1, 3),
+  (UUID(), 'Merchandise', 'merchandise', 'Branded merchandise and collectibles', 1, 1, 4)
+ON DUPLICATE KEY UPDATE name = VALUES(name), hide_for_usa = VALUES(hide_for_usa);
 
 -- Brands
 INSERT INTO brands (id, name, slug, is_active) VALUES
@@ -1627,7 +1673,7 @@ INSERT INTO products (
   'cad-detailing-bucket',
   'Heavy duty 5 Gallon detailing bucket molded of high-quality plastic with a metal handle.',
   'Our 5 Gallon detailing bucket is molded of heavy duty plastic and a metal handle to withstand years of repeated use. This bucket is the perfect fitment for your Dirt Lock bucket filter and all the accessories that go along with it. Made In Canada.',
-  12.99, NULL,
+  19.99, NULL,
   'Detailing-Accessories', 'DETAIL GUARDZ', 'CAD-78C-V',
   'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada Products/DETAIL GUARDZ 5 GALLON DETAILING BUCKET/DETAIL GUARDZ 5 GALLON DETAILING BUCKET.webp',
   JSON_ARRAY(

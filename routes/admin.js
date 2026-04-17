@@ -1483,11 +1483,13 @@ router.get("/orders", authenticateToken, requireAdmin, async (req, res) => {
         (SELECT JSON_ARRAYAGG(
           JSON_OBJECT(
             'name', oi.product_name_at_purchase,
-            'image', oi.image_url_at_purchase,
+            'image', COALESCE(oi.image_url_at_purchase, p.image),
             'price', oi.price_at_purchase,
             'qty', oi.quantity
           )
-        ) FROM order_items oi WHERE oi.order_id = o.id) as items
+        ) FROM order_items oi 
+          LEFT JOIN products p ON oi.product_id = p.id
+          WHERE oi.order_id = o.id) as items
       FROM orders o
       LEFT JOIN users u ON o.user_id = u.id
       ${whereClause}
@@ -2394,9 +2396,12 @@ router.get(
                 'quantity', oi.quantity, 
                 'price_at_purchase', oi.price_at_purchase, 
                 'product_name_at_purchase', oi.product_name_at_purchase, 
-                'image_url_at_purchase', oi.image_url_at_purchase
+                'image_url_at_purchase', oi.image_url_at_purchase,
+                'image', p.image
               )
-            ) FROM order_items oi WHERE oi.order_id = o.id
+            ) FROM order_items oi 
+              LEFT JOIN products p ON oi.product_id = p.id
+              WHERE oi.order_id = o.id
            ) as items
          FROM orders o 
          LEFT JOIN users u ON o.user_id = u.id 

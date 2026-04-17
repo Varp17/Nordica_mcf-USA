@@ -15,24 +15,31 @@ router.get('/', authenticateToken, async (req, res) => {
   }
 });
 
-// Add new address
 router.post('/', authenticateToken, async (req, res) => {
   try {
-    const { 
-      firstName, lastName, phone, 
-      address1, address2, city, state, zip, country, 
-      isDefault 
-    } = req.body;
+    const firstName = req.body.firstName || req.body.first_name;
+    const lastName = req.body.lastName || req.body.last_name;
+    const isDefault = req.body.isDefault !== undefined ? req.body.isDefault : req.body.is_default;
+    const { phone, address1, address2, city, state, zip, country, label } = req.body;
 
     if (!firstName || !lastName || !address1 || !city || !zip || !country) {
-      return res.status(400).json({ success: false, message: 'Missing required fields' });
+      const missing = [];
+      if (!firstName) missing.push('firstName');
+      if (!lastName) missing.push('lastName');
+      if (!address1) missing.push('address1');
+      if (!city) missing.push('city');
+      if (!zip) missing.push('zip');
+      if (!country) missing.push('country');
+      
+      logger.warn(`Address creation failed: Missing required fields: ${missing.join(', ')}`, { body: req.body });
+      return res.status(400).json({ success: false, message: `Missing required fields: ${missing.join(', ')}` });
     }
 
     await Address.create({
       userId: req.user.id,
       firstName, lastName, phone, 
       address1, address2, city, state, zip, country, 
-      isDefault
+      isDefault, label
     });
 
     res.json({ success: true, message: 'Address added successfully' });
@@ -42,19 +49,17 @@ router.post('/', authenticateToken, async (req, res) => {
   }
 });
 
-// Update address
 router.put('/:id', authenticateToken, async (req, res) => {
   try {
-    const { 
-      firstName, lastName, phone, 
-      address1, address2, city, state, zip, country, 
-      isDefault 
-    } = req.body;
+    const firstName = req.body.firstName || req.body.first_name;
+    const lastName = req.body.lastName || req.body.last_name;
+    const isDefault = req.body.isDefault !== undefined ? req.body.isDefault : req.body.is_default;
+    const { phone, address1, address2, city, state, zip, country, label } = req.body;
 
     await Address.update(req.params.id, req.user.id, {
       firstName, lastName, phone, 
       address1, address2, city, state, zip, country, 
-      isDefault
+      isDefault, label
     });
 
     res.json({ success: true, message: 'Address updated successfully' });

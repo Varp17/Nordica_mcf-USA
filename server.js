@@ -125,7 +125,6 @@ app.get('/health', async (req, res) => {
 
 // ── API Routes ────────────────────────────────────────────────────────────────
 app.use('/api/auth', authRoutes);
-// EDGE CASE #10: Apply orderLimiter to payment routes to prevent payment spam
 app.use('/api/payment', orderLimiter, paymentRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/cart', cartRoutes);
@@ -138,7 +137,8 @@ app.use('/api/fulfillment', fulfillmentRoutes);
 app.use('/api/tracking', trackingRoutes);
 app.use('/api/webhooks/shippo', shippoWebhookRoutes);
 app.use('/api/webhooks/paypal', paypalWebhookRoutes);
-app.use('/api/admin', invoiceRoutes);
+app.use('/api/admin/invoices', invoiceRoutes);
+app.use('/api/invoices', invoiceRoutes);
 app.use('/api/stock', stockRoutes);
 app.use('/api/debug', debugRoutes);
 

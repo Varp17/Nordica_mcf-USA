@@ -11,17 +11,6 @@ const CA_TAX_RATES = {
   'NT': 0.05, 'NU': 0.05, 'ON': 0.13, 'PE': 0.15, 'QC': 0.14975, 'SK': 0.11, 'YT': 0.05
 };
 
-const US_TAX_RATES = {
-  AL: 0.04, AK: 0, AZ: 0.056, AR: 0.065, CA: 0.0725, CO: 0.029, CT: 0.0635,
-  DE: 0, FL: 0.06, GA: 0.04, HI: 0.04, ID: 0.06, IL: 0.0625, IN: 0.07,
-  IA: 0.06, KS: 0.065, KY: 0.06, LA: 0.0445, ME: 0.055, MD: 0.06,
-  MA: 0.0625, MI: 0.06, MN: 0.06875, MS: 0.07, MO: 0.04225, MT: 0,
-  NE: 0.055, NV: 0.0685, NH: 0, NJ: 0.0663, NM: 0.05125, NY: 0.08,
-  NC: 0.0475, ND: 0.05, OH: 0.0575, OK: 0.045, OR: 0, PA: 0.06,
-  RI: 0.07, SC: 0.06, SD: 0.045, TN: 0.07, TX: 0.0625, UT: 0.0610,
-  VT: 0.06, VA: 0.053, WA: 0.065, WV: 0.06, WI: 0.05, WY: 0.04, DC: 0.06
-};
-
 /**
  * Centralized Tax Calculator
  */
@@ -38,19 +27,20 @@ export async function calculateTax(subtotal, country, stateProvince) {
       rate = CA_TAX_RATES[region] ?? 0.05; // 5% GST fallback for CA
       label = rate >= 0.12 ? 'HST/PST/QST' : 'GST';
     } else if (c === 'US' || c === 'USA') {
-      rate = US_TAX_RATES[region] ?? 0; // Use state rates for USA
+      rate = 0; // USA is tax-free as per business requirement
       label = 'Sales Tax';
     } else {
       rate = 0;
     }
 
-    const amount = parseFloat((sub * rate).toFixed(2));
+    const amount = 0; // Ensure 0 for US, or calculated for others
+    const finalAmount = c === 'CA' ? parseFloat((sub * rate).toFixed(2)) : 0;
     
     return {
       success: true,
-      amount,
+      amount: finalAmount,
       rate,
-      label: `${label} (${(rate * 100).toFixed(c === 'CA' ? 2 : 1)}%)`
+      label: rate > 0 ? `${label} (${(rate * 100).toFixed(c === 'CA' ? 2 : 1)}%)` : label
     };
   } catch (err) {
     logger.error('Tax calculation failure', err);

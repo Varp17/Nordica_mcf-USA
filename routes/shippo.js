@@ -1210,6 +1210,7 @@ import db from "../config/database.js";
 import { authenticateToken, requireAdmin } from "../middleware/auth.js";
 import { sendShipmentCreatedEmail } from "../utils/mailer.js";
 import shippoService from "../services/shippoService.js";
+import logger from "../utils/logger.js";
 
 const router = express.Router();
 
@@ -1592,8 +1593,8 @@ router.get(
         shippo_tracking_status: o.shippo_tracking_status || null,
         shippo_label_url: o.shippo_label_url || null,
         tracking_history: trackingHistory,
-        actualShippingCost: o.actual_shipping_cost,
-        shippingProfitLoss: o.shipping_profit_loss
+        actual_shipping_cost: o.actual_shipping_cost,
+        shipping_profit_loss: o.shipping_profit_loss
       });
     } catch (err) {
       console.error("❌ Order detail error:", err);
@@ -2039,6 +2040,11 @@ router.post(
       console.log("🏷️ Label bought:", trackingNumber, labelUrl);
 
       // ── Step 3: Save to DB + flip order status to shipped ──────────
+      const actualCost = parseFloat(rate.amount || 0);
+      const customerPaid = parseFloat(order.total_amount || 0) - (parseFloat(order.subtotal || 0) + parseFloat(order.tax_amount || 0)); // Fallback if shipping_cost is not direct
+      const shippingCost = parseFloat(order.shipping_cost || 0);
+      const profitLoss = parseFloat((shippingCost - actualCost).toFixed(2));
+
       await db.execute(
         `UPDATE orders
          SET shippo_tracking_number = ?,
@@ -2046,9 +2052,11 @@ router.post(
              shippo_tracking_status = 'PRE_TRANSIT',
              shippo_tracking_raw    = ?,
              shippo_label_url       = ?,
-             status                 = 'shipped'
+             status                 = 'shipped',
+             actual_shipping_cost   = ?,
+             shipping_profit_loss   = ?
          WHERE id = ?`,
-        [trackingNumber, trackingCarrier, JSON.stringify(tx), labelUrl, orderId]
+        [trackingNumber, trackingCarrier, JSON.stringify(tx), labelUrl, actualCost, profitLoss, orderId]
       );
 
       // ── Step 4: Email customer (non-fatal) ─────────────────────────
@@ -2357,5 +2365,111 @@ router.get(
     }
   }
 );
+
+/* ══════════════════════════════════════════════════════════ */
+/* Download Invoice                                         */
+/* GET /api/admin/shippo/orders/:id/invoice                 */
+/* ══════════════════════════════════════════════════════════ */
+router.get("/orders/:id/invoice", authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const [rows] = await db.execute("SELECT invoice_pdf_url FROM orders WHERE id = ?", [id]);
+    
+    let pdfUrl = rows.length ? rows[0].invoice_pdf_url : null;
+
+    // If missing, try to generate it on the fly
+    if (!pdfUrl) {
+      try {
+        const [orderRows] = await db.execute("SELECT country FROM orders WHERE id = ?", [id]);
+        const country = orderRows[0]?.country || 'CA';
+        
+        logger.info(`📄 Invoice missing for order ${id} — generating on-demand (${country})...`);
+        const invoiceService = (await import('../services/invoiceService.js')).default;
+        
+        let result;
+        if (country === 'US') {
+          result = await invoiceService.createMCFInvoice(id);
+        } else {
+          result = await invoiceService.createShippoInvoice(id);
+        }
+        
+        pdfUrl = result.s3Url;
+      } catch (genErr) {
+        logger.error(`❌ On-demand invoice generation failed for ${id}: ${genErr.message}`);
+      }
+    }
+
+    if (pdfUrl) {
+      return res.redirect(pdfUrl);
+    }
+    
+    // Fallback search in invoices table
+    const [invRows] = await db.execute("SELECT pdf_url FROM invoices WHERE order_id = ? ORDER BY created_at DESC LIMIT 1", [id]);
+    if (invRows.length && invRows[0].pdf_url) {
+      return res.redirect(invRows[0].pdf_url);
+    }
+
+    res.status(404).send(`
+      <div style="font-family: sans-serif; text-align: center; padding: 50px;">
+        <h2 style="color: #64748b;">Invoice Generation in Progress</h2>
+        <p style="color: #94a3b8;">The invoice for this order is being prepared. It will be ready in split seconds. Please refresh.</p>
+        <button onclick="window.location.reload()" style="background: #0f172a; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; margin-top: 20px;">Refresh Now</button>
+      </div>
+    `);
+  } catch (err) {
+    console.error("❌ Invoice download error:", err);
+    res.status(500).json({ error: "Failed to fetch invoice" });
+  }
+});
+
+/* ══════════════════════════════════════════════════════════ */
+/* Download Packing Slip                                     */
+/* GET /api/admin/shippo/orders/:id/packing-slip            */
+/* ══════════════════════════════════════════════════════════ */
+router.get("/orders/:id/packing-slip", authenticateToken, requireAdmin, async (req, res) => {
+  try {
+     const [rows] = await db.execute("SELECT shippo_tracking_raw, amazon_fulfillment_id FROM orders WHERE id = ?", [req.params.id]);
+     if (!rows.length) return res.status(404).json({ error: "Order not found" });
+     
+     const order = rows[0];
+     const tx = safeJson(order.shippo_tracking_raw);
+
+     if (tx && tx.object_id) {
+        // Shippo allows fetching packing slip via: https://api.goshippo.com/transactions/<object_id>/packingslip/
+        return res.redirect(`https://api.goshippo.com/transactions/${tx.object_id}/packingslip/`);
+     }
+
+     // If it's an Amazon MCF order, the slip is inside the box, but we can't redirect to it easily.
+     res.status(404).send(`
+      <div style="font-family: sans-serif; text-align: center; padding: 50px;">
+        <h2 style="color: #64748b;">Packing Slip Not Ready</h2>
+        <p style="color: #94a3b8;">The packing slip is generated once the shipping label is purchased via Shippo. For Amazon MCF orders, the slip is automatically included in the package by the warehouse.</p>
+        <button onclick="window.close()" style="background: #0f172a; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; margin-top: 20px;">Close Window</button>
+      </div>
+    `);
+  } catch (err) {
+    console.error("❌ Packing slip error:", err);
+    res.status(500).json({ error: "Failed to fetch packing slip" });
+  }
+});
+
+/* ══════════════════════════════════════════════════════════ */
+/* Amazon MCF Fulfillment (Manual Trigger)                   */
+/* POST /api/admin/shippo/orders/:id/amazon-fulfill         */
+/* ══════════════════════════════════════════════════════════ */
+router.post("/orders/:id/amazon-fulfill", authenticateToken, requireAdmin, async (req, res) => {
+  try {
+     const { id } = req.params;
+     const fulfillmentService = (await import('../services/fulfillmentService.js')).default;
+     
+     logger.info(`🚨 [MANUAL DISPATCH] Admin triggering fulfillment for order ${id}`);
+     const result = await fulfillmentService.fulfillOrder(id);
+     
+     res.json({ success: true, message: "Order submitted to Amazon successfully", result });
+  } catch (err) {
+    logger.error(`❌ Manual fulfillment error for ${req.params.id}: ${err.message}`);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
 
 export default router;
