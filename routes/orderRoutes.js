@@ -376,8 +376,8 @@ router.get('/:orderId', optionalAuth, validateOrderId, async (req, res) => {
     if (!req.user || req.user.role !== 'admin') {
       const { email } = req.query;
       if (!email || email.toLowerCase() !== order.customer_email?.toLowerCase()) {
-        if (req.user && req.user.role === 'customer' && req.user.id === order.user_id) {
-          // Allow if customer is logged in and owns the order
+        if (req.user && req.user.role === 'customer' && (req.user.id === order.user_id || req.user.email?.toLowerCase() === order.customer_email?.toLowerCase())) {
+          // Allow if customer is logged in and owns the order (either by ID or by email for guest legacy)
           isFullDetail = true;
         } else {
           return res.status(403).json({ success: false, message: 'Access denied' });
@@ -481,7 +481,7 @@ router.post('/:orderId/cancel', optionalAuth, validateOrderId, async (req, res) 
     
     if (req.user && req.user.role === 'admin') {
       isAuthorized = true;
-    } else if (req.user && req.user.id === order.user_id) {
+    } else if (req.user && (req.user.id === order.user_id || req.user.email?.toLowerCase() === order.customer_email?.toLowerCase())) {
       isAuthorized = true;
     } else if (email && email.toLowerCase() === order.customer_email?.toLowerCase()) {
       // Guest cancellation requires OTP verification
@@ -587,7 +587,8 @@ function _sanitizeOrder(order, isAdmin = false) {
       productName: i.product_name,
       quantity: i.quantity,
       unitPrice: i.unit_price,
-      totalPrice: i.total_price
+      totalPrice: i.total_price,
+      image: i.fallback_image || i.image_url_at_purchase || i.image || null
     })),
     shipping: {
       name: `${order.shipping_first_name} ${order.shipping_last_name}`,

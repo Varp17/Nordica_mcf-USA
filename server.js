@@ -41,11 +41,13 @@ import paypalWebhookRoutes from './routes/paypalWebhook.js';
 import stockRoutes from './routes/stock.js';
 import paymentRoutes from './routes/payment.js';
 import addressRoutes from './routes/addresses.js';
+import adminOrderRoutes from './routes/adminOrders.js';
 
 // ── Background Jobs ───────────────────────────────────────────────────────────
 import trackingPoller from './jobs/trackingPoller.js';
 import inventorySync from './jobs/inventorySync.js';
 import stockRecovery from './jobs/stockRecovery.js';
+import retryFailedFulfillments from './jobs/retryFailedFulfillments.js';
 import { startStockMonitoring } from './services/stockService.js';
 
 const app = express();
@@ -131,6 +133,7 @@ app.use('/api/cart', cartRoutes);
 app.use('/api/wishlist', wishlistRoutes);
 app.use('/api/addresses', addressRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/admin/orders-manage', adminOrderRoutes);
 app.use('/api/admin/shippo', shippoAdminRoutes);
 app.use('/api/orders', orderLimiter, orderRoutes);
 app.use('/api/fulfillment', fulfillmentRoutes);
@@ -140,7 +143,11 @@ app.use('/api/webhooks/paypal', paypalWebhookRoutes);
 app.use('/api/admin/invoices', invoiceRoutes);
 app.use('/api/invoices', invoiceRoutes);
 app.use('/api/stock', stockRoutes);
-app.use('/api/debug', debugRoutes);
+
+// Debug routes — disabled in production for security
+if (process.env.NODE_ENV !== 'production') {
+  app.use('/api/debug', debugRoutes);
+}
 
 // ── Additional Utility Routes ────────────────────────────────────────────────
 app.get('/api/geoip', async (req, res) => {
@@ -234,13 +241,41 @@ async function startServer() {
 
     // Start background jobs
     trackingPoller.startPolling();
+    retryFailedFulfillments.startRetryJob();
     inventorySync.startInventorySync();
     stockRecovery.start();
     startStockMonitoring();
     
-    app.listen(PORT, () => {
+    const server = app.listen(PORT, () => {
       logger.info(`✅ Server running on port ${PORT}`);
+      logger.info(`   Environment: ${process.env.NODE_ENV || 'development'}`);
     });
+
+    // ── Graceful Shutdown (critical for AWS ECS/Fargate/EC2) ──────────────
+    const shutdown = async (signal) => {
+      logger.info(`\n⏳ ${signal} received — graceful shutdown starting...`);
+      
+      // 1. Stop accepting new connections
+      server.close(() => logger.info('   HTTP server closed'));
+      
+      // 2. Stop background jobs
+      trackingPoller.stop();
+      retryFailedFulfillments.stop();
+      inventorySync.stop();
+      stockRecovery.stop?.();
+      
+      // 3. Close database pool
+      try { await db.end(); } catch (e) { logger.error(`DB close error: ${e.message}`); }
+      
+      // 4. Close Redis
+      try { await redisClient.quit(); } catch (e) { /* May already be closed */ }
+      
+      logger.info('✅ Graceful shutdown complete');
+      process.exit(0);
+    };
+    
+    process.on('SIGTERM', () => shutdown('SIGTERM'));
+    process.on('SIGINT',  () => shutdown('SIGINT'));
 
   } catch (err) {
     logger.error(`❌ Server startup failed: ${err.message}`);
@@ -250,6 +285,11 @@ async function startServer() {
 
 process.on('unhandledRejection', (reason) => {
   logger.error(`Unhandled Promise Rejection: ${reason}`);
+});
+
+process.on('uncaughtException', (err) => {
+  logger.error(`Uncaught Exception: ${err.message}`, { stack: err.stack });
+  process.exit(1);
 });
 
 startServer();

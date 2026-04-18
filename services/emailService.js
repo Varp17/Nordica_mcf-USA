@@ -327,6 +327,38 @@ export async function sendOrderConfirmationEmail(order, invoicePdf = null) {
   return sendEmail(mailOptions);
 }
 
+export async function sendFulfillmentOrderSubmittedEmail(order) {
+  const firstName = order.shipping_first_name || 'Customer';
+  const orderNumber = order.order_number || order.id;
+  const storeWebsite = process.env.STORE_WEBSITE || 'https://detailguardz.com';
+
+  const body = `
+    <p>Hi ${firstName},</p>
+    <p>Great news! Your order <strong>#${orderNumber}</strong> has been processed and is currently being prepared for shipment at our fulfillment center.</p>
+    
+    <div class="highlight-box" style="background: #f0fdf4; border-left: 5px solid #22c55e;">
+      <p style="margin: 0;"><span class="label">Status:</span> <strong style="color: #15803d;">PROCESSING AT WAREHOUSE</strong></p>
+      <p style="margin: 0; font-size: 13px; color: #64748b; margin-top: 5px;">Our team is picking and packing your items right now.</p>
+    </div>
+
+    <p>You will receive another email with your tracking number as soon as your package leaves the warehouse. This usually takes 1-2 business days.</p>
+
+    <div style="text-align: center; margin: 25px 0;">
+      <a href="${storeWebsite}/order-tracking?number=${orderNumber}&email=${encodeURIComponent(order.customer_email || order.email)}" class="btn">View Order Details</a>
+    </div>
+
+    <p style="font-size: 14px; color: #64748b;">
+      If you have any questions in the meantime, simply reply to this email.
+    </p>
+  `;
+
+  return sendEmail({
+    to:      order.customer_email || order.email,
+    subject: `Processing Update — Order #${orderNumber}`,
+    html:    wrapEmail('Preparing Your Order! 📦', `Order #${orderNumber}`, body)
+  });
+}
+
 export async function sendOrderShippedEmail(order, tracking) {
   const firstName = order.shipping_first_name || 'Customer';
   const orderNumber = order.order_number || order.id;
@@ -716,6 +748,7 @@ export async function sendPasswordChangedEmail(email, firstName) {
 
 export default {
   sendOrderConfirmationEmail,
+  sendFulfillmentOrderSubmittedEmail,
   sendOrderShippedEmail,
   sendOrderDeliveredEmail,
   sendFulfillmentErrorAlert,

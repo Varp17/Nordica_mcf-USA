@@ -21,8 +21,8 @@ export async function pollAllActiveOrders() {
       try {
         if (order.country === 'US' && order.amazon_fulfillment_id) {
            // EDGE CASE: Skip mock fulfillment IDs used in testing/dev to avoid SP-API 400 errors
-           if (order.amazon_fulfillment_id.startsWith('MOCK-')) {
-             logger.debug(`Poller: Skipping mock fulfillment ID ${order.amazon_fulfillment_id} for order ${order.order_number}`);
+           if (order.amazon_fulfillment_id.startsWith('MOCK-') || order.amazon_fulfillment_id.startsWith('FAKE-')) {
+             logger.debug(`Poller: Skipping mock/fake fulfillment ID ${order.amazon_fulfillment_id} for order ${order.order_number}`);
              continue;
            }
            const update = await mcfService.getFulfillmentOrder(order.amazon_fulfillment_id);

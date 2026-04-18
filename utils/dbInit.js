@@ -114,6 +114,58 @@ export async function initializeDatabase(db) {
 
     logger.info('SUCCESS: Admin user and test customers setup complete.');
 
+    // 5. Schema Migrations — Safely add columns that may not exist yet
+    //    These are idempotent: MySQL will throw if column exists, we catch it.
+    const migrations = [
+      // Orders table
+      { col: 'orders.retry_count',       sql: "ALTER TABLE orders ADD COLUMN retry_count INT NOT NULL DEFAULT 0" },
+      { col: 'orders.last_retry_at',     sql: "ALTER TABLE orders ADD COLUMN last_retry_at DATETIME DEFAULT NULL" },
+      { col: 'orders.invoice_pdf_url',   sql: "ALTER TABLE orders ADD COLUMN invoice_pdf_url VARCHAR(500) DEFAULT NULL" },
+      { col: 'orders.fulfillment_channel', sql: "ALTER TABLE orders ADD COLUMN fulfillment_channel VARCHAR(50) DEFAULT NULL" },
+      // Invoices table
+      { col: 'invoices.fulfillment_channel', sql: "ALTER TABLE invoices ADD COLUMN fulfillment_channel VARCHAR(50) DEFAULT NULL" },
+      // Performance index for retry job
+      { col: 'orders.idx_orders_retry',  sql: "ALTER TABLE orders ADD INDEX idx_orders_retry (fulfillment_status, payment_status, retry_count)" },
+    ];
+
+    for (const m of migrations) {
+      try {
+        // Safe check: Search if column or index exists before trying to add it
+        if (m.col) {
+          let exists = false;
+          if (m.col.includes('idx_')) {
+            // Index check
+            const [table, indexName] = m.col.split('.');
+            const [existing] = await db.execute(
+              "SELECT INDEX_NAME FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND INDEX_NAME = ?",
+              [table, indexName]
+            );
+            exists = existing.length > 0;
+          } else {
+            // Column check
+            const [table, column] = m.col.split('.');
+            const [existing] = await db.execute(
+              "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?",
+              [table, column]
+            );
+            exists = existing.length > 0;
+          }
+
+          if (exists) continue;
+        }
+
+        await db.execute(m.sql);
+        logger.info(`   Migration applied: ${m.col}`);
+      } catch (e) {
+        // Fallback for indexes or unexpected errors (execute avoids logging if possible or we catch here)
+        if (e.code === 'ER_DUP_FIELDNAME' || e.errno === 1060 || e.code === 'ER_DUP_KEYNAME' || e.errno === 1061) {
+          // Already exists, skip
+        } else {
+          logger.warn(`   Migration warning for ${m.col}: ${e.message}`);
+        }
+      }
+    }
+
     return true;
   } catch (err) {
     logger.error(`❌ DB Initialization failed: ${err.message}`);

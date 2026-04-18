@@ -212,12 +212,12 @@ CREATE TABLE products (
   INDEX idx_amazon_sku_ca (amazon_sku_ca),
   FULLTEXT idx_products_search (name, description, category, brand),
 
-  -- Constraints
+  -- Constraints (allow SKUs for 'both' region too)
   CONSTRAINT chk_amazon_sku_usa CHECK (
-    amazon_sku IS NULL OR target_country = 'us'
+    amazon_sku IS NULL OR target_country IN ('us', 'both')
   ),
   CONSTRAINT chk_canada_sku_canada CHECK (
-    canada_sku IS NULL OR target_country = 'canada'
+    canada_sku IS NULL OR target_country IN ('canada', 'both')
   )
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -433,6 +433,13 @@ CREATE TABLE orders (
   shippo_transaction_id      VARCHAR(100)   DEFAULT NULL,
   fulfillment_error          TEXT           DEFAULT NULL,
   
+  -- Fulfillment Retry (exponential backoff for failed orders)
+  retry_count                INT            NOT NULL DEFAULT 0,
+  last_retry_at              DATETIME       DEFAULT NULL,
+  
+  -- Invoice
+  invoice_pdf_url            VARCHAR(500)   DEFAULT NULL,
+  
   -- Shippo-specific columns
   shippo_tracking_number     VARCHAR(100)   DEFAULT NULL,
   shippo_carrier             VARCHAR(100)   DEFAULT NULL,
@@ -449,6 +456,7 @@ CREATE TABLE orders (
   INDEX idx_orders_status     (fulfillment_status),
   INDEX idx_orders_country    (country),
   INDEX idx_orders_shippo_trk (shippo_tracking_number),
+  INDEX idx_orders_retry      (fulfillment_status, payment_status, retry_count),
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -489,6 +497,10 @@ CREATE TABLE order_status_history (
   changed_by       CHAR(36)      DEFAULT NULL,
   source           VARCHAR(50)   DEFAULT 'system',
   notes            TEXT          DEFAULT NULL,
+  payment_method   VARCHAR(50)   DEFAULT NULL,
+  payment_id       VARCHAR(100)  DEFAULT NULL,
+  fulfillment_channel VARCHAR(50) DEFAULT NULL,
+  invoice_pdf_url  VARCHAR(1000) DEFAULT NULL,
   created_at       DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -602,6 +614,9 @@ CREATE TABLE invoices (
   payment_status   VARCHAR(50)   DEFAULT NULL,
   payment_reference VARCHAR(255) DEFAULT NULL,
   paid_at          DATETIME      DEFAULT NULL,
+  
+  -- Fulfillment
+  fulfillment_channel VARCHAR(50) DEFAULT NULL,
   
   -- PDF
   pdf_url          VARCHAR(255)  DEFAULT NULL,

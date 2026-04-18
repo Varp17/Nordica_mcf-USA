@@ -122,12 +122,9 @@ async function handleRegister(req, res) {
 }
 
 /**
- * ── Root Routes (Elevated for Frontend Compatibility) ───────────────────────────
+ * SHARED LOGIN LOGIC
  */
-
-router.post("/register", authRateLimit, handleRegister);
-
-router.post("/login", authRateLimit, async (req, res) => {
+async function handleLogin(req, res) {
   try {
     const { error, value } = loginSchema.validate(req.body);
     if (error) return res.status(400).json({ success: false, message: error.details[0].message });
@@ -177,12 +174,20 @@ router.post("/login", authRateLimit, async (req, res) => {
     logger.error(`Login error: ${error.message}`);
     res.status(500).json({ success: false, message: "Internal server error" });
   }
-});
+}
+
+/**
+ * ── Root Routes (Elevated for Frontend Compatibility) ───────────────────────────
+ */
+
+router.post("/register", authRateLimit, handleRegister);
+router.post("/login", authRateLimit, handleLogin);
 
 /**
  * ── Customer Sub-Router ────────────────────────────────────────────────────────
  */
 customerRouter.post("/register", authRateLimit, handleRegister);
+customerRouter.post("/login", authRateLimit, handleLogin);
 
 customerRouter.post("/verify-otp", authenticateToken, async (req, res) => {
   try {

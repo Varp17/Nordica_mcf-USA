@@ -91,6 +91,8 @@ async function _fulfillUS(order, invoicePdf = null) {
      actual_shipping_cost: actualCost,
      shipping_profit_loss: profitLoss
   });
+  
+  await emailService.sendFulfillmentOrderSubmittedEmail(order).catch(e => logger.error("Submit email err", e));
 
   // Confirmation email is now handled in routes via invoiceService
   // await emailService.sendOrderConfirmationEmail(order, invoicePdf).catch(e => logger.error("Confirmation Email Error", e));

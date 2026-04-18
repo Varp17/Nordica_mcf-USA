@@ -24,7 +24,7 @@ router.get('/stats', authenticateToken, requireAdmin, async (req, res) => {
     const [unpaidRows] = await db.execute("SELECT COUNT(*) as count FROM invoices WHERE status = 'unpaid'");
     const [mcfRows] = await db.execute("SELECT COUNT(*) as count FROM invoices WHERE fulfillment_channel = 'MCF'");
     const [shippoRows] = await db.execute("SELECT COUNT(*) as count FROM invoices WHERE fulfillment_channel = 'SHIPPO'");
-    
+
     res.json({
       totalInvoices: totalRows[0].count,
       totalRevenue: totalRows[0].revenue,
@@ -125,15 +125,15 @@ router.post(
   async (req, res) => {
     try {
       const { orderId } = req.params;
-      
+
       const [orderRows] = await db.execute("SELECT country FROM orders WHERE id = ?", [orderId]);
       if (!orderRows.length) return res.status(404).json({ error: "Order not found" });
-      
+
       const country = orderRows[0].country;
-      
+
       const invoiceService = (await import('../services/invoiceService.js')).default;
       let result;
-      
+
       if (country === 'US') {
         result = await invoiceService.createMCFInvoice(orderId);
       } else {
@@ -180,13 +180,13 @@ router.get('/:id', authenticateToken, requireAdmin, async (req, res) => {
     }
 
     const invoice = invoices[0];
-    
+
     // Get invoice items
     const [items] = await db.execute(
       `SELECT * FROM invoice_items WHERE invoice_id = ? ORDER BY line_item_number`,
       [id]
     );
-    
+
     invoice.items = items;
     res.json(invoice);
   } catch (error) {
@@ -591,7 +591,7 @@ router.get('/:id/view', authenticateToken, async (req, res) => {
   try {
     const [rows] = await db.execute("SELECT pdf_url, user_id FROM invoices WHERE id = ?", [req.params.id]);
     if (!rows.length || !rows[0].pdf_url) return res.status(404).json({ error: "Invoice PDF not found." });
-    
+
     if (req.user.role !== 'admin' && rows[0].user_id !== req.user.id) {
       return res.status(403).json({ error: "Access denied." });
     }

@@ -140,7 +140,14 @@ export async function findById(orderId) {
   );
   if (!orders.length) return null;
   const order = orders[0];
-  const [items] = await db.query(`SELECT * FROM order_items WHERE order_id = ? ORDER BY created_at ASC`, [orderId]);
+  const [items] = await db.query(`
+    SELECT oi.*, 
+           COALESCE(oi.image_url_at_purchase, p.image) as fallback_image
+    FROM order_items oi
+    LEFT JOIN products p ON oi.product_id = p.id
+    WHERE oi.order_id = ? 
+    ORDER BY oi.created_at ASC
+  `, [orderId]);
   order.items = items;
   return order;
 }
