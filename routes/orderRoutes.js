@@ -424,7 +424,8 @@ router.post('/:orderId/retry', requireAuth, requireRole('admin'), validateOrderI
     const result = await retryFailedOrder(req.params.orderId);
     return res.json({ success: true, result });
   } catch (err) {
-    return res.status(400).json({ success: false, message: err.message });
+    logger.error(`POST /api/orders/:orderId/retry error: ${err.message}`);
+    return res.status(500).json({ success: false, message: err.message });
   }
 });
 // ─────────────────────────────────────────────────────────────────────────────
@@ -515,13 +516,21 @@ router.post('/:orderId/cancel', optionalAuth, validateOrderId, async (req, res) 
     // Special check for Amazon - if already submitted, we try to cancel there first
     if (order.fulfillment_channel === 'amazon_mcf' && order.amazon_fulfillment_id) {
         try {
+            logger.info(`Attempting MCF cancellation for order ${order.order_number} (ID: ${order.amazon_fulfillment_id})`);
             const fulfillmentService = (await import('../services/fulfillmentService.js')).default;
             await fulfillmentService.cancelFulfillment(order.id);
+            logger.info(`MCF cancellation successful for ${order.order_number}`);
         } catch (mcfErr) {
-            logger.error(`MCF Cancellation failed for ${order.order_number}: ${mcfErr.message}`);
-            if (mcfErr.message.includes('Shipping')) {
-                return res.status(400).json({ success: false, message: 'Order is already being shipped by Amazon and cannot be cancelled.' });
+            const errMsg = mcfErr.response?.data?.message || mcfErr.message || '';
+            logger.warn(`MCF Cancellation failed for ${order.order_number}: ${errMsg}`);
+            
+            if (errMsg.toLowerCase().includes('shipping') || errMsg.toLowerCase().includes('shipped')) {
+                return res.status(400).json({ 
+                  success: false, 
+                  message: 'Order is already being shipped by Amazon and cannot be cancelled.' 
+                });
             }
+            // For other errors (like 404 for FAKE IDs), we log and proceed with local cancellation
         }
     }
 
@@ -548,11 +557,12 @@ router.post('/:orderId/cancel', optionalAuth, validateOrderId, async (req, res) 
     }
 
     // 3. Update Order Status
+    const actor = req.user ? (req.user.role === 'admin' ? 'Admin' : 'Customer') : 'Guest';
     await Order.updateOrder(orderId, {
       status: 'cancelled',
       fulfillment_status: 'cancelled',
       payment_status: order.payment_status === 'paid' ? 'refunded_pending' : 'cancelled',
-      notes: (order.notes || '') + `\nOrder cancelled by ${req.user.role === 'admin' ? 'Admin' : 'Customer'} on ${new Date().toLocaleDateString()}`
+      notes: (order.notes || '') + `\nOrder cancelled by ${actor} on ${new Date().toLocaleDateString()}`
     });
 
     return res.json({ success: true, message: 'Order cancelled successfully' });

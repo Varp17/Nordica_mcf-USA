@@ -15,12 +15,17 @@ export async function retryFailedFulfillments() {
     logger.info('Background Job: Checking for failed fulfillments to retry...');
 
     // Find orders with fulfillment_error, payment_status paid, and retry_count < MAX_RETRIES
+    // ALSO find orders that are 'paid' but fulfillment_status is still 'pending' for more than 5 minutes
+    // (This covers background task failures or crashes during checkout)
     const [orders] = await db.execute(
       `SELECT id, order_number, country, retry_count, last_retry_at 
        FROM orders 
-       WHERE fulfillment_status = 'fulfillment_error' 
-       AND payment_status = 'paid' 
-       AND retry_count < ?`,
+       WHERE (
+         (fulfillment_status = 'fulfillment_error' AND retry_count < ?) 
+         OR 
+         (fulfillment_status = 'pending' AND updated_at < DATE_SUB(NOW(), INTERVAL 5 MINUTE))
+       )
+       AND payment_status = 'paid'`,
       [MAX_RETRIES]
     );
 
