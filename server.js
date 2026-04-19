@@ -8,7 +8,8 @@ import helmet from 'helmet';
 import cors from 'cors';
 import compression from 'compression';
 import morgan from 'morgan';
-import axios from 'axios';
+// COMMENTED: axios is not used directly in server.js
+// import axios from 'axios';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';

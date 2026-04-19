@@ -166,6 +166,8 @@ export default {
   retryWithBackoff,
   safeJSON,
   formatCurrency,
+  detectCountryFromRequest,
+  isValidCanadianPostalCode,
   isValidUSZip,
   maskSecret,
   formatImageUrl,

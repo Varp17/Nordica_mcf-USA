@@ -46,7 +46,8 @@ async function processMCFUpdate(order, update) {
         'SHIPPED': 'shipped', 'DELIVERED': 'delivered', 'CANCELLED': 'cancelled', 'UNFULFILLABLE': 'error'
     };
     const newStatus = statusMap[update.status] || order.fulfillment_status?.toLowerCase();
-    const trackingNo = update.primaryTrackingNumber || order.tracking_number;
+    // FIX: mcfService.getFulfillmentOrder returns 'primaryTracking', not 'primaryTrackingNumber'
+    const trackingNo = update.primaryTracking || order.tracking_number;
     const carrier = update.primaryCarrier || order.carrier;
 
     if (newStatus !== order.fulfillment_status || trackingNo !== order.tracking_number) {

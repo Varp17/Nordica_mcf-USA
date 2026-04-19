@@ -1,30 +1,7 @@
-// // backend/config/uploadConfig.js
-// import multer from "multer";
-// import path from "path";
-// import fs from "fs";
-
-// const uploadsDir = path.join(process.cwd(), "uploads");
-
-// if (!fs.existsSync(uploadsDir)) {
-//   fs.mkdirSync(uploadsDir);
-// }
-
-// const storage = multer.diskStorage({
-//   destination: function (req, file, cb) {
-//     cb(null, uploadsDir);
-//   },
-//   filename: function (req, file, cb) {
-//     const ext = path.extname(file.originalname);
-//     const base = path.basename(file.originalname, ext);
-//     const unique = Date.now() + "-" + Math.round(Math.random() * 1e9);
-//     cb(null, `${base}-${unique}${ext}`);
-//   },
-// });
-
-// export const upload = multer({ storage });
-
-//testing 
-// backend/config/uploadConfig.js
+/**
+ * uploadConfig.js — Canonical file upload configuration
+ * Uses multer with disk storage for product/admin image uploads.
+ */
 import multer from "multer";
 import path from "path";
 import { fileURLToPath } from "url";

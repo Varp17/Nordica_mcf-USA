@@ -60,6 +60,11 @@ export async function createFulfillmentOrder(order) {
   // EDGE CASE #78: Normalize state to 2-letter code
   const state = normalizeState(order.shipping_state || order.shipping_province || '');
 
+  // Safety Check: SP-API requires at least one item
+  if (!order.items || order.items.length === 0) {
+    throw new Error('MCF: Cannot create fulfillment order with 0 items.');
+  }
+
   const payload = {
     marketplaceId:             process.env.AMAZON_MARKETPLACE_ID_US || 'ATVPDKIKX0DER',
     sellerFulfillmentOrderId,
@@ -140,6 +145,10 @@ export async function getFulfillmentOrder(sellerFulfillmentOrderId) {
 export async function getFulfillmentPreview(address, items) {
   const normState = normalizeState(address.stateOrRegion || '');
   
+  if (!items || items.length === 0) {
+    throw new Error('MCF: Cannot get preview with 0 items.');
+  }
+
   const payload = {
     marketplaceId: process.env.AMAZON_MARKETPLACE_ID_US || 'ATVPDKIKX0DER',
     address: {

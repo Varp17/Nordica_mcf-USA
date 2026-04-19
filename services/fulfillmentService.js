@@ -31,8 +31,16 @@ export async function fulfillOrder(orderId) {
     logger.info(`Order ${orderId} is in terminal status (${order.fulfillment_status}) but missing cost. Permitting re-processing to capture metrics.`);
   }
 
-  await _updateOrderStatus(orderId, { fulfillment_status: 'processing', fulfillment_error: null });
-  
+  // Safety Check: Do not attempt to fulfill an order with no items
+  if (!order.items || order.items.length === 0) {
+    logger.error(`Order ${order.order_number} has no items. Skipping fulfillment.`);
+    await _updateOrderStatus(orderId, { 
+      fulfillment_status: 'fulfillment_error', 
+      fulfillment_error: 'Critical Error: Order has no items in database.' 
+    });
+    return { success: false, message: 'Order has no items' };
+  }
+
   // Invoice generation is now handled asynchronously in routes/payment.js or routes/orderRoutes.js
 
   try {
@@ -204,6 +212,9 @@ export async function getProjectedSustainability(country, address, items, custom
     let actualCost = 0;
     if (country === 'US') {
       try {
+        if (!probeItems || probeItems.length === 0) {
+           return { actual_shipping_cost: 0, shipping_profit_loss: 0 };
+        }
         const mcfItems = probeItems.map(i => ({ 
            sku: i.sellerSku || i.sku || i.productId || i.product_id, 
            quantity: i.quantity 

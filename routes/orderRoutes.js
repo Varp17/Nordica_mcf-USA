@@ -9,14 +9,16 @@ import shippoService from '../services/shippoService.js';
 import { calculateTax } from '../services/taxService.js';
 import { authenticateToken as requireAuth, requireAdmin, requireVerified, optionalAuth } from '../middleware/auth.js';
 import { validateCreateOrder, validateOrderId } from '../middleware/validation.js';
-import { detectCountryFromRequest } from '../utils/helpers.js';
+// COMMENTED: detectCountryFromRequest not used in this file (country comes from req.body)
+// import { detectCountryFromRequest } from '../utils/helpers.js';
 import logger from '../utils/logger.js';
 
 const router = express.Router();
 
 // Compatibility: requireRole('admin') -> requireAdmin
 const requireRole = (role) => (role === 'admin' ? requireAdmin : (req, res, next) => next());
-const optionalAuthStub = (req, res, next) => next(); // Deprecated, using real optionalAuth
+// COMMENTED: optionalAuthStub is deprecated — real optionalAuth from middleware is used
+// const optionalAuthStub = (req, res, next) => next();
 
 /**
  * Order Routes
@@ -28,17 +30,7 @@ const optionalAuthStub = (req, res, next) => next(); // Deprecated, using real o
  * POST   /api/orders/:orderId/retry  — Retry failed fulfillment (admin)
  */
 
-// const express = require('express');
-// const router = express.Router();
-// const db = require('../config/database');
-// const Order = require('../models/Order');
-// const Customer = require('../models/Customer');
-// const Product = require('../models/Product');
-// const { fulfillOrder, retryFailedOrder } = require('../services/fulfillmentService');
-// const { requireAuth, requireRole, optionalAuth } = require('../middleware/auth');
-// const { validateCreateOrder, validateOrderId } = require('../middleware/validation');
-// const { detectCountryFromRequest } = require('../utils/helpers');
-// const logger = require('../utils/logger');
+// REMOVED: Legacy CommonJS require() comments (migrated to ESM imports above)
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  POST /api/orders

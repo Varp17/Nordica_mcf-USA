@@ -126,10 +126,11 @@ router.post('/preview', async (req, res) => {
     }
 
     // 1. Validate items
-    logger.info('[DEBUG] Incoming items for preview:', { items });
+    // FIX: Changed from logger.info to logger.debug for production
+    logger.debug('Incoming items for preview:', { items });
     const { valid, errors, items: validatedItems } = await Product.validateCartItems(items, country);
     if (!valid) {
-      logger.error('[DEBUG] Cart validation failed:', { errors, items });
+      logger.debug('Cart validation failed:', { errors, items });
       return res.status(400).json({ success: false, message: 'Cart validation failed', errors });
     }
 

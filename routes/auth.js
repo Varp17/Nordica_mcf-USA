@@ -110,7 +110,7 @@ async function handleRegister(req, res) {
       message: "Registration successful. Please check your email for a verification code.",
       token,
       requiresVerification: true,
-      user: { id: userId, email, first_name: firstName, last_name: lastName, role: "customer", is_email_verified: 0 }
+      user: { id: userId, email, first_name: firstName, last_name: lastName, phone: phoneNumber, role: "customer", is_email_verified: 0 }
     });
   } catch (error) {
     if (connection) await connection.rollback();

@@ -33,7 +33,7 @@ export async function calculateTax(subtotal, country, stateProvince) {
       rate = 0;
     }
 
-    const amount = 0; // Ensure 0 for US, or calculated for others
+    // REMOVED: unused 'amount' variable — finalAmount below handles all cases
     const finalAmount = c === 'CA' ? parseFloat((sub * rate).toFixed(2)) : 0;
     
     return {
