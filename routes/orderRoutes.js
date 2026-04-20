@@ -7,6 +7,7 @@ import { fulfillOrder, retryFailedOrder } from '../services/fulfillmentService.j
 import mcfService from '../services/mcfService.js';
 import shippoService from '../services/shippoService.js';
 import { calculateTax } from '../services/taxService.js';
+import emailService from '../services/emailService.js';
 import { authenticateToken as requireAuth, requireAdmin, requireVerified, optionalAuth } from '../middleware/auth.js';
 import { validateCreateOrder, validateOrderId } from '../middleware/validation.js';
 // COMMENTED: detectCountryFromRequest not used in this file (country comes from req.body)
@@ -194,6 +195,9 @@ router.post('/', optionalAuth, validateCreateOrder, async (req, res) => {
 
     import('../services/invoiceService.js').then(m => m.createInvoiceFromOrder(order.id))
       .catch(err => logger.error(`Background invoice error [${order.id}]: ${err.message}`));
+
+    // ── 7. Admin Notification (async) ────────────────────────────────────────
+    emailService.sendNewOrderAdminAlert(order).catch(err => logger.error(`Admin notification error [${order.id}]: ${err.message}`));
 
     logger.info(`Order created: ${order.order_number} | Country: ${country} | Total: ${serverTotal}`);
 

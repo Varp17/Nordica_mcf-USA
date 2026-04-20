@@ -4,6 +4,7 @@ import db from '../config/database.js';
 import Order from '../models/Order.js';
 import * as Product from '../models/Product.js';
 import { fulfillOrder } from '../services/fulfillmentService.js';
+import emailService from '../services/emailService.js';
 import logger from '../utils/logger.js';
 
 const router = express.Router();
@@ -174,6 +175,10 @@ async function handleOrderApproved(paypalOrder) {
       
       // Trigger Fulfillment
       fulfillOrder(order.id).catch(err => logger.error(`Webhook fulfillment trigger error: ${err.message}`));
+      
+      // Admin Notification (async)
+      emailService.sendNewOrderAdminAlert(order).catch(err => logger.error(`Admin notification error [${order.id}]: ${err.message}`));
+
       logger.info(`Webhook: Order ${order.order_number} successfully captured and finalized via webhook.`);
     }
   } catch (err) {
@@ -222,6 +227,10 @@ async function handleCaptureCompleted(captureResource) {
         paid_at: new Date()
       });
       fulfillOrder(order.id).catch(err => logger.error(`Webhook fulfillment trigger error: ${err.message}`));
+
+      // Admin Notification (async)
+      emailService.sendNewOrderAdminAlert(order).catch(err => logger.error(`Admin notification error [${order.id}]: ${err.message}`));
+
       logger.info(`Webhook: Order ${order.order_number} synced as PAID via CAPTURE.COMPLETED webhook.`);
   }
 }

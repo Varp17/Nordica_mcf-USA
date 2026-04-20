@@ -5,6 +5,7 @@ import Order from '../models/Order.js';
 import * as Product from '../models/Product.js';
 import { fulfillOrder } from '../services/fulfillmentService.js';
 import { calculateTax } from '../services/taxService.js';
+import emailService from '../services/emailService.js';
 import logger from '../utils/logger.js';
 import { optionalAuth, requireVerified } from '../middleware/auth.js';
 
@@ -421,6 +422,9 @@ router.post('/capture', async (req, res) => {
         return m.createShippoInvoice(order.id);
       }
     }).catch(err => logger.error(`Background invoice error [${order.id}]: ${err.message}`));
+
+    // Admin Notification (async)
+    emailService.sendNewOrderAdminAlert(finalOrder).catch(err => logger.error(`Admin notification error [${finalOrder.id}]: ${err.message}`));
 
     res.json({
       success: true,

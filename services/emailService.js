@@ -746,6 +746,45 @@ export async function sendPasswordChangedEmail(email, firstName) {
   });
 }
 
+export async function sendNewOrderAdminAlert(order) {
+  const adminEmail = process.env.ADMIN_ALERT_EMAIL || process.env.STORE_SUPPORT_EMAIL || 'k7391356@gmail.com';
+  const orderNum = order.order_number || order.orderNumber || order.id;
+  const country = (order.country || 'US').toUpperCase();
+  const customerName = `${order.shipping_first_name || ''} ${order.shipping_last_name || ''}`.trim() || 'Guest Customer';
+  
+  const body = `
+    <div style="text-align: center; margin-bottom: 20px;">
+      <span style="background: #e0f2fe; color: #0369a1; padding: 6px 16px; border-radius: 20px; font-size: 12px; font-weight: 700; text-transform: uppercase;">New Order Received</span>
+    </div>
+    <p>Hi Admin,</p>
+    <p>A new order has been successfully placed on the store.</p>
+    
+    <div class="highlight-box">
+      <h3 style="margin: 0; color: #1E3A5F;">Order #${orderNum}</h3>
+      <p style="margin: 10px 0; font-size: 14px;">
+        <strong>Customer:</strong> ${customerName}<br>
+        <strong>Email:</strong> ${order.customer_email || 'N/A'}<br>
+        <strong>Region:</strong> ${country}<br>
+        <strong>Total:</strong> ${parseFloat(order.total || 0).toFixed(2)} ${order.currency || (country === 'CA' ? 'CAD' : 'USD')}
+      </p>
+      <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 15px 0;">
+      <p style="margin: 0; font-size: 13px; color: #64748b;">
+        Log in to the <a href="${process.env.ADMIN_PORTAL_URL || '#'}">Admin Dashboard</a> to view full details and manage fulfillment.
+      </p>
+    </div>
+  `;
+
+  return sendEmail({
+    to: adminEmail,
+    subject: `🔔 New Order Received: #${orderNum} (${country})`,
+    html: wrapEmail(`New Order: #${orderNum}`, 'Admin Notification', body)
+  }).then(() => {
+    logger.info(`📧 Admin Notification Sent for Order #${orderNum}`);
+  }).catch(err => {
+    logger.error(`❌ Failed to send Admin Notification for #${orderNum}: ${err.message}`);
+  });
+}
+
 export default {
   sendOrderConfirmationEmail,
   sendFulfillmentOrderSubmittedEmail,
@@ -759,5 +798,6 @@ export default {
   sendBulkStockAlertEmail,
   sendBackInStockEmail,
   sendPasswordResetOTPEmail,
-  sendPasswordChangedEmail
+  sendPasswordChangedEmail,
+  sendNewOrderAdminAlert
 };
