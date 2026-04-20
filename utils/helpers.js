@@ -110,23 +110,41 @@ export function maskSecret(str, visibleChars = 6) {
  */
 export function formatImageUrl(url) {
   if (!url) return url;
-  if (url.startsWith('http')) return url;
+  if (typeof url !== 'string') return url;
+  if (url.startsWith('http') || url.startsWith('data:')) return url;
   
   const s3Base = process.env.ASSETS_S3_BASE_URL?.replace(/\/$/, '') || 'https://detailguardz.s3.us-east-1.amazonaws.com';
   
-  // Clean up leading slashes to avoid double slashes
-  const cleanPath = url.startsWith('/') ? url : `/${url}`;
+  // Clean up path
+  let cleanPath = url.trim();
+  if (!cleanPath.startsWith('/')) {
+    cleanPath = '/' + cleanPath;
+  }
   
   // Ensure the URL starts with /assets if it's a relative path in our system
+  // (unless it already seems to have a path structure that shouldn't be prefixed)
   let finalPath = cleanPath;
   if (!finalPath.startsWith('/assets/')) {
     finalPath = `/assets${cleanPath}`;
   }
   
-  // URL-encode each segment of the path while keeping slashes
-  const encodedPath = finalPath.split('/').map(segment => encodeURIComponent(segment)).join('/');
-  
-  return `${s3Base}${encodedPath}`;
+  // URL-encode segments, but be careful with existing encoding
+  try {
+    const segments = finalPath.split('/');
+    const encodedSegments = segments.map(seg => {
+      // If it already looks encoded (contains %), don't double encode
+      if (seg.includes('%')) return seg;
+      
+      // Standard encodeURIComponent + manual handle for parentheses
+      // Note: We avoid replacing %20 with + here to stay consistent with frontend %20
+      return encodeURIComponent(decodeURIComponent(seg))
+        .replace(/\(/g, '%28')
+        .replace(/\)/g, '%29');
+    });
+    return `${s3Base}${encodedSegments.join('/')}`;
+  } catch (e) {
+    return `${s3Base}${finalPath}`;
+  }
 }
 
 /**
@@ -139,17 +157,24 @@ export function deepFormatImages(data) {
     return data.map(item => deepFormatImages(item));
   }
   
-  if (typeof data === 'string' && (data.startsWith('/assets/') || data.startsWith('assets/'))) {
-    return formatImageUrl(data);
-  }
-  
   if (typeof data === 'object') {
     const formatted = { ...data };
     for (const key in formatted) {
-      if (['image', 'image_url', 'imageUrl', 'thumbnail', 'heroImage', 'banner_url', 'logo_url'].includes(key) || key.toLowerCase().endsWith('image')) {
-        formatted[key] = formatImageUrl(formatted[key]);
-      } else if (typeof formatted[key] === 'object' || typeof formatted[key] === 'string') {
-        formatted[key] = deepFormatImages(formatted[key]);
+      const val = formatted[key];
+      if (!val) continue;
+
+      const isImageKey = ['image', 'image_url', 'imageUrl', 'thumbnail', 'heroImage', 'banner_url', 'logo_url'].includes(key) || 
+                         key.toLowerCase().endsWith('image') ||
+                         key.toLowerCase().endsWith('images');
+
+      if (isImageKey) {
+        if (typeof val === 'string') {
+          formatted[key] = formatImageUrl(val);
+        } else if (Array.isArray(val)) {
+          formatted[key] = val.map(v => typeof v === 'string' ? formatImageUrl(v) : deepFormatImages(v));
+        }
+      } else if (typeof val === 'object') {
+        formatted[key] = deepFormatImages(val);
       }
     }
     return formatted;
