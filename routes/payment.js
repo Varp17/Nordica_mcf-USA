@@ -6,6 +6,9 @@ import * as Product from '../models/Product.js';
 import { fulfillOrder } from '../services/fulfillmentService.js';
 import { calculateTax } from '../services/taxService.js';
 import emailService from '../services/emailService.js';
+import fraudService from '../services/fraudService.js';
+import shippoService from '../services/shippoService.js';
+import mcfService from '../services/mcfService.js';
 import logger from '../utils/logger.js';
 import { optionalAuth, requireVerified } from '../middleware/auth.js';
 
@@ -67,8 +70,8 @@ router.post('/create-order', optionalAuth, async (req, res, next) => {
   next();
 }, async (req, res) => {
   try {
-    const { country, currency, items, shipping, shippingCost, subtotal, tax, total, email, shippingSpeed, guestOtpCode } = req.body;
-    
+    let { country, currency, items, shipping, shippingCost, subtotal, tax, total, email, shippingSpeed, guestOtpCode } = req.body;
+
     // EDGE CASE #6: Validate country
     if (!country || !['US', 'CA'].includes(country)) {
       return res.status(400).json({ success: false, message: 'Invalid country. Must be US or CA.' });
@@ -125,27 +128,72 @@ router.post('/create-order', optionalAuth, async (req, res, next) => {
     // 1.1 Recalculate Financials for Security (Production Level)
     const serverSubtotal = validation.subtotal;
     const provState = (shipping.province || shipping.state || '').toUpperCase();
-    
+
     // EDGE CASE #57: Use Centralized Tax Service
     const taxCalculation = await calculateTax(serverSubtotal, country, provState);
     const serverTax = taxCalculation.amount;
 
     let serverShippingCost = 0;
     const totalQty = validation.items.reduce((sum, item) => sum + (item.quantity || 1), 0);
-    const isFree = serverSubtotal >= 100;
+    const isFree = (country === 'CA' && serverSubtotal >= 120) || (country === 'US' && serverSubtotal >= 100);
 
-    if (isFree) {
-      serverShippingCost = 0;
-    } else if (country === 'CA') {
-      serverShippingCost = parseFloat((totalQty * 10).toFixed(2));
+    if (country === 'CA') {
+      const hasBucket = validation.items.some(item => 
+        (item.name || '').toLowerCase().includes('bucket') && 
+        !(item.name || '').toLowerCase().includes('insert') &&
+        !(item.name || '').toLowerCase().includes('filter') &&
+        !(item.name || '').toLowerCase().includes('dirt lock')
+      );
+
+      const speed = (shippingSpeed || '').toLowerCase();
+      if (hasBucket) {
+        serverShippingCost = 24.99;
+        shippingSpeed = 'Heavy/Bulky Item Shipping (Expedited)';
+      } else if (isFree && !speed.includes('expedited')) {
+        serverShippingCost = 0;
+        shippingSpeed = 'Free Ground Shipping';
+      } else if (speed.includes('expedited')) {
+        serverShippingCost = 9.99;
+        shippingSpeed = 'Expedited Shipping (1-4 Business Days) - Tracking';
+      } else {
+        serverShippingCost = 7.99;
+        shippingSpeed = 'Regular Shipping (5-10 Business Days)';
+      }
+
+      // Log the Shippo cost for comparison anyway
+      try {
+        const pseudoOrder = {
+          items: validation.items,
+          shipping_first_name: shipping.firstName || 'Customer',
+          shipping_last_name: shipping.lastName || '',
+          shipping_address1: shipping.address1 || shipping.address || '',
+          shipping_city: shipping.city || '',
+          shipping_province: shipping.province || shipping.state || '',
+          shipping_postal_code: shipping.postalCode || shipping.zip || ''
+        };
+        const rates = await shippoService.getShippingRates(pseudoOrder);
+        if (rates && rates.length > 0) {
+          const actualAmount = parseFloat(rates[0].amount);
+          const margin = serverShippingCost - actualAmount;
+          logger.info(`[SHIPPO COST ANALYSIS - FINAL] Order: ${email} | Service: ${shippingSpeed.padEnd(20)} | Shippo Fee: $${actualAmount.toFixed(2).padEnd(6)} | Customer (Flat): $${serverShippingCost.toFixed(2).padEnd(6)} | LOSS: $${margin.toFixed(2)}`);
+        }
+      } catch (err) {
+        logger.warn(`Failed to fetch shippo rates for CA logging: ${err.message}`);
+      }
     } else if (country === 'US') {
       const speed = (shippingSpeed || '').toLowerCase();
-      if (speed.includes('priority')) {
-        serverShippingCost = 15.00;
+      if (isFree && !speed.includes('expedited') && !speed.includes('priority')) {
+        serverShippingCost = 0;
+        shippingSpeed = 'Free Shipping';
+      } else if (speed.includes('priority')) {
+        serverShippingCost = 14.99;
+        shippingSpeed = 'Priority Shipping (1-2 Business Days)';
       } else if (speed.includes('expedited')) {
-        serverShippingCost = 7.00;
+        serverShippingCost = 7.99;
+        shippingSpeed = 'Expedited Shipping (2-3 Business Days)';
       } else {
-        serverShippingCost = 5.00;
+        serverShippingCost = 5.99;
+        shippingSpeed = 'Standard Shipping (3-5 Business Days)';
       }
     }
 
@@ -177,12 +225,34 @@ router.post('/create-order', optionalAuth, async (req, res, next) => {
       return res.status(500).json({ success: false, message: 'Failed to initiate order. Inventory may be insufficient.' });
     }
 
+    // 2.5 Screen for Fraud asynchronously
+    try {
+      const fraudOrder = {
+        ...internalOrder,
+        country,
+        currency: finalCurrency,
+        total: serverTotal,
+        items: validation.items,
+        customer_email: email,
+        shipping_first_name: shipping.firstName,
+        shipping_last_name: shipping.lastName,
+        shipping_phone: shipping.phone || '',
+        shipping_address1: shipping.address1,
+        shipping_city: shipping.city,
+        shipping_state: shipping.state || shipping.province,
+        shipping_zip: shipping.zip || shipping.postalCode
+      };
+      await fraudService.screenOrder(fraudOrder, req.ip);
+    } catch (fraudErr) {
+      logger.error(`Error during fraud screening: ${fraudErr.message}`);
+    }
+
     // 3. Create PayPal Order
     let response;
     try {
       const accessToken = await getPayPalAccessToken();
       const frontendBase = getBaseUrl(req);
-      
+
       const paypalOrder = {
         intent: 'CAPTURE',
         purchase_units: [{
@@ -231,10 +301,10 @@ router.post('/create-order', optionalAuth, async (req, res, next) => {
       logger.error(`PayPal order creation failed. Restoring stock for order ${internalOrder.order_number}`);
       const [items] = await db.query('SELECT * FROM order_items WHERE order_id = ?', [internalOrder.id]);
       await Product.restoreStock(items);
-      
+
       // Mark internal order as failed
-      await Order.updateOrder(internalOrder.id, { 
-        status: 'cancelled', 
+      await Order.updateOrder(internalOrder.id, {
+        status: 'cancelled',
         payment_status: 'failed',
         fulfillment_status: 'cancelled',
         notes: `PayPal API Error: ${apiErr.response?.data?.message || apiErr.message}`
@@ -260,9 +330,9 @@ router.post('/create-order', optionalAuth, async (req, res, next) => {
     });
 
   } catch (err) {
-    logger.error(`PayPal Create Order Error: ${err.message}`, { 
+    logger.error(`PayPal Create Order Error: ${err.message}`, {
       data: err.response?.data,
-      body: req.body 
+      body: req.body
     });
     res.status(500).json({ success: false, message: 'Failed to create PayPal order. Please try again.' });
   }
@@ -413,7 +483,7 @@ router.post('/capture', async (req, res) => {
 
     // 6. Async fulfillment trigger & Invoice Generation
     fulfillOrder(order.id).catch(err => logger.error(`Background fulfillment error [${order.id}]: ${err.message}`));
-    
+
     // EDGE CASE: Background invoice generation (record + PDF + S3 + Email)
     import('../services/invoiceService.js').then(m => {
       if (order.country === 'US') {
@@ -439,7 +509,7 @@ router.post('/capture', async (req, res) => {
 
     const errorMsg = err.response?.data?.message || err.message;
     logger.error(`PayPal Capture Error: ${errorMsg}`);
-    
+
     // Explicitly mark as failed if it's not already paid
     if (order && order.id && order.payment_status !== 'paid') {
       try {
@@ -483,7 +553,7 @@ router.post('/cancel-order', optionalAuth, async (req, res) => {
       await connection.rollback();
       return res.status(404).json({ success: false, message: 'Order not found' });
     }
-    
+
     const order = rows[0];
 
     // EDGE CASE #11: Auth check — only allow cancellation by:
@@ -513,7 +583,7 @@ router.post('/cancel-order', optionalAuth, async (req, res) => {
 
     // Get items to restore stock
     const [items] = await connection.execute('SELECT * FROM order_items WHERE order_id = ?', [orderId]);
-    
+
     // Restore Stock & Cancel Order
     if (items.length > 0) {
       await Product.restoreStock(items, connection);

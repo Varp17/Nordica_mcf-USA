@@ -43,6 +43,8 @@ import stockRoutes from './routes/stock.js';
 import paymentRoutes from './routes/payment.js';
 import addressRoutes from './routes/addresses.js';
 import adminOrderRoutes from './routes/adminOrders.js';
+import returnRoutes from './routes/returnRoutes.js';
+import ticketRoutes from './routes/ticketRoutes.js';
 
 // ── Background Jobs ───────────────────────────────────────────────────────────
 import trackingPoller from './jobs/trackingPoller.js';
@@ -144,6 +146,8 @@ app.use('/api/webhooks/paypal', paypalWebhookRoutes);
 app.use('/api/admin/invoices', invoiceRoutes);
 app.use('/api/invoices', invoiceRoutes);
 app.use('/api/stock', stockRoutes);
+app.use('/api/returns', returnRoutes);
+app.use('/api/tickets', ticketRoutes);
 
 // Debug routes — disabled in production for security
 if (process.env.NODE_ENV !== 'production') {

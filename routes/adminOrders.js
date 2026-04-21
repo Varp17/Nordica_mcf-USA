@@ -2,6 +2,7 @@ import express from 'express';
 import db from '../config/database.js';
 import { authenticateToken, requireAdmin } from '../middleware/auth.js';
 import Order from '../models/Order.js';
+import mcfService from '../services/mcfService.js';
 import logger from '../utils/logger.js';
 
 const router = express.Router();
@@ -223,6 +224,213 @@ router.post('/:id/refund', authenticateToken, requireAdmin, async (req, res) => 
   } catch (error) {
     logger.error(`Admin Order Refund Error: ${error.message}`);
     res.status(500).json({ success: false, message: 'Failed to mark as refunded' });
+  }
+});
+
+/**
+ * GET /api/admin/orders-manage/:id/mcf-return-reasons
+ * Fetch valid return reasons for MCF order items.
+ */
+router.get('/:id/mcf-return-reasons', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { sku } = req.query;
+
+    const order = await Order.findById(id);
+    if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
+    if (order.fulfillment_channel !== 'amazon_mcf') {
+      return res.status(400).json({ success: false, message: 'Not an Amazon MCF order' });
+    }
+
+    const reasons = await mcfService.listReturnReasonCodes(sku, order.order_number);
+    res.json({ success: true, reasons });
+  } catch (error) {
+    logger.error(`Admin MCF Return Reasons Error: ${error.message}`);
+    res.status(500).json({ success: false, message: 'Failed to fetch return reasons', error: error.message });
+  }
+});
+
+/**
+ * POST /api/admin/orders-manage/:id/mcf-return
+ * Trigger a return in Amazon MCF.
+ */
+router.post('/:id/mcf-return', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { items } = req.body; // Array of { sku, quantity, reasonCode, comment }
+
+    const order = await Order.findById(id);
+    if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
+    if (order.fulfillment_channel !== 'amazon_mcf') {
+      return res.status(400).json({ success: false, message: 'Not an Amazon MCF order' });
+    }
+
+    // To create a return, we need the amazonShipmentId and sellerFulfillmentOrderItemId
+    // We get these from the Amazon order details
+    const mcfOrder = await mcfService.getFulfillmentOrder(order.order_number);
+    
+    const returnItems = items.map(item => {
+      const mcfItem = mcfOrder.items.find(i => i.sellerSku === item.sku);
+      if (!mcfItem) throw new Error(`Item ${item.sku} not found in MCF order`);
+
+      // Find the shipment containing this item
+      // For simplicity, we use the first shipment that contains this SKU
+      const shipment = mcfOrder.shipments.find(s => 
+        s.packages.some(p => p.trackingNumber) // This is a bit naive, but MCF shipments usually contain all items or are split logically
+      );
+      
+      if (!shipment) throw new Error(`No shipment found for SKU ${item.sku}`);
+
+      return {
+        sellerFulfillmentOrderItemId: mcfItem.sellerFulfillmentOrderItemId,
+        amazonShipmentId: shipment.id,
+        returnReasonCode: item.reasonCode,
+        returnComment: item.comment || 'Customer Return'
+      };
+    });
+
+    const authorizations = await mcfService.createFulfillmentReturn(order.order_number, returnItems);
+
+    // Update order status and log return data
+    await db.execute(
+      `UPDATE orders SET 
+        fulfillment_status = 'returned',
+        mcf_return_data = ?,
+        notes = CONCAT(COALESCE(notes, ''), ?),
+        updated_at = NOW() 
+       WHERE id = ?`,
+      [
+        JSON.stringify(authorizations),
+        `\nMCF Return authorized on ${new Date().toISOString()}. RMA IDs: ${authorizations.map(a => a.returnAuthorizationId).join(', ')}`,
+        id
+      ]
+    );
+
+    const updated = await Order.findById(id);
+    res.json({ success: true, order: updated, authorizations });
+  } catch (error) {
+    logger.error(`Admin MCF Return Error: ${error.message}`);
+    res.status(500).json({ success: false, message: 'Failed to authorize MCF return', error: error.message });
+  }
+});
+
+/**
+ * GET /api/admin/orders-manage/returns
+ * List all return requests for admin review.
+ */
+router.get('/returns/list', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const [requests] = await db.execute(
+      `SELECT r.*, o.order_number, o.fulfillment_channel, o.created_at as order_date
+       FROM return_requests r
+       JOIN orders o ON r.order_id = o.id
+       ORDER BY r.created_at DESC`
+    );
+    res.json({ success: true, requests });
+  } catch (error) {
+    logger.error(`Admin Return List Error: ${error.message}`);
+    res.status(500).json({ success: false, message: 'Failed to fetch return requests' });
+  }
+});
+
+/**
+ * POST /api/admin/orders-manage/returns/:id/approve
+ * Approve a return request and trigger MCF return if applicable.
+ */
+router.post('/returns/:id/approve', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const [requests] = await db.execute('SELECT * FROM return_requests WHERE id = ?', [id]);
+    if (requests.length === 0) return res.status(404).json({ success: false, message: 'Return request not found' });
+    
+    const request = requests[0];
+    if (request.status !== 'pending') {
+      return res.status(400).json({ success: false, message: `Request is already ${request.status}` });
+    }
+
+    const order = await Order.findById(request.order_id);
+    if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
+
+    if (order.country !== 'US') {
+      return res.status(400).json({ success: false, message: 'Returns are only supported for US orders (Amazon MCF)' });
+    }
+
+    let authorizations = [];
+    if (order.fulfillment_channel === 'amazon_mcf') {
+      // Trigger MCF Return
+      const mcfOrder = await mcfService.getFulfillmentOrder(order.order_number);
+      
+      const requestedItems = JSON.parse(request.items || '[]');
+      const returnItems = requestedItems.map(item => {
+        const mcfItem = mcfOrder.items.find(i => i.sellerSku === item.sku);
+        if (!mcfItem) throw new Error(`Item ${item.sku} not found in MCF order`);
+
+        const shipment = mcfOrder.shipments.find(s => 
+          s.packages.some(p => p.trackingNumber)
+        );
+        
+        if (!shipment) throw new Error(`No shipment found for SKU ${item.sku}`);
+
+        return {
+          sellerFulfillmentOrderItemId: mcfItem.sellerFulfillmentOrderItemId,
+          amazonShipmentId: shipment.id,
+          returnReasonCode: request.reason_code,
+          returnComment: request.customer_feedback || 'Customer Return'
+        };
+      });
+
+      authorizations = await mcfService.createFulfillmentReturn(order.order_number, returnItems);
+    }
+
+    // Update statuses
+    await db.execute(
+      `UPDATE return_requests SET status = 'approved', updated_at = NOW() WHERE id = ?`,
+      [id]
+    );
+
+    await db.execute(
+      `UPDATE orders SET 
+        fulfillment_status = 'returned',
+        mcf_return_data = ?,
+        notes = CONCAT(COALESCE(notes, ''), ?),
+        updated_at = NOW() 
+       WHERE id = ?`,
+      [
+        JSON.stringify(authorizations),
+        `\nReturn Request ${id} approved on ${new Date().toISOString()}.${authorizations.length ? ' MCF RMA: ' + authorizations.map(a => a.returnAuthorizationId).join(', ') : ''}`,
+        order.id
+      ]
+    );
+
+    res.json({ success: true, message: 'Return request approved', authorizations });
+  } catch (error) {
+    logger.error(`Admin Return Approve Error: ${error.message}`);
+    res.status(500).json({ success: false, message: 'Failed to approve return request', error: error.message });
+  }
+});
+
+/**
+ * POST /api/admin/orders-manage/returns/:id/reject
+ */
+router.post('/returns/:id/reject', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body;
+
+    const [result] = await db.execute(
+      `UPDATE return_requests SET status = 'rejected', updated_at = NOW() WHERE id = ? AND status = 'pending'`,
+      [id]
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ success: false, message: 'Request not found or not pending' });
+    }
+
+    res.json({ success: true, message: 'Return request rejected' });
+  } catch (error) {
+    logger.error(`Admin Return Reject Error: ${error.message}`);
+    res.status(500).json({ success: false, message: 'Failed to reject return request' });
   }
 });
 

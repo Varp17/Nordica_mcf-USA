@@ -4,9 +4,8 @@ import { v4 as uuidv4 } from 'uuid';
  * Generate a unique order number  e.g. "ORD-20240115-A3F9"
  */
 export function generateOrderNumber() {
-  const date = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-  const rand = Math.random().toString(36).toUpperCase().substring(2, 8); // Increased to 6 chars
-  return `ORD-${date}-${rand}`;
+  const rand = Math.floor(10000 + Math.random() * 90000); // 5 digits
+  return `DG-${rand}`;
 }
 
 /**

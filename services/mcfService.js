@@ -127,12 +127,19 @@ export async function getFulfillmentOrder(sellerFulfillmentOrderId) {
       status: s.fulfillmentShipmentStatus,
       trackingNumber: pkg.trackingNumber || s.trackingNumber,
       carrierCode: pkg.carrierCode,
-      estimatedArrival: s.estimatedArrivalDate
+      estimatedArrival: s.estimatedArrivalDate,
+      amazonShipmentId: s.amazonShipmentId // Added for returns
     }))
   );
 
   return {
     status: fulfillmentOrder.fulfillmentOrderStatus,
+    items: fulfillmentOrder.fulfillmentOrderItems?.member || [], // Added for returns
+    shipments: (fulfillmentShipments || []).map(s => ({
+      id: s.amazonShipmentId,
+      status: s.fulfillmentShipmentStatus,
+      packages: s.fulfillmentShipmentPackages?.member || []
+    })),
     tracking: allTracking,
     primaryTracking: allTracking[0]?.trackingNumber || null,
     primaryCarrier: allTracking[0]?.carrierCode || null
@@ -213,6 +220,52 @@ export async function listInventory(skus = []) {
 }
 
 /**
+ * GET /fba/outbound/2020-07-01/returnReasonCodes
+ * Fetch valid return reason codes for an item.
+ */
+export async function listReturnReasonCodes(sellerSku, sellerFulfillmentOrderId = null) {
+  const marketplaceId = process.env.AMAZON_MARKETPLACE_ID_US || 'ATVPDKIKX0DER';
+  const query = {
+    sellerSku,
+    marketplaceId,
+    language: 'en-US'
+  };
+  if (sellerFulfillmentOrderId) query.sellerFulfillmentOrderId = sellerFulfillmentOrderId;
+
+  try {
+    const response = await spApiRequest('GET', `${MCF_BASE}/returnReasonCodes`, null, query);
+    return response.data?.payload?.returnReasonCodes || [];
+  } catch (err) {
+    logger.error(`MCF: Failed to list return reasons for SKU ${sellerSku}: ${err.message}`);
+    throw err;
+  }
+}
+
+/**
+ * POST /fba/outbound/2020-07-01/fulfillmentOrders/{id}/return
+ * Create a return authorization for an order.
+ */
+export async function createFulfillmentReturn(sellerFulfillmentOrderId, items) {
+  const payload = {
+    items: items.map(item => ({
+      sellerReturnItemId: item.sellerReturnItemId || `RMA-${sellerFulfillmentOrderId}-${Date.now()}`,
+      sellerFulfillmentOrderItemId: item.sellerFulfillmentOrderItemId,
+      amazonShipmentId: item.amazonShipmentId,
+      returnReasonCode: item.returnReasonCode,
+      returnComment: item.returnComment || 'Customer Return'
+    }))
+  };
+
+  try {
+    const response = await spApiRequest('POST', `${MCF_BASE}/fulfillmentOrders/${encodeURIComponent(sellerFulfillmentOrderId)}/return`, payload);
+    return response.data?.payload?.returnAuthorizations || [];
+  } catch (err) {
+    logger.error(`MCF: Failed to create return for order ${sellerFulfillmentOrderId}: ${err.message}`);
+    throw err;
+  }
+}
+
+/**
  * PUT /fba/outbound/2020-07-01/fulfillmentOrders/{id}/cancel
  * Attempt to cancel an order in Amazon MCF.
  */
@@ -287,6 +340,8 @@ export default {
   getFulfillmentOrder, 
   getFulfillmentPreview, 
   listInventory, 
+  listReturnReasonCodes,
+  createFulfillmentReturn,
   cancelFulfillmentOrder, 
   getProductPriceFromAmazon,
   getAmazonCatalogMetadata

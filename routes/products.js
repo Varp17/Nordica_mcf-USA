@@ -310,22 +310,23 @@ router.get("/slug/:slug", async (req, res) => {
     const product = products[0];
     
     // Fetch variants from both tables
+    const variantCountryCondition = `v.target_country IN (${countryTarget.map(() => '?').join(',')})`;
     const [modernVariants] = await db.execute(
       `SELECT v.*, MAX(pi.image_url) as image
        FROM product_variants v
        LEFT JOIN product_images pi ON v.id = pi.color_variant_id AND (pi.image_type = 'color_variant' OR pi.is_primary = 1)
-       WHERE v.product_id = ? AND v.is_active = 1
+       WHERE v.product_id = ? AND v.is_active = 1 AND ${variantCountryCondition}
        GROUP BY v.id`,
-      [product.id]
+      [product.id, ...countryTarget]
     );
 
     const [legacyVariants] = await db.execute(
       `SELECT v.*, MAX(pi.image_url) as image
        FROM product_color_variants v
        LEFT JOIN product_images pi ON v.id = pi.color_variant_id AND (pi.image_type = 'color_variant' OR pi.is_primary = 1)
-       WHERE v.product_id = ? AND v.is_active = 1
+       WHERE v.product_id = ? AND v.is_active = 1 AND ${variantCountryCondition}
        GROUP BY v.id`,
-      [product.id]
+      [product.id, ...countryTarget]
     );
 
     const allVariants = [...modernVariants, ...legacyVariants];
@@ -350,12 +351,27 @@ router.get("/slug/:slug", async (req, res) => {
       [product.id]
     );
 
+    const baseColorOptions = typeof product.color_options === "string" ? JSON.parse(product.color_options) : (product.color_options || []);
+    
+    // Merge DB variants with JSON color options
+    let mergedVariants = [...(variantsWithGalleries || [])];
+    baseColorOptions.forEach(jsonVar => {
+      const existsInDb = mergedVariants.some(dbVar => 
+        (dbVar.sku && dbVar.sku === jsonVar.sku) || 
+        (dbVar.amazon_sku && dbVar.amazon_sku === jsonVar.amazon_sku) ||
+        (dbVar.color_name && dbVar.color_name.toLowerCase() === (jsonVar.name || jsonVar.color_name || '').toLowerCase())
+      );
+      if (!existsInDb) {
+        mergedVariants.push(jsonVar);
+      }
+    });
+
     const formattedProduct = {
       ...product,
       category: product.cat_name || product.category || 'Uncategorized',
       brand: product.br_name || product.brand || 'Generic',
-      color_options: typeof product.color_options === "string" ? JSON.parse(product.color_options) : (product.color_options || []),
-      variants: variantsWithGalleries && variantsWithGalleries.length > 0 ? variantsWithGalleries : (typeof product.color_options === "string" ? JSON.parse(product.color_options) : (product.color_options || [])),
+      color_options: baseColorOptions,
+      variants: mergedVariants,
       keyFeatures: typeof product.key_features === "string" ? JSON.parse(product.key_features) : (product.key_features || []),
       specifications: typeof product.specifications === "string" ? JSON.parse(product.specifications) : (product.specifications || {}),
       compatibility: typeof product.compatibility === "string" ? JSON.parse(product.compatibility) : (product.compatibility || []),
@@ -414,7 +430,7 @@ router.get("/slug/:slug", async (req, res) => {
         // Respect already populated galleries from the images table
         if (v.images && Array.isArray(v.images) && v.images.length > 1) return v;
         
-        const vName = (v.variant_name || v.name || "").toLowerCase();
+        const vName = (v.variant_name && v.variant_name.toLowerCase() !== 'default' ? v.variant_name : (v.color_name || v.name || "")).toLowerCase();
         if (!vName) return v;
 
         // Find match in the legacy variantImages JSON blob (case-insensitive fuzzy match)
@@ -469,22 +485,23 @@ router.get("/:id", async (req, res) => {
     const product = products[0]
     
     // Fetch variants from both tables
+    const variantCountryCondition = `v.target_country IN (${countryTarget.map(() => '?').join(',')})`;
     const [modernVariants] = await db.execute(
       `SELECT v.*, MAX(pi.image_url) as image
        FROM product_variants v
        LEFT JOIN product_images pi ON v.id = pi.color_variant_id AND (pi.image_type = 'color_variant' OR pi.is_primary = 1)
-       WHERE v.product_id = ? AND v.is_active = 1
+       WHERE v.product_id = ? AND v.is_active = 1 AND ${variantCountryCondition}
        GROUP BY v.id`,
-      [product.id]
+      [product.id, ...countryTarget]
     );
 
     const [legacyVariants] = await db.execute(
       `SELECT v.*, MAX(pi.image_url) as image
        FROM product_color_variants v
        LEFT JOIN product_images pi ON v.id = pi.color_variant_id AND (pi.image_type = 'color_variant' OR pi.is_primary = 1)
-       WHERE v.product_id = ? AND v.is_active = 1
+       WHERE v.product_id = ? AND v.is_active = 1 AND ${variantCountryCondition}
        GROUP BY v.id`,
-      [product.id]
+      [product.id, ...countryTarget]
     );
 
     const allVariants = [...modernVariants, ...legacyVariants];
@@ -509,12 +526,26 @@ router.get("/:id", async (req, res) => {
       [product.id]
     );
 
+    const baseColorOptions = typeof product.color_options === "string" ? JSON.parse(product.color_options) : (product.color_options || []);
+    
+    let mergedVariants = [...(variantsWithGalleries || [])];
+    baseColorOptions.forEach(jsonVar => {
+      const existsInDb = mergedVariants.some(dbVar => 
+        (dbVar.sku && dbVar.sku === jsonVar.sku) || 
+        (dbVar.amazon_sku && dbVar.amazon_sku === jsonVar.amazon_sku) ||
+        (dbVar.color_name && dbVar.color_name.toLowerCase() === (jsonVar.name || jsonVar.color_name || '').toLowerCase())
+      );
+      if (!existsInDb) {
+        mergedVariants.push(jsonVar);
+      }
+    });
+
     const formattedProduct = {
       ...product,
       category: product.cat_name || product.category || 'Uncategorized',
       brand: product.br_name || product.brand || 'Generic',
-      color_options: typeof product.color_options === "string" ? JSON.parse(product.color_options) : (product.color_options || []),
-      variants: variantsWithGalleries && variantsWithGalleries.length > 0 ? variantsWithGalleries : (typeof product.color_options === "string" ? JSON.parse(product.color_options) : (product.color_options || [])),
+      color_options: baseColorOptions,
+      variants: mergedVariants,
       keyFeatures: typeof product.key_features === "string" ? JSON.parse(product.key_features) : (product.key_features || []),
       specifications: typeof product.specifications === "string" ? JSON.parse(product.specifications) : (product.specifications || {}),
       compatibility: typeof product.compatibility === "string" ? JSON.parse(product.compatibility) : (product.compatibility || []),

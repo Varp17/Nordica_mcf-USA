@@ -54,22 +54,55 @@ router.get('/', async (req, res) => {
     try {
       const variantPlaceholders = skus.map(() => '?').join(',');
       const [variantRows] = await db.execute(
-        `SELECT amazon_sku, stock, updated_at 
+        `SELECT sku, amazon_sku, canada_sku, stock, updated_at 
          FROM product_color_variants 
-         WHERE amazon_sku IN (${variantPlaceholders}) AND is_active = 1`,
-        skus
+         WHERE (amazon_sku IN (${variantPlaceholders}) OR sku IN (${variantPlaceholders}) OR canada_sku IN (${variantPlaceholders})) 
+         AND is_active = 1`,
+        [...skus, ...skus, ...skus]
       );
 
       for (const row of variantRows) {
         const qty = parseInt(row.stock, 10) || 0;
-        result[row.amazon_sku] = {
-          quantity: qty,
-          inStock: qty > 0,
-          lastSyncedAt: lastSynced || row.updated_at || null
-        };
+        const matchedSku = skus.find(s => s === row.amazon_sku || s === row.sku || s === row.canada_sku);
+        if (matchedSku) {
+          result[matchedSku] = {
+            quantity: qty,
+            inStock: qty > 0,
+            lastSyncedAt: lastSynced || row.updated_at || null
+          };
+        }
       }
     } catch (dbErr) {
       logger.warn(`Stock route: product_color_variants query failed: ${dbErr.message}`);
+    }
+
+    // 1.5. Look up in product_variants (modern table)
+    const missingSkusVariants = skus.filter(sku => !result[sku]);
+    if (missingSkusVariants.length > 0) {
+      try {
+        const pvPlaceholders = missingSkusVariants.map(() => '?').join(',');
+        const [pvRows] = await db.execute(
+          `SELECT sku, amazon_sku, canada_sku, stock, updated_at 
+           FROM product_variants 
+           WHERE (amazon_sku IN (${pvPlaceholders}) OR sku IN (${pvPlaceholders}) OR canada_sku IN (${pvPlaceholders})) 
+           AND is_active = 1`,
+          [...missingSkusVariants, ...missingSkusVariants, ...missingSkusVariants]
+        );
+
+        for (const row of pvRows) {
+          const qty = parseInt(row.stock, 10) || 0;
+          const matchedSku = missingSkusVariants.find(s => s === row.amazon_sku || s === row.sku || s === row.canada_sku);
+          if (matchedSku) {
+            result[matchedSku] = {
+              quantity: qty,
+              inStock: qty > 0,
+              lastSyncedAt: lastSynced || row.updated_at || null
+            };
+          }
+        }
+      } catch (dbErr) {
+        logger.warn(`Stock route: product_variants query failed: ${dbErr.message}`);
+      }
     }
 
     // 2. For SKUs not found in variants, check products table (amazon_sku field)
@@ -78,19 +111,23 @@ router.get('/', async (req, res) => {
       try {
         const productPlaceholders = missingSkus.map(() => '?').join(',');
         const [productRows] = await db.execute(
-          `SELECT amazon_sku, inventory_cache, in_stock, availability, updated_at
+          `SELECT sku, amazon_sku, canada_sku, inventory_cache, in_stock, availability, updated_at
            FROM products 
-           WHERE amazon_sku IN (${productPlaceholders}) AND is_active = 1`,
-          missingSkus
+           WHERE (amazon_sku IN (${productPlaceholders}) OR sku IN (${productPlaceholders}) OR canada_sku IN (${productPlaceholders}))
+           AND is_active = 1`,
+          [...missingSkus, ...missingSkus, ...missingSkus]
         );
 
         for (const row of productRows) {
           const qty = parseInt(row.inventory_cache, 10) || 0;
-          result[row.amazon_sku] = {
-            quantity: qty,
-            inStock: qty > 0,
-            lastSyncedAt: lastSynced || row.updated_at || null
-          };
+          const matchedSku = missingSkus.find(s => s === row.amazon_sku || s === row.sku || s === row.canada_sku);
+          if (matchedSku) {
+            result[matchedSku] = {
+              quantity: qty,
+              inStock: qty > 0,
+              lastSyncedAt: lastSynced || row.updated_at || null
+            };
+          }
         }
       } catch (dbErr) {
         logger.warn(`Stock route: products query failed: ${dbErr.message}`);
@@ -113,9 +150,10 @@ router.get('/', async (req, res) => {
 
             if (Array.isArray(colors)) {
               for (const c of colors) {
-                if (c.amazon_sku && stillMissing.includes(c.amazon_sku) && !result[c.amazon_sku]) {
+                const variantSku = c.amazon_sku || c.sku || c.id;
+                if (variantSku && stillMissing.includes(variantSku) && !result[variantSku]) {
                   const qty = parseInt(c.stock, 10) || 0;
-                  result[c.amazon_sku] = {
+                  result[variantSku] = {
                     quantity: qty,
                     inStock: qty > 0,
                     lastSyncedAt: lastSynced || null

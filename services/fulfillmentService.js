@@ -121,34 +121,31 @@ async function _fulfillCA(order, invoicePdf = null) {
   });
   if (!validation.valid) throw new Error('Address validation failed');
 
-  const shipResult = await shippoService.createShipment(order);
-  const actualCost = shipResult.actualCost || 0;
+  let actualCost = 0;
+  try {
+    const rates = await shippoService.getShippingRates(order);
+    const bestRate = rates[0]; // Shippo returns them sorted cheapest first
+    if (bestRate) actualCost = parseFloat(bestRate.amount);
+  } catch (rateErr) {
+    logger.warn(`Failed to fetch actual Shippo cost during CA fulfillment: ${rateErr.message}`);
+  }
+
   const chargedToCustomer = parseFloat(order.shipping_cost || 0);
   const profitLoss = parseFloat((chargedToCustomer - actualCost).toFixed(2));
 
+  const shipResult = await shippoService.createOrder(order);
+
   await _updateOrderStatus(order.id, {
-    fulfillment_status: 'label_created',
+    fulfillment_status: 'submitted_to_shippo',
     fulfillment_channel: 'shippo',
-    shippo_tracking_number: shipResult.trackingNumber,
-    shippo_carrier: shipResult.carrier,
-    shippo_tracking_status: 'PRE_TRANSIT',
-    shippo_label_url: shipResult.labelUrl,
-    service_name: shipResult.serviceName,
-    estimated_delivery: shipResult.estimatedDays ? new Date(Date.now() + shipResult.estimatedDays * 86400000).toISOString().split('T')[0] : null,
-    shippo_transaction_id: shipResult.shippoTransactionId,
+    shippo_order_id: shipResult.shippoOrderId,
     actual_shipping_cost: actualCost,
-    shipping_profit_loss: profitLoss
+    shipping_profit_loss: profitLoss,
+    notes: (order.notes || '') + `\nShippo Order created. Selected Carton: ${shipResult.selectedCarton}`
   });
-  try { await shippoService.registerTracking(shipResult.carrier, shipResult.trackingNumber); } catch (e) {}
-  // Confirmation email is now handled in routes via invoiceService
-  // await emailService.sendOrderConfirmationEmail(order, invoicePdf).catch(e => logger.error("Conf email err", e));
-  await emailService.sendOrderShippedEmail(order, { 
-    carrier: shipResult.carrier, 
-    trackingNumber: shipResult.trackingNumber, 
-    trackingUrl: shipResult.trackingUrl, 
-    estimatedDelivery: shipResult.estimatedDays ? new Date(Date.now() + shipResult.estimatedDays * 86400000).toLocaleDateString() : '3-7 business days' 
-  }).catch(e => logger.error("Ship email err", e));
-  return { success: true, fulfillmentChannel: 'shippo', status: 'label_created' };
+  
+  await emailService.sendFulfillmentOrderSubmittedEmail(order).catch(e => logger.error("Submit email err", e));
+  return { success: true, fulfillmentChannel: 'shippo', status: 'submitted_to_shippo' };
 }
 
 export async function retryFailedOrder(orderId) {
@@ -175,10 +172,14 @@ async function _loadOrderWithItems(orderId, lock = false) {
   const order = orderRows[0];
   const [itemRows] = await db.query(`
     SELECT oi.*, p.slug,
-           COALESCE(v.weight_kg, p.weight_kg, 0.5) as weight_kg,
-           COALESCE(v.dimensions, p.dimensions, '20x15x10') as dimensions,
-           COALESCE(pcv.amazon_sku, v.sku, oi.sku) as actual_sku
+           COALESCE(v.weight_kg, pcv.weight_kg, p.weight_kg, 0.5) as weight_kg,
+           COALESCE(v.dimensions, pcv.dimensions, p.dimensions, '20x15x10') as dimensions,
+           CASE 
+             WHEN o.country = 'CA' THEN COALESCE(v.canada_sku, pcv.canada_sku, v.sku, oi.sku)
+             ELSE COALESCE(v.amazon_sku, pcv.amazon_sku, v.sku, oi.sku)
+           END as actual_sku
     FROM order_items oi
+    JOIN orders o ON oi.order_id = o.id
     LEFT JOIN products p ON oi.product_id = p.id
     LEFT JOIN product_variants v ON oi.product_variant_id = v.id
     LEFT JOIN product_color_variants pcv ON oi.product_variant_id = pcv.id

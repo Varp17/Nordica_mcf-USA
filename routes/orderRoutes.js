@@ -249,9 +249,9 @@ router.post('/shipping-rates', async (req, res) => {
     // 2. Fetch rates based on country
     if (country === 'US') {
       const allOptions = [
-        { id: 'standard', name: 'Standard Shipping', price: isFree ? 0 : 5.00, currency: 'USD', estimation: 'Estimated 3-5 business days', speed: 'Standard' },
-        { id: 'expedited', name: 'Expedited Shipping', price: isFree ? 0 : 7.00, currency: 'USD', estimation: 'Estimated 2-3 business days', speed: 'Expedited' },
-        { id: 'priority', name: 'Priority Shipping', price: isFree ? 0 : 15.00, currency: 'USD', estimation: 'Estimated 1-2 business days', speed: 'Priority' }
+        { id: 'standard', name: 'Standard Shipping (3-5 Business Days)', price: isFree ? 0 : 5.00, currency: 'USD', estimation: 'Estimated 3-5 business days', speed: 'Standard' },
+        { id: 'expedited', name: 'Expedited Shipping (2-3 Business Days)', price: isFree ? 0 : 7.00, currency: 'USD', estimation: 'Estimated 2-3 business days', speed: 'Expedited' },
+        { id: 'priority', name: 'Priority Shipping (1-2 Business Days)', price: isFree ? 0 : 15.00, currency: 'USD', estimation: 'Estimated 1-2 business days', speed: 'Priority' }
       ];
 
       try {
@@ -281,7 +281,7 @@ router.post('/shipping-rates', async (req, res) => {
       const totalQty = validatedItems.reduce((sum, item) => sum + (item.quantity || 1), 0);
       rates = [{
         id: 'standard_ca',
-        name: 'Standard Shipping',
+        name: 'Regular Shipping (5-10 Business Days)',
         price: isFree ? 0 : parseFloat((totalQty * 10).toFixed(2)),
         currency: 'CAD',
         estimation: 'Estimated 3-7 business days',
@@ -412,7 +412,6 @@ router.post('/:orderId/fulfill', requireAuth, requireRole('admin'), validateOrde
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  POST /api/orders/:orderId/retry
 //  Retry a failed fulfillment (admin use).
 // ─────────────────────────────────────────────────────────────────────────────
 router.post('/:orderId/retry', requireAuth, requireRole('admin'), validateOrderId, async (req, res) => {
@@ -428,30 +427,48 @@ router.post('/:orderId/retry', requireAuth, requireRole('admin'), validateOrderI
 //  POST /api/orders/:orderId/cancel-otp
 //  Trigger a verification code for guest cancellation.
 // ─────────────────────────────────────────────────────────────────────────────
-router.post('/:orderId/cancel-otp', async (req, res) => {
+router.post('/:orderId/cancel-otp', optionalAuth, async (req, res) => {
   try {
     const { orderId } = req.params;
-    const { email } = req.body;
+    const { email } = req.body; // Provided for guest or verification
 
     const order = await Order.findById(orderId);
     if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
     
-    if (order.customer_email?.toLowerCase() !== email?.toLowerCase()) {
-      return res.status(403).json({ success: false, message: 'Email does not match order record' });
+    let targetEmail = order.customer_email;
+    let recipientType = 'Customer';
+
+    // If admin is requesting, we might want to send OTP to the admin's email instead
+    if (req.user && req.user.role === 'admin') {
+      targetEmail = req.user.email;
+      recipientType = 'Admin';
+    } else if (req.user) {
+      // Logged in customer
+      targetEmail = req.user.email;
+    } else {
+      // Guest
+      if (!email || email.toLowerCase() !== order.customer_email?.toLowerCase()) {
+        return res.status(403).json({ success: false, message: 'Email does not match order record' });
+      }
+      targetEmail = email;
     }
 
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiry = new Date(Date.now() + 10 * 60 * 1000); // 10 mins
+    const expiry = new Date(Date.now() + 15 * 60 * 1000); // 15 mins
 
-    await db.execute(
-      "INSERT INTO guest_verifications (email, otp_code, otp_expiry) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE otp_code = ?, otp_expiry = ?",
-      [email, otp, expiry, otp, expiry]
-    );
+    // Store OTP in the order record for verification
+    await Order.updateOrder(orderId, {
+      cancellation_otp: otp,
+      cancellation_otp_expiry: expiry
+    });
 
     const emailService = (await import('../services/emailService.js')).default;
-    await emailService.sendOTPEmail(email, otp);
+    // We reuse the OTP email template
+    await emailService.sendOTPEmail(targetEmail, otp, `Order Cancellation Verification (${recipientType})`);
 
-    return res.json({ success: true, message: 'Verification code sent' });
+    logger.info(`Cancellation OTP sent to ${targetEmail} for order ${order.order_number}`);
+
+    return res.json({ success: true, message: `Verification code sent to ${targetEmail}` });
   } catch (err) {
     logger.error(`POST /api/orders/:orderId/cancel-otp error: ${err.message}`);
     return res.status(500).json({ success: false, message: 'Failed to send verification code' });
@@ -471,7 +488,7 @@ router.post('/:orderId/cancel', optionalAuth, validateOrderId, async (req, res) 
       return res.status(404).json({ success: false, message: 'Order not found' });
     }
 
-    const { email, guestOtpCode } = req.body;
+    const { email, otpCode, confirmed } = req.body;
     
     // ── 1. Authorization Check ──────────────────────────────────────────────
     let isAuthorized = false;
@@ -481,27 +498,35 @@ router.post('/:orderId/cancel', optionalAuth, validateOrderId, async (req, res) 
     } else if (req.user && (req.user.id === order.user_id || req.user.email?.toLowerCase() === order.customer_email?.toLowerCase())) {
       isAuthorized = true;
     } else if (email && email.toLowerCase() === order.customer_email?.toLowerCase()) {
-      // Guest cancellation requires OTP verification
-      if (!guestOtpCode) {
-        return res.status(401).json({ success: false, message: 'Verification code required for cancellation', requiresOtp: true });
-      }
-
-      const [otpRows] = await db.execute(
-        "SELECT id FROM guest_verifications WHERE email = ? AND otp_code = ? AND otp_expiry > NOW() ORDER BY created_at DESC LIMIT 1",
-        [email, guestOtpCode]
-      );
-
-      if (otpRows.length === 0) {
-        return res.status(401).json({ success: false, message: 'Invalid or expired verification code' });
-      }
       isAuthorized = true;
-      // Cleanup OTP
-      await db.execute("DELETE FROM guest_verifications WHERE email = ?", [email]);
     }
 
     if (!isAuthorized) {
       return res.status(403).json({ success: false, message: 'Access denied' });
     }
+
+    // ── 2. OTP & Confirmation Check ──────────────────────────────────────────
+    if (!otpCode) {
+      return res.status(401).json({ success: false, message: 'Verification code required', requiresOtp: true });
+    }
+
+    if (order.cancellation_otp !== otpCode || new Date() > new Date(order.cancellation_otp_expiry)) {
+      return res.status(401).json({ success: false, message: 'Invalid or expired verification code' });
+    }
+
+    if (!confirmed) {
+      return res.json({ 
+        success: true, 
+        message: 'Verification code valid. Please confirm cancellation.', 
+        requiresConfirmation: true 
+      });
+    }
+
+    // Cleanup OTP after verification
+    await Order.updateOrder(orderId, {
+      cancellation_otp: null,
+      cancellation_otp_expiry: null
+    });
 
 
     // Check if order can be cancelled

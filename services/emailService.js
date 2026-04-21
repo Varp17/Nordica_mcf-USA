@@ -785,6 +785,51 @@ export async function sendNewOrderAdminAlert(order) {
   });
 }
 
+export async function sendNewTicketAdminAlert(ticket) {
+  const adminEmail = process.env.ADMIN_ALERT_EMAIL || process.env.STORE_SUPPORT_EMAIL || 'info@nordicaplastics.ca';
+  const ticketNum = ticket.ticket_number;
+  const region = (ticket.country || 'US').toUpperCase();
+  
+  const body = `
+    <div style="text-align: center; margin-bottom: 20px;">
+      <span style="background: #fef3c7; color: #92400e; padding: 6px 16px; border-radius: 20px; font-size: 12px; font-weight: 700; text-transform: uppercase;">New Support Inquiry</span>
+    </div>
+    <p>Hi Support Team,</p>
+    <p>A new customer inquiry has been received and requires your <strong>immediate attention</strong>.</p>
+    
+    <div class="highlight-box">
+      <h3 style="margin: 0; color: #1E3A5F;">Ticket ${ticketNum}</h3>
+      <p style="margin: 10px 0; font-size: 14px;">
+        <strong>Customer Name:</strong> ${ticket.name}<br>
+        <strong>Email Address:</strong> ${ticket.email}<br>
+        <strong>Region:</strong> ${region}<br>
+        <strong>Subject:</strong> ${ticket.subject}
+      </p>
+      <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 15px 0;">
+      <p style="margin: 0; font-size: 14px; color: #333; line-height: 1.6;">
+        <strong>Message Preview:</strong><br>
+        <span style="font-style: italic; color: #555;">"${ticket.message.length > 200 ? ticket.message.substring(0, 200) + '...' : ticket.message}"</span>
+      </p>
+    </div>
+
+    <div style="text-align: center; margin: 25px 0;">
+      <a href="${process.env.ADMIN_PORTAL_URL || '#'}admin/queries" class="btn" style="background: #1E3A5F; padding: 14px 28px;">🚀 View Ticket & Respond</a>
+    </div>
+
+    <p style="font-size: 13px; color: #64748b; border-top: 1px solid #f0f4f8; padding-top: 15px;">
+      Responding to this query promptly helps maintain our commitment to excellent customer service.
+    </p>
+  `;
+
+  return sendEmail({
+    to: adminEmail,
+    subject: `[NEW TICKET] ${ticketNum} — ${ticket.subject} (${region})`,
+    html: wrapEmail('Customer Inquiry Received', 'Immediate Action Required', body)
+  }).catch(err => {
+    logger.error(`❌ Failed to send Admin Ticket Alert for ${ticketNum}: ${err.message}`);
+  });
+}
+
 export default {
   sendOrderConfirmationEmail,
   sendFulfillmentOrderSubmittedEmail,
@@ -799,5 +844,6 @@ export default {
   sendBackInStockEmail,
   sendPasswordResetOTPEmail,
   sendPasswordChangedEmail,
-  sendNewOrderAdminAlert
+  sendNewOrderAdminAlert,
+  sendNewTicketAdminAlert
 };

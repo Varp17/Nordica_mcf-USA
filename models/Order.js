@@ -255,6 +255,7 @@ const ALLOWED_ORDER_COLUMNS = new Set([
   'tracking_number', 'tracking_url', 'carrier', 'label_url',
   'actual_shipping_cost', 'shipping_profit_loss',
   'notes', 'invoice_pdf_url',
+  'cancellation_otp', 'cancellation_otp_expiry',
   'shipping_cost', 'tax', 'subtotal', 'total', 'currency'
 ]);
 

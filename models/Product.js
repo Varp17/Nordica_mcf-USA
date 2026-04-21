@@ -116,7 +116,14 @@ export async function findVariantById(identifier, connection = null) {
 
   // 2. New product_variants table (Prefer modern table)
   [rows] = await dbConn.query(`
-    SELECT v.*, p.name as product_name, p.image as product_image, p.country as p_country, p.target_country as p_target_country
+    SELECT 
+      v.*, 
+      p.name as product_name, 
+      p.image as product_image, 
+      p.country as p_country, 
+      p.target_country as p_target_country,
+      p.weight_kg as p_weight_kg,
+      p.dimensions as p_dimensions
     FROM product_variants v 
     JOIN products p ON v.product_id = p.id 
     WHERE (v.id = ? OR v.sku = ? OR v.amazon_sku = ?) AND v.is_active = 1
@@ -134,13 +141,21 @@ export async function findVariantById(identifier, connection = null) {
       target_country: v.target_country || v.p_target_country,
       country: v.p_country, 
       image: v.product_image, 
+      weight_kg: v.weight_kg || v.p_weight_kg,
+      dimensions: v.dimensions || v.p_dimensions,
       inventory_sync_enabled: v.inventory_sync_enabled ?? 1
     };
   }
 
   // 3. Legacy product_color_variants
   [rows] = await dbConn.query(`
-    SELECT cv.*, p.name as product_name, p.target_country as p_target_country FROM product_color_variants cv 
+    SELECT 
+      cv.*, 
+      p.name as product_name, 
+      p.target_country as p_target_country,
+      p.weight_kg as p_weight_kg,
+      p.dimensions as p_dimensions
+    FROM product_color_variants cv 
     JOIN products p ON cv.product_id = p.id 
     WHERE (cv.id = ? OR cv.amazon_sku = ? OR cv.sku = ?) AND cv.is_active = 1
   `, [identifier, identifier, identifier]);
@@ -155,7 +170,10 @@ export async function findVariantById(identifier, connection = null) {
       canada_sku: v.canada_sku,
       amazon_sku_ca: v.amazon_sku_ca,
       target_country: v.target_country || v.p_target_country,
-      country: v.country, image: v.image_url, weight_kg: v.weight_kg, dimensions: v.dimensions
+      country: v.country, 
+      image: v.image_url, 
+      weight_kg: v.weight_kg || v.p_weight_kg, 
+      dimensions: v.dimensions || v.p_dimensions
     };
   }
 
@@ -354,10 +372,11 @@ export async function validateCartItems(cartItems, country = 'US') {
     }
 
     // Region restriction logic - checking both product.country and product.target_country
-    const productTargets = (product.target_country || product.country || 'both').toLowerCase();
+    const productTargets = (product.target_country || '').toLowerCase();
+    const productOrigin = (product.country || '').toLowerCase();
     
-    let isCaRestriction = (country === 'US' && (productTargets === 'canada' || product.country === 'CA'));
-    let isUsRestriction = (country === 'CA' && (productTargets === 'us' || product.country === 'US' || product.country === 'USA'));
+    let isCaRestriction = (country === 'US' && (productTargets === 'canada' || productOrigin === 'ca' || productOrigin === 'cad') && productTargets !== 'us' && productTargets !== 'both');
+    let isUsRestriction = (country === 'CA' && (productTargets === 'us' || productOrigin === 'us' || productOrigin === 'usa') && productTargets !== 'canada' && productTargets !== 'both');
 
     if (isCaRestriction) {
       errors.push(`"${product.name}" is only available for Canadian customers.`);
@@ -395,12 +414,16 @@ export async function validateCartItems(cartItems, country = 'US') {
       sellerSku: country === 'US' ? product.amazon_sku : (product.canada_sku || product.sku),
       productName: product.name,
       quantity,
-      unitPrice: product.price,
+      unitPrice: product.unitPrice || product.price,
       image: product.image,
-      weight_kg: product.weight_kg || 0.5,
-      dimensions: product.dimensions || '20x15x10',
+      weight_kg: typeof product.weight_kg === 'object' ? 0.5 : (product.weight_kg || 0.5),
+      dimensions: typeof product.dimensions === 'object' ? '20x15x10' : (product.dimensions || '20x15x10'),
       country
     });
+  }
+
+  if (errors.length > 0) {
+    logger.warn('Cart validation errors:', { errors, country, itemCount: cartItems?.length });
   }
 
   const subtotal = validItems.reduce((sum, item) => sum + (item.unitPrice * item.quantity), 0);

@@ -436,6 +436,7 @@ CREATE TABLE orders (
   mcf_order_id               VARCHAR(100)   DEFAULT NULL,
   mcf_tracking_ids           JSON           DEFAULT NULL,
   shippo_transaction_id      VARCHAR(100)   DEFAULT NULL,
+  shippo_order_id            VARCHAR(100)   DEFAULT NULL,
   fulfillment_error          TEXT           DEFAULT NULL,
   
   -- Fulfillment Retry (exponential backoff for failed orders)
@@ -452,6 +453,8 @@ CREATE TABLE orders (
   shippo_tracking_raw        JSON           DEFAULT NULL,
   shippo_label_url           VARCHAR(1000)  DEFAULT NULL,
   
+  cancellation_otp           VARCHAR(10)    DEFAULT NULL,
+  cancellation_otp_expiry    DATETIME       DEFAULT NULL,
   country                    VARCHAR(10)    DEFAULT 'US',
   notes                      TEXT           DEFAULT NULL,
   created_at                 DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -817,27 +820,17 @@ DROP PROCEDURE IF EXISTS generate_order_number$$
 
 CREATE PROCEDURE generate_order_number(OUT new_order_number VARCHAR(25))
 BEGIN
-  DECLARE current_year  INT;
-  DECLARE current_month INT;
   DECLARE next_number   INT;
   
-  SET current_year  = YEAR(CURDATE());
-  SET current_month = MONTH(CURDATE());
-  
   INSERT INTO order_sequences (year, month, last_number, prefix)
-    VALUES (current_year, current_month, 1, 'ORD')
+    VALUES (0, 0, 10001, 'DG')
   ON DUPLICATE KEY UPDATE last_number = last_number + 1;
   
   SELECT last_number INTO next_number
   FROM order_sequences
-  WHERE year = current_year AND month = current_month;
+  WHERE year = 0 AND month = 0;
   
-  SET new_order_number = CONCAT(
-    'ORD-',
-    LPAD(current_year,  4, '0'), '-',
-    LPAD(current_month, 2, '0'), '-',
-    LPAD(next_number,   6, '0')
-  );
+  SET new_order_number = CONCAT('DG-', next_number);
 END$$
 
 DELIMITER ;
@@ -2157,9 +2150,9 @@ INSERT INTO products (
   ),
   JSON_OBJECT(
     'blue', JSON_ARRAY(
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada%20Products/DETAIL%20GUARDZ%20-%20HOSE%20GUIDE%20(4PK)/Detail_Guardz_Car_Hose_Guides_-_4_Pack_Blue_d6ccc2fc-4146-4699-bd6f-625d5a7fad15_720x.webp',
       'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada%20Products/DETAIL%20GUARDZ%20-%20HOSE%20GUIDE%20(4PK)/Detail_Guardz_-_Blue_-_Action_Shot_1_720x-informative.webp',
-      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada%20Products/DETAIL%20GUARDZ%20-%20HOSE%20GUIDE%20(4PK)/Detail_Guardz_-_Blue-_Action_Shot_3_720x--informative.webp',
-      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada%20Products/DETAIL%20GUARDZ%20-%20HOSE%20GUIDE%20(4PK)/Detail_Guardz_Car_Hose_Guides_-_4_Pack_Blue_d6ccc2fc-4146-4699-bd6f-625d5a7fad15_720x.webp'
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada%20Products/DETAIL%20GUARDZ%20-%20HOSE%20GUIDE%20(4PK)/Detail_Guardz_-_Blue-_Action_Shot_3_720x--informative.webp'
     ),
     'black', JSON_ARRAY(
       'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada%20Products/DETAIL%20GUARDZ%20-%20HOSE%20GUIDE%20(4PK)/Detail_Guardz_-_Blue_-_Action_Shot_1_720x-informative.webp',
@@ -2206,11 +2199,11 @@ INSERT INTO products (
     'manufacturer', 'DETAIL GUARDZ Canada'
   ),
   JSON_ARRAY(
-    JSON_OBJECT('name', 'Blue', 'value', 'blue', 'sku', 'USA-ABDB1-V-BLUE', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada%20Products/DETAIL%20GUARDZ%20-%20HOSE%20GUIDE%20(4PK)/Detail_Guardz_Car_Hose_Guides_-_4_Pack_Blue_d6ccc2fc-4146-4699-bd6f-625d5a7fad15_720x.webp', 'price', 32.99, 'weight_kg', 0.9, 'weight_lb', 1.98, 'dimensions', '34x15x15', 'dimensions_imperial', '13.4x5.9x5.9'),
-    JSON_OBJECT('name', 'Black', 'value', 'black', 'sku', 'USA-ABDB1-V-BLACK', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada%20Products/DETAIL%20GUARDZ%20-%20HOSE%20GUIDE%20(4PK)/Detail_Guardz_Car_Hose_Guides_-_4_Pack_Black_720x.webp', 'price', 32.99, 'weight_kg', 0.9, 'weight_lb', 1.98, 'dimensions', '34x15x15', 'dimensions_imperial', '13.4x5.9x5.9'),
-    JSON_OBJECT('name', 'Neon', 'value', 'neon', 'sku', 'USA-ABDB1-V-NEON-GREEN', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada%20Products/DETAIL%20GUARDZ%20-%20HOSE%20GUIDE%20(4PK)/Detail_Guardz_Car_Hose_Guides_-_4_Pack_Neon-Green_720x.webp', 'price', 32.99, 'weight_kg', 0.9, 'weight_lb', 1.98, 'dimensions', '34x15x15', 'dimensions_imperial', '13.4x5.9x5.9'),
-    JSON_OBJECT('name', 'Red', 'value', 'red', 'sku', 'USA-ABDB1-V-RED', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada%20Products/DETAIL%20GUARDZ%20-%20HOSE%20GUIDE%20(4PK)/Detail_Guardz_Car_Hose_Guides_-_4_Pack_Red_720x.webp', 'price', 32.99, 'weight_kg', 0.9, 'weight_lb', 1.98, 'dimensions', '34x15x15', 'dimensions_imperial', '13.4x5.9x5.9'),
-    JSON_OBJECT('name', 'Yellow', 'value', 'yellow', 'sku', 'USA-ABDB1-V-YELLOW', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada%20Products/DETAIL%20GUARDZ%20-%20HOSE%20GUIDE%20(4PK)/Detail_Guardz_Car_Hose_Guides_-_4_Pack_Yellow_720x.webp', 'price', 32.99, 'weight_kg', 0.9, 'weight_lb', 1.98, 'dimensions', '34x15x15', 'dimensions_imperial', '13.4x5.9x5.9')
+    JSON_OBJECT('name', 'Blue', 'value', 'blue', 'sku', 'CAD-ABDB1-V-BLUE', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada%20Products/DETAIL%20GUARDZ%20-%20HOSE%20GUIDE%20(4PK)/Detail_Guardz_Car_Hose_Guides_-_4_Pack_Blue_d6ccc2fc-4146-4699-bd6f-625d5a7fad15_720x.webp', 'price', 32.99, 'weight_kg', 0.9, 'weight_lb', 1.98, 'dimensions', '34x15x15', 'dimensions_imperial', '13.4x5.9x5.9'),
+    JSON_OBJECT('name', 'Black', 'value', 'black', 'sku', 'CAD-ABDB1-V-BLACK', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada%20Products/DETAIL%20GUARDZ%20-%20HOSE%20GUIDE%20(4PK)/Detail_Guardz_Car_Hose_Guides_-_4_Pack_Black_720x.webp', 'price', 32.99, 'weight_kg', 0.9, 'weight_lb', 1.98, 'dimensions', '34x15x15', 'dimensions_imperial', '13.4x5.9x5.9'),
+    JSON_OBJECT('name', 'Neon', 'value', 'neon', 'sku', 'CAD-ABDB1-V-NEON-GREEN', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada%20Products/DETAIL%20GUARDZ%20-%20HOSE%20GUIDE%20(4PK)/Detail_Guardz_Car_Hose_Guides_-_4_Pack_Neon-Green_720x.webp', 'price', 32.99, 'weight_kg', 0.9, 'weight_lb', 1.98, 'dimensions', '34x15x15', 'dimensions_imperial', '13.4x5.9x5.9'),
+    JSON_OBJECT('name', 'Red', 'value', 'red', 'sku', 'CAD-ABDB1-V-RED', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada%20Products/DETAIL%20GUARDZ%20-%20HOSE%20GUIDE%20(4PK)/Detail_Guardz_Car_Hose_Guides_-_4_Pack_Red_720x.webp', 'price', 32.99, 'weight_kg', 0.9, 'weight_lb', 1.98, 'dimensions', '34x15x15', 'dimensions_imperial', '13.4x5.9x5.9'),
+    JSON_OBJECT('name', 'Yellow', 'value', 'yellow', 'sku', 'CAD-ABDB1-V-YELLOW', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada%20Products/DETAIL%20GUARDZ%20-%20HOSE%20GUIDE%20(4PK)/Detail_Guardz_Car_Hose_Guides_-_4_Pack_Yellow_720x.webp', 'price', 32.99, 'weight_kg', 0.9, 'weight_lb', 1.98, 'dimensions', '34x15x15', 'dimensions_imperial', '13.4x5.9x5.9')
   ),
   JSON_OBJECT(
     'main', JSON_OBJECT('url', 'https://www.youtube.com/embed/W37xy__Vou4', 'title', 'DETAIL GUARDZ Hose Guide (4 Pack)', 'description', 'Complete 4-pack hose guide set for full vehicle coverage. Fits all cars, motorcycles and truck tires.'),
@@ -2283,6 +2276,7 @@ INSERT INTO products (
   0, NULL, 'CAD', 'canada', NULL FROM DUAL;
 
 -- CAD PPSC 4L Bundle
+/*
 INSERT INTO products (
   id, name, slug, description, long_description, price, original_price,
   category, brand, image, images, variant_images, features, compatibility,
@@ -2318,6 +2312,7 @@ INSERT INTO products (
   JSON_ARRAY(),
   JSON_ARRAY(),
   0, NULL, 'CAD', 'canada', NULL FROM DUAL;
+*/
 
 -- CAD Scrub Pump Kit
 INSERT INTO products (
@@ -2893,7 +2888,46 @@ ON DUPLICATE KEY UPDATE tax_rate = VALUES(tax_rate);
 -- ------------------------------------------------------------
 -- 28. FINAL CLEANUP
 -- ------------------------------------------------------------
+
+-- ------------------------------------------------------------
+-- 23. CONTACT TICKETS (Customer Queries)
+-- ------------------------------------------------------------
+DROP TABLE IF EXISTS contact_tickets;
+CREATE TABLE contact_tickets (
+  id               CHAR(36)      PRIMARY KEY DEFAULT (UUID()),
+  ticket_number    VARCHAR(20)   NOT NULL UNIQUE,
+  name             VARCHAR(255)  NOT NULL,
+  email            VARCHAR(255)  NOT NULL,
+  subject          VARCHAR(255)  NOT NULL,
+  message          TEXT          NOT NULL,
+  country          VARCHAR(10)   NOT NULL DEFAULT 'US',
+  status           ENUM('open', 'in_progress', 'resolved', 'closed') DEFAULT 'open',
+  priority         ENUM('low', 'medium', 'high', 'urgent') DEFAULT 'medium',
+  source           VARCHAR(50)   DEFAULT 'web_form',
+  assigned_to      CHAR(36)      DEFAULT NULL,
+  internal_notes   TEXT          DEFAULT NULL,
+  response_message TEXT          DEFAULT NULL,
+  responded_at     DATETIME      DEFAULT NULL,
+  created_at       DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at       DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (assigned_to) REFERENCES users(id) ON DELETE SET NULL,
+  INDEX idx_ticket_email (email),
+  INDEX idx_ticket_status (status),
+  INDEX idx_ticket_country (country),
+  INDEX idx_ticket_created (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+DROP TABLE IF EXISTS ticket_sequences;
+CREATE TABLE ticket_sequences (
+  year         INT NOT NULL,
+  month        INT NOT NULL,
+  last_number  INT NOT NULL DEFAULT 0,
+  prefix       VARCHAR(10) DEFAULT 'TK',
+  PRIMARY KEY (year, month)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 SET FOREIGN_KEY_CHECKS = 1;
+
 
 -- ============================================================
 -- END OF UNIFIED SCHEMA

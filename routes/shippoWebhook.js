@@ -246,6 +246,7 @@ import express from "express";
 import crypto from "crypto";
 import db from "../config/database.js";
 import { sendTrackingUpdateEmail } from "../utils/mailer.js";
+import { sendOrderShippedEmail } from "../services/emailService.js";
 import logger from "../utils/logger.js";
 
 const router = express.Router();
@@ -326,11 +327,85 @@ router.post(
       /* ── 2. Parse payload ────────────────────────── */
       const payload = JSON.parse(req.body.toString());
 
-      if (payload.event !== "track_updated") {
+      if (!["track_updated", "transaction_created", "transaction_updated"].includes(payload.event)) {
         return res.status(200).json({ received: true, ignored: true });
       }
 
       const data = payload.data;
+
+      /* ── TRANSACTION EVENTS (Label Purchased in Dashboard) ── */
+      if (payload.event.startsWith("transaction_")) {
+        const shippoOrderId = data.order;
+        const trackingNumber = data.tracking_number;
+        
+        if (!shippoOrderId || !trackingNumber) {
+          return res.status(200).json({ received: true, missing_data: true });
+        }
+
+        // Find the order that matches this Shippo Order ID
+        const [orders] = await db.execute(
+          `SELECT o.*, u.email as user_email, u.first_name, u.last_name 
+           FROM orders o
+           LEFT JOIN users u ON o.user_id = u.id
+           WHERE o.shippo_order_id = ?
+           LIMIT 1`,
+          [shippoOrderId]
+        );
+
+        if (!orders.length) {
+          logger.warn(`Shippo Webhook: No order found for Shippo Order ID ${shippoOrderId}`);
+          return res.status(200).json({ received: true, noMatch: true });
+        }
+
+        const order = orders[0];
+        
+        // Avoid redundant updates
+        if (order.shippo_tracking_number === trackingNumber) {
+          return res.status(200).json({ received: true, unchanged: true });
+        }
+
+        // Extract carrier (some transactions have tracking_status.provider or we default to 'shippo')
+        // Actually, Shippo transaction object does not explicitly give the carrier at root sometimes, but tracking_url_provider might hint.
+        // Or if we know it's Canada Post, we can leave it. We'll set a default and let track_updated fix it later.
+        const carrier = data.tracking_status?.provider || 'Shippo Carrier';
+        const labelUrl = data.label_url;
+        
+        // We know the label was just purchased, so it's pre-transit and shipped!
+        await db.execute(
+          `UPDATE orders
+           SET shippo_tracking_number = ?,
+               shippo_carrier = ?,
+               shippo_tracking_status = 'PRE_TRANSIT',
+               shippo_label_url = ?,
+               fulfillment_status = 'shipped',
+               updated_at = NOW()
+           WHERE id = ?`,
+          [trackingNumber, carrier, labelUrl || null, order.id]
+        );
+
+        logger.info(`Shippo Webhook: Label created for #${order.id}. Tracking: ${trackingNumber}`);
+
+        // Send Order Shipped Email!
+        const recipientEmail = order.user_email || order.customer_email;
+        if (recipientEmail) {
+          try {
+            // We need to shape the order object as expected by sendOrderShippedEmail
+            const trackingData = {
+              trackingNumber: trackingNumber,
+              carrier: carrier,
+              trackingUrl: data.tracking_url_provider || `https://goshippo.com/tracking?number=${trackingNumber}`
+            };
+            await sendOrderShippedEmail({ ...order, customer_email: recipientEmail }, trackingData);
+            logger.info(`Shippo Webhook: Shipped email sent to ${recipientEmail} for #${order.id}`);
+          } catch (e) {
+            logger.error("Shippo Webhook: Failed to send shipped email", { error: e.message });
+          }
+        }
+
+        return res.status(200).json({ received: true, updated: true, trackingNumber });
+      }
+
+      /* ── TRACK_UPDATED EVENT ── */
       const carrier = data?.carrier;
       const trackingNumber = data?.tracking_number;
       const newStatus = data?.tracking_status?.status || null;

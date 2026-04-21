@@ -357,6 +357,7 @@ router.get("/analytics", authenticateToken, requireAdmin, async (req, res) => {
 // GET /inventory - Dedicated Warehouse/SKU view
 router.get("/inventory", authenticateToken, requireAdmin, async (req, res) => {
   try {
+    // 1. Get legacy variants
     const [legacySkus] = await db.execute(`
       SELECT 
         pcv.id,
@@ -381,6 +382,7 @@ router.get("/inventory", authenticateToken, requireAdmin, async (req, res) => {
       GROUP BY pcv.id
     `);
 
+    // 2. Get modern variants
     const [modernSkus] = await db.execute(`
       SELECT 
         pv.id,
@@ -405,7 +407,32 @@ router.get("/inventory", authenticateToken, requireAdmin, async (req, res) => {
       GROUP BY pv.id
     `);
 
-    const allSkus = [...legacySkus, ...modernSkus].sort((a, b) => {
+    // 3. Get simple products (no variants)
+    const [simpleSkus] = await db.execute(`
+      SELECT 
+        p.id,
+        p.id as product_id,
+        p.name as product_name,
+        'Default' as variant_name,
+        'Default' as color_name,
+        p.amazon_sku,
+        p.sku,
+        p.in_stock as stock,
+        p.price,
+        p.updated_at,
+        p.target_country,
+        COALESCE(SUM(oi.quantity), 0) as units_sold_all_time,
+        p.image as image,
+        'product' as table_source
+      FROM products p
+      LEFT JOIN order_items oi ON oi.product_id = p.id
+      WHERE p.is_active = 1 
+        AND NOT EXISTS (SELECT 1 FROM product_color_variants pcv WHERE pcv.product_id = p.id AND pcv.is_active = 1)
+        AND NOT EXISTS (SELECT 1 FROM product_variants pv WHERE pv.product_id = p.id AND pv.is_active = 1)
+      GROUP BY p.id
+    `);
+
+    const allSkus = [...legacySkus, ...modernSkus, ...simpleSkus].sort((a, b) => {
       if (a.stock !== b.stock) return a.stock - b.stock;
       return String(a.product_name).localeCompare(String(b.product_name));
     });
@@ -817,11 +844,20 @@ router.put(
         specifications, features, weight_kg, weight_lb, dimensions, 
         dimensions_imperial, material, warranty, return_policy,
         color_variants, colorVariants, videos, tags,
-        sku, canada_sku, amazon_sku, amazon_sku_ca
+        sku, canada_sku, amazon_sku, amazon_sku_ca, target_country
       } = req.body;
 
       const updates = {};
-      const setUpdate = (val, col) => { if (val !== undefined) updates[col] = val; };
+      const setUpdate = (val, col) => { 
+        if (val !== undefined) {
+          // If it's a SKU field and it's an empty string, set it to NULL to avoid constraint violations
+          if (['sku', 'canada_sku', 'amazon_sku', 'amazon_sku_ca'].includes(col) && val === "") {
+            updates[col] = null;
+          } else {
+            updates[col] = val;
+          }
+        }
+      };
 
       setUpdate(name, 'name');
       setUpdate(name_ar, 'name_ar');
@@ -840,6 +876,7 @@ router.put(
       setUpdate(canada_sku, 'canada_sku');
       setUpdate(amazon_sku, 'amazon_sku');
       setUpdate(amazon_sku_ca, 'amazon_sku_ca');
+      setUpdate(target_country, 'target_country');
       
       const parseNum = (val) => (val === "" || val === null || val === undefined) ? null : parseFloat(val);
       const parseStock = (val) => (val === "" || val === null || val === undefined) ? 0 : parseInt(val);
@@ -1294,25 +1331,43 @@ router.patch("/products/:id/variants/stock", authenticateToken, requireAdmin, as
         throw new Error(`Invalid stock value for variant ${v.id}: ${v.stock}`);
       }
 
-      // Build dynamic update for optional fields
-      const fields = ['stock = ?', 'is_active = 1', 'updated_at = NOW()'];
-      const values = [stock];
+      // 1. Try legacy table
+      const legacyFields = ['stock = ?', 'is_active = 1', 'updated_at = NOW()'];
+      const legacyValues = [stock];
+      if (v.price !== undefined) { legacyFields.push('price = ?'); legacyValues.push(parseFloat(v.price) || 0); }
+      if (v.color_name !== undefined) { legacyFields.push('color_name = ?'); legacyValues.push(v.color_name); }
+      if (v.color_code !== undefined) { legacyFields.push('color_code = ?'); legacyValues.push(v.color_code); }
+      if (v.amazon_sku !== undefined) { legacyFields.push('amazon_sku = ?'); legacyValues.push(v.amazon_sku || null); }
+      if (v.sku !== undefined) { legacyFields.push('sku = ?'); legacyValues.push(v.sku || null); }
 
-      if (v.price !== undefined) { fields.push('price = ?'); values.push(parseFloat(v.price) || 0); }
-      if (v.color_name !== undefined) { fields.push('color_name = ?'); values.push(v.color_name); }
-      if (v.color_code !== undefined) { fields.push('color_code = ?'); values.push(v.color_code); }
-      if (v.amazon_sku !== undefined) { fields.push('amazon_sku = ?'); values.push(v.amazon_sku || null); }
-      if (v.sku !== undefined) { fields.push('sku = ?'); values.push(v.sku || null); }
+      legacyValues.push(v.id, id);
 
-      values.push(v.id, id); // for WHERE clause
-
-      const [upd] = await connection.execute(
-        `UPDATE product_color_variants SET ${fields.join(', ')} WHERE id = ? AND product_id = ?`,
-        values
+      let [upd] = await connection.execute(
+        `UPDATE product_color_variants SET ${legacyFields.join(', ')} WHERE id = ? AND product_id = ?`,
+        legacyValues
       );
 
+      // 2. Try modern table if not found
       if (upd.affectedRows === 0) {
-        // Variant not found — log warning but don't fail the whole batch
+        const modernFields = ['stock = ?', 'is_active = 1', 'updated_at = NOW()'];
+        const modernValues = [stock];
+        if (v.price !== undefined) { modernFields.push('price = ?'); modernValues.push(parseFloat(v.price) || 0); }
+        if (v.variant_name !== undefined || v.color_name !== undefined) { 
+          modernFields.push('variant_name = ?'); 
+          modernValues.push(v.variant_name || v.color_name); 
+        }
+        if (v.amazon_sku !== undefined) { modernFields.push('amazon_sku = ?'); modernValues.push(v.amazon_sku || null); }
+        if (v.sku !== undefined) { modernFields.push('sku = ?'); modernValues.push(v.sku || null); }
+
+        modernValues.push(v.id, id);
+
+        [upd] = await connection.execute(
+          `UPDATE product_variants SET ${modernFields.join(', ')} WHERE id = ? AND product_id = ?`,
+          modernValues
+        );
+      }
+
+      if (upd.affectedRows === 0) {
         logger.warn(`[STOCK] Variant ${v.id} not found for product ${id}, skipped`);
         results.push({ variantId: v.id, status: 'not_found' });
       } else {
@@ -1320,44 +1375,43 @@ router.patch("/products/:id/variants/stock", authenticateToken, requireAdmin, as
       }
     }
 
-    // Re-aggregate total stock and sync JSON color_options on the parent product
-    const [allVariants] = await connection.execute(
-      "SELECT id, sku, color_name, color_code, amazon_sku, stock, price FROM product_color_variants WHERE product_id = ? AND is_active = 1",
-      [id]
+    // 3. Re-aggregate total stock and sync JSON color_options
+    const [legacyVariants] = await connection.execute(
+      "SELECT id, sku, color_name, color_code, amazon_sku, stock, price FROM product_color_variants WHERE product_id = ? AND is_active = 1", [id]
+    );
+    const [modernVariants] = await connection.execute(
+      "SELECT id, sku, variant_name as color_name, variant_name as color_code, amazon_sku, stock, price FROM product_variants WHERE product_id = ? AND is_active = 1", [id]
     );
 
-    const aggregateStock = allVariants.reduce((sum, v) => sum + (parseInt(v.stock) || 0), 0);
-    const colorOptionsList = allVariants.map(v => ({
-      name: v.color_name,
-      color: v.color_code,
-      stock: parseInt(v.stock) || 0,
-      sku: v.sku || null,
-      amazon_sku: v.amazon_sku || null,
-      in_stock: (parseInt(v.stock) || 0) > 0 ? 1 : 0,
-      price: v.price || 0
-    }));
+    const allVariants = [...legacyVariants, ...modernVariants];
+    
+    if (allVariants.length > 0) {
+      const aggregateStock = allVariants.reduce((sum, v) => sum + (parseInt(v.stock) || 0), 0);
+      const colorOptionsList = allVariants.map(v => ({
+        id: v.id,
+        name: v.color_name,
+        color: v.color_code || '#CCCCCC',
+        stock: parseInt(v.stock) || 0,
+        sku: v.sku || null,
+        amazon_sku: v.amazon_sku || null,
+        in_stock: (parseInt(v.stock) || 0) > 0 ? 1 : 0,
+        price: v.price || 0
+      }));
 
-    await connection.execute(
-      "UPDATE products SET color_options = ?, in_stock = ?, inventory_cache = ?, availability = ?, updated_at = NOW() WHERE id = ?",
-      [
-        JSON.stringify(colorOptionsList),
-        aggregateStock,
-        aggregateStock,
-        aggregateStock > 0 ? 'In Stock' : 'Out of Stock',
-        id
-      ]
-    );
+      await connection.execute(
+        "UPDATE products SET color_options = ?, in_stock = ?, inventory_cache = ?, availability = ?, updated_at = NOW() WHERE id = ?",
+        [
+          JSON.stringify(colorOptionsList),
+          aggregateStock,
+          aggregateStock,
+          aggregateStock > 0 ? 'In Stock' : 'Out of Stock',
+          id
+        ]
+      );
+    }
 
     await connection.commit();
-    logger.info(`[STOCK] ${pRows[0].name}: bulk variant update — ${results.filter(r => r.status === 'updated').length}/${variants.length} updated. Total: ${aggregateStock}`);
-
-    res.json({
-      success: true,
-      productId: id,
-      aggregateStock,
-      availability: aggregateStock > 0 ? 'In Stock' : 'Out of Stock',
-      results
-    });
+    res.json({ success: true, productId: id, results });
   } catch (err) {
     await connection.rollback();
     logger.error(`PATCH /products/:id/variants/stock error: ${err.message}`);
@@ -1370,7 +1424,7 @@ router.patch("/products/:id/variants/stock", authenticateToken, requireAdmin, as
 /**
  * PATCH /api/admin/products/:id/variants/:variantId/stock
  * Update a single variant's stock — for inline CRM row edits.
- * Body: { stock: number }
+ * Handles both legacy and modern variant tables automatically.
  */
 router.patch("/products/:id/variants/:variantId/stock", authenticateToken, requireAdmin, async (req, res) => {
   const connection = await db.getConnection();
@@ -1383,31 +1437,72 @@ router.patch("/products/:id/variants/:variantId/stock", authenticateToken, requi
       return res.status(400).json({ success: false, error: 'stock must be a non-negative integer' });
     }
 
-    const [upd] = await connection.execute(
+    // 1. Try legacy table first
+    let [upd] = await connection.execute(
       "UPDATE product_color_variants SET stock = ?, is_active = 1, updated_at = NOW() WHERE id = ? AND product_id = ?",
       [stock, variantId, id]
     );
 
+    // 2. Try modern table if not found in legacy
     if (upd.affectedRows === 0) {
-      await connection.rollback();
-      return res.status(404).json({ success: false, error: 'Variant not found' });
+      [upd] = await connection.execute(
+        "UPDATE product_variants SET stock = ?, is_active = 1, updated_at = NOW() WHERE id = ? AND product_id = ?",
+        [stock, variantId, id]
+      );
     }
 
-    // Re-aggregate parent product stock
-    const [allVariants] = await connection.execute(
-      "SELECT stock FROM product_color_variants WHERE product_id = ? AND is_active = 1", [id]
-    );
-    const aggregateStock = allVariants.reduce((sum, v) => sum + (parseInt(v.stock) || 0), 0);
+    // 3. If it's a simple product (id == variantId), update the products table directly
+    if (upd.affectedRows === 0 && id === variantId) {
+      [upd] = await connection.execute(
+        "UPDATE products SET in_stock = ?, inventory_cache = ?, availability = ?, updated_at = NOW() WHERE id = ?",
+        [stock, stock, stock > 0 ? 'In Stock' : 'Out of Stock', id]
+      );
+    }
 
-    await connection.execute(
-      "UPDATE products SET in_stock = ?, inventory_cache = ?, availability = ?, updated_at = NOW() WHERE id = ?",
-      [aggregateStock, aggregateStock, aggregateStock > 0 ? 'In Stock' : 'Out of Stock', id]
+    if (upd.affectedRows === 0) {
+      await connection.rollback();
+      return res.status(404).json({ success: false, error: 'Variant or Product not found' });
+    }
+
+    // 4. Sync aggregate stock and color_options JSON if it has variants
+    const [legacyVariants] = await connection.execute(
+      "SELECT id, sku, color_name, color_code, amazon_sku, stock, price FROM product_color_variants WHERE product_id = ? AND is_active = 1", [id]
     );
+    const [modernVariants] = await connection.execute(
+      "SELECT id, sku, variant_name as color_name, variant_name as color_code, amazon_sku, stock, price FROM product_variants WHERE product_id = ? AND is_active = 1", [id]
+    );
+
+    const allVariants = [...legacyVariants, ...modernVariants];
+    
+    if (allVariants.length > 0) {
+      const aggregateStock = allVariants.reduce((sum, v) => sum + (parseInt(v.stock) || 0), 0);
+      const colorOptionsList = allVariants.map(v => ({
+        id: v.id,
+        name: v.color_name,
+        color: v.color_code || '#CCCCCC',
+        stock: parseInt(v.stock) || 0,
+        sku: v.sku || null,
+        amazon_sku: v.amazon_sku || null,
+        in_stock: (parseInt(v.stock) || 0) > 0 ? 1 : 0,
+        price: v.price || 0
+      }));
+
+      await connection.execute(
+        "UPDATE products SET color_options = ?, in_stock = ?, inventory_cache = ?, availability = ?, updated_at = NOW() WHERE id = ?",
+        [
+          JSON.stringify(colorOptionsList),
+          aggregateStock,
+          aggregateStock,
+          aggregateStock > 0 ? 'In Stock' : 'Out of Stock',
+          id
+        ]
+      );
+    }
 
     await connection.commit();
-    logger.info(`[STOCK] Variant ${variantId} → ${stock}. Product ${id} aggregate: ${aggregateStock}`);
+    logger.info(`[STOCK] Variant/Product ${variantId} update to ${stock}`);
 
-    res.json({ success: true, variantId, stock, productId: id, aggregateStock });
+    res.json({ success: true, variantId, stock, productId: id });
   } catch (err) {
     await connection.rollback();
     logger.error(`PATCH /products/:id/variants/:variantId/stock error: ${err.message}`);
