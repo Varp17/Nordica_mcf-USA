@@ -23,8 +23,8 @@ const productData = [
   {
     name: 'T-Shirt',
     matchNames: ['PREMIUM T-SHIRT WHITE'],
-    net_g: 247.5, gross_g: 247.5,
-    length_in: 9.2, width_in: 3.5, height_in: 2
+    net_g: 250, gross_g: 250,
+    length_in: 10, width_in: 7, height_in: 1
   },
   {
     name: 'DIRT LOCK',
@@ -65,6 +65,13 @@ const productData = [
     matchNames: ['DIRT LOCK - COMPLETE PAD WASHER KIT', 'The Detail Guardz - Dirt Lock Pad Washer System With Attachment', 'The Detail Guardz - Dirt Lock Pad Washer System Attachment (Black)'],
     net_g: 650, gross_g: 650,
     length_in: 7.75, width_in: 7.75, height_in: 14.5,
+    variants: ['Black', 'White']
+  },
+  {
+    name: 'Dirt Lock-PWS-Cleaner',
+    matchNames: ['DIRT LOCK - COMPLETE PAD WASHER KIT WITH CLEANER'],
+    net_g: 1350, gross_g: 1350,
+    length_in: 12.6, width_in: 12.6, height_in: 17.7,
     variants: ['Black', 'White']
   },
   {

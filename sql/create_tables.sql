@@ -1894,7 +1894,7 @@ INSERT INTO products (
   ),
   JSON_ARRAY('Dirt Lock bucket filter', 'Pad washer attachment', 'Hook and loop handle', 'Storage bracket', 'Pad spray cleaner 650ML'),
   JSON_ARRAY('All polishing pads 1-10 inches'),
-  4.9, 28, 100, 2.1, 4.63, '32x32x45', '12.6x12.6x17.7',
+  4.9, 28, 100, 1.35, 2.98, '32x32x45', '12.6x12.6x17.7',
   JSON_OBJECT(
     'heroImage', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon%20Listing%20Images/Pad%20Washer%20Images/about%20section%20large.jpg',
     'heroImageAlt', 'Dirt Lock Pad Washer System With Cleaner',
@@ -1918,8 +1918,8 @@ INSERT INTO products (
     'manufacturer', 'DETAIL GUARDZ Canada'
   ),
   JSON_ARRAY(
-    JSON_OBJECT('name', 'White', 'value', 'white', 'sku', 'CAD-760C-V-WHITE', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada%20Products/DIRT%20LOCK%20-%20COMPLETE%20PAD%20WASHER%20KIT%20WITH%20CLEANER/DIRTLOCK-PWSWSCPadWasherBundle-White_main_-WithCleaner_720x.webp', 'price', 89.99, 'stock', 100, 'in_stock', 1, 'weight_kg', 2.1, 'weight_lb', 4.63, 'dimensions', '32x32x45', 'dimensions_imperial', '12.6x12.6x17.7'),
-    JSON_OBJECT('name', 'Black', 'value', 'black', 'sku', 'CAD-760C-V-BLACK', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada%20Products/DIRT%20LOCK%20-%20COMPLETE%20PAD%20WASHER%20KIT%20WITH%20CLEANER/DIRTLOCK-PWSWSCPadWasherBundle_Main_-WithCleaner-BLACK_720x.webp', 'price', 89.99, 'stock', 100, 'in_stock', 1, 'weight_kg', 2.1, 'weight_lb', 4.63, 'dimensions', '32x32x45', 'dimensions_imperial', '12.6x12.6x17.7')
+    JSON_OBJECT('name', 'White', 'value', 'white', 'sku', 'CAD-760C-V-WHITE', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada%20Products/DIRT%20LOCK%20-%20COMPLETE%20PAD%20WASHER%20KIT%20WITH%20CLEANER/DIRTLOCK-PWSWSCPadWasherBundle-White_main_-WithCleaner_720x.webp', 'price', 89.99, 'stock', 100, 'in_stock', 1, 'weight_kg', 1.35, 'weight_lb', 2.98, 'dimensions', '32x32x45', 'dimensions_imperial', '12.6x12.6x17.7'),
+    JSON_OBJECT('name', 'Black', 'value', 'black', 'sku', 'CAD-760C-V-BLACK', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada%20Products/DIRT%20LOCK%20-%20COMPLETE%20PAD%20WASHER%20KIT%20WITH%20CLEANER/DIRTLOCK-PWSWSCPadWasherBundle_Main_-WithCleaner-BLACK_720x.webp', 'price', 89.99, 'stock', 100, 'in_stock', 1, 'weight_kg', 1.35, 'weight_lb', 2.98, 'dimensions', '32x32x45', 'dimensions_imperial', '12.6x12.6x17.7')
   ),
   JSON_OBJECT(
     'main', JSON_OBJECT('url', 'https://www.youtube.com/embed/_ZHI-xV6XLg', 'title', 'DETAIL GUARDZ Dirt Lock Pad Washer System With Cleaner', 'description', 'The ultimate pad washing kit including 650ML pad spray cleaner. Clean your polishing pads quickly and gently with our complete system.'),
@@ -2452,7 +2452,7 @@ INSERT INTO products (
   NULL,
   JSON_ARRAY('100% Cotton', 'Pre-shrunk', 'Double sided logo'),
   JSON_ARRAY('N/A'),
-  5.0, 15, 100, 0.25, 0.55, '30x25x2', '11.8x9.8x0.8',
+  5.0, 15, 100, 0.25, 0.55, '25x18x3', '10x7x1',
   NULL,
   NULL,
   NULL,
@@ -2479,12 +2479,12 @@ INSERT INTO products (
     JSON_OBJECT('stars', 1, 'percentage', 1, 'count', 5)
   ),
   0, JSON_ARRAY(
-    JSON_OBJECT('size', 'Small', 'sku', 'CAD-CAB29-V-WHITE-S', 'weight_kg', 0.25, 'weight_lb', 0.55, 'dimensions', '30x25x2', 'dimensions_imperial', '11.8x9.8x0.8'),
-    JSON_OBJECT('size', 'Medium', 'sku', 'CAD-CAB29-V-WHITE-M', 'weight_kg', 0.25, 'weight_lb', 0.55, 'dimensions', '30x25x2', 'dimensions_imperial', '11.8x9.8x0.8'),
-    JSON_OBJECT('size', 'Large', 'sku', 'CAD-CAB29-V-WHITE-L', 'weight_kg', 0.25, 'weight_lb', 0.55, 'dimensions', '30x25x2', 'dimensions_imperial', '11.8x9.8x0.8'),
-    JSON_OBJECT('size', 'XL', 'sku', 'CAD-CAB29-V-WHITE-XL', 'weight_kg', 0.25, 'weight_lb', 0.55, 'dimensions', '30x25x2', 'dimensions_imperial', '11.8x9.8x0.8'),
-    JSON_OBJECT('size', '2XL', 'sku', 'CAD-CAB29-V-WHITE-2XL', 'weight_kg', 0.25, 'weight_lb', 0.55, 'dimensions', '30x25x2', 'dimensions_imperial', '11.8x9.8x0.8'),
-    JSON_OBJECT('size', '3XL', 'sku', 'CAD-CAB29-V-WHITE-3XL', 'weight_kg', 0.25, 'weight_lb', 0.55, 'dimensions', '30x25x2', 'dimensions_imperial', '11.8x9.8x0.8')
+    JSON_OBJECT('size', 'Small', 'sku', 'CAD-CAB29-V-WHITE-S', 'weight_kg', 0.25, 'weight_lb', 0.55, 'dimensions', '25x18x3', 'dimensions_imperial', '10x7x1'),
+    JSON_OBJECT('size', 'Medium', 'sku', 'CAD-CAB29-V-WHITE-M', 'weight_kg', 0.25, 'weight_lb', 0.55, 'dimensions', '25x18x3', 'dimensions_imperial', '10x7x1'),
+    JSON_OBJECT('size', 'Large', 'sku', 'CAD-CAB29-V-WHITE-L', 'weight_kg', 0.25, 'weight_lb', 0.55, 'dimensions', '25x18x3', 'dimensions_imperial', '10x7x1'),
+    JSON_OBJECT('size', 'XL', 'sku', 'CAD-CAB29-V-WHITE-XL', 'weight_kg', 0.25, 'weight_lb', 0.55, 'dimensions', '25x18x3', 'dimensions_imperial', '10x7x1'),
+    JSON_OBJECT('size', '2XL', 'sku', 'CAD-CAB29-V-WHITE-2XL', 'weight_kg', 0.25, 'weight_lb', 0.55, 'dimensions', '25x18x3', 'dimensions_imperial', '10x7x1'),
+    JSON_OBJECT('size', '3XL', 'sku', 'CAD-CAB29-V-WHITE-3XL', 'weight_kg', 0.25, 'weight_lb', 0.55, 'dimensions', '25x18x3', 'dimensions_imperial', '10x7x1')
   ), 'CAD', 'canada', NULL FROM DUAL;
 
 -- CAD Coffee Mug
