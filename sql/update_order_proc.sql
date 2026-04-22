@@ -1,31 +1,35 @@
-
--- Update the order numbering procedure to support regional prefixes
+-- Update generate_order_number to support FAKE orders
 DROP PROCEDURE IF EXISTS generate_order_number;
 
-DELIMITER //
+DELIMITER $$
 
-CREATE PROCEDURE generate_order_number(IN p_country VARCHAR(10), OUT new_order_number VARCHAR(25))
+CREATE PROCEDURE generate_order_number(IN p_country VARCHAR(2), IN p_is_fake TINYINT(1), OUT new_order_number VARCHAR(25))
 BEGIN
-    DECLARE next_number INT;
+  DECLARE next_number INT;
+  DECLARE v_prefix    VARCHAR(10);
+  DECLARE v_fake_tag  VARCHAR(10) DEFAULT '';
+  
+  IF p_is_fake = 1 THEN
+    SET v_fake_tag = 'FAKE-';
+  END IF;
+  
+  IF p_country = 'CA' THEN
+    SET v_prefix = 'DG-';
+    INSERT INTO order_sequences (year, month, last_number, prefix)
+      VALUES (1, 1, 10001, v_prefix)
+    ON DUPLICATE KEY UPDATE last_number = last_number + 1;
     
-    -- CA Orders: Prefix 'DG-' (Detail Guardz Canada)
-    -- US Orders: Prefix 'AMZ-' (Amazon USA)
+    SELECT last_number INTO next_number FROM order_sequences WHERE year = 1 AND month = 1;
+  ELSE
+    SET v_prefix = 'NDUS-';
+    INSERT INTO order_sequences (year, month, last_number, prefix)
+      VALUES (2, 1, 50001, v_prefix)
+    ON DUPLICATE KEY UPDATE last_number = last_number + 1;
     
-    IF p_country = 'CA' THEN
-        INSERT INTO order_sequences (year, month, last_number, prefix)
-          VALUES (1, 1, 10001, 'DG')
-        ON DUPLICATE KEY UPDATE last_number = last_number + 1;
-        
-        SELECT last_number INTO next_number FROM order_sequences WHERE year = 1 AND month = 1;
-        SET new_order_number = CONCAT('DG-', next_number);
-    ELSE
-        INSERT INTO order_sequences (year, month, last_number, prefix)
-          VALUES (2, 1, 10001, 'AMZ')
-        ON DUPLICATE KEY UPDATE last_number = last_number + 1;
-        
-        SELECT last_number INTO next_number FROM order_sequences WHERE year = 2 AND month = 1;
-        SET new_order_number = CONCAT('AMZ-', next_number);
-    END IF;
-END //
+    SELECT last_number INTO next_number FROM order_sequences WHERE year = 2 AND month = 1;
+  END IF;
+  
+  SET new_order_number = CONCAT(v_prefix, v_fake_tag, next_number);
+END$$
 
 DELIMITER ;

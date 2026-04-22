@@ -123,6 +123,8 @@ CREATE TABLE brands (
   slug        VARCHAR(100)  NOT NULL UNIQUE,
   logo_url    VARCHAR(500)  DEFAULT NULL,
   description TEXT          DEFAULT NULL,
+  description_ar TEXT       DEFAULT NULL,
+  website     VARCHAR(255)  DEFAULT NULL,
   is_active   TINYINT(1)    NOT NULL DEFAULT 1,
   created_at  DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at  DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
@@ -374,11 +376,13 @@ CREATE TABLE cart_items (
 DROP TABLE IF EXISTS wishlists;
 CREATE TABLE wishlists (
   id               CHAR(36)      PRIMARY KEY DEFAULT (UUID()),
-  user_id          CHAR(36)      NOT NULL,
+  user_id          CHAR(36)      DEFAULT NULL,
+  guest_id         VARCHAR(100)  DEFAULT NULL,
   product_id       CHAR(36)      NOT NULL,
   created_at       DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-  UNIQUE KEY uq_user_wishlist (user_id, product_id)
+  FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+  INDEX idx_guest (guest_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ------------------------------------------------------------
@@ -461,6 +465,12 @@ CREATE TABLE orders (
   cancellation_otp_expiry    DATETIME       DEFAULT NULL,
   country                    VARCHAR(10)    DEFAULT 'US',
   notes                      TEXT           DEFAULT NULL,
+  
+  -- Monitoring Alert Flags
+  stale_alerted_at           DATETIME       DEFAULT NULL,
+  exhausted_alerted_at       DATETIME       DEFAULT NULL,
+  ca_label_reminder_at       DATETIME       DEFAULT NULL,
+  
   created_at                 DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at                 DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   
@@ -469,6 +479,7 @@ CREATE TABLE orders (
   INDEX idx_orders_country    (country),
   INDEX idx_orders_shippo_trk (shippo_tracking_number),
   INDEX idx_orders_retry      (fulfillment_status, payment_status, retry_count),
+  INDEX idx_orders_stale_monitor (payment_status, fulfillment_status, paid_at, stale_alerted_at),
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -492,6 +503,8 @@ CREATE TABLE order_items (
   product_name_at_purchase VARCHAR(255) DEFAULT NULL,
   image_url_at_purchase VARCHAR(1000) DEFAULT NULL,
   weight_kg          DECIMAL(6,3)  DEFAULT 0.500,
+  dimensions         VARCHAR(100)  DEFAULT NULL,
+  dimensions_imperial VARCHAR(100) DEFAULT NULL,
   currency           CHAR(3)       DEFAULT 'USD',
   created_at         DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE
@@ -653,7 +666,86 @@ CREATE TABLE invoices (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ------------------------------------------------------------
--- 18. INVOICE ITEMS
+-- 18. ABANDONED CHECKOUTS
+-- ------------------------------------------------------------
+DROP TABLE IF EXISTS abandoned_checkouts;
+CREATE TABLE abandoned_checkouts (
+  id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
+  email VARCHAR(255) NOT NULL,
+  first_name VARCHAR(100),
+  last_name VARCHAR(100),
+  phone VARCHAR(30),
+  country VARCHAR(2) DEFAULT 'US',
+  city VARCHAR(100),
+  state VARCHAR(100),
+  zip VARCHAR(20),
+  address_json JSON,
+  cart_items JSON NOT NULL,
+  subtotal DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  shipping_cost DECIMAL(12,2) DEFAULT 0.00,
+  tax_amount DECIMAL(12,2) DEFAULT 0.00,
+  total_amount DECIMAL(12,2) DEFAULT 0.00,
+  status ENUM('pending', 'recovered', 'expired') DEFAULT 'pending',
+  order_id CHAR(36),
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ------------------------------------------------------------
+-- 19. CONTACT TICKETS
+-- ------------------------------------------------------------
+DROP TABLE IF EXISTS contact_tickets;
+CREATE TABLE contact_tickets (
+  id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
+  ticket_number VARCHAR(20) NOT NULL UNIQUE,
+  name VARCHAR(255) NOT NULL,
+  email VARCHAR(255) NOT NULL,
+  subject VARCHAR(255) NOT NULL,
+  message TEXT NOT NULL,
+  country VARCHAR(10) NOT NULL DEFAULT 'US',
+  status ENUM('open', 'in_progress', 'resolved', 'closed') DEFAULT 'open',
+  priority ENUM('low', 'medium', 'high', 'urgent') DEFAULT 'medium',
+  source VARCHAR(50) DEFAULT 'web_form',
+  assigned_to CHAR(36) DEFAULT NULL,
+  internal_notes TEXT DEFAULT NULL,
+  response_message TEXT DEFAULT NULL,
+  responded_at DATETIME DEFAULT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ------------------------------------------------------------
+-- 20. TICKET SEQUENCES
+-- ------------------------------------------------------------
+DROP TABLE IF EXISTS ticket_sequences;
+CREATE TABLE ticket_sequences (
+  year INT NOT NULL,
+  month INT NOT NULL,
+  last_number INT NOT NULL DEFAULT 0,
+  prefix VARCHAR(10) DEFAULT 'TK',
+  PRIMARY KEY (year, month)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ------------------------------------------------------------
+-- 21. RETURN REQUESTS
+-- ------------------------------------------------------------
+DROP TABLE IF EXISTS return_requests;
+CREATE TABLE return_requests (
+  id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
+  order_id CHAR(36) NOT NULL,
+  customer_id CHAR(36) DEFAULT NULL,
+  items JSON NOT NULL,
+  reason_code VARCHAR(100) NOT NULL,
+  customer_feedback TEXT DEFAULT NULL,
+  status ENUM('pending', 'approved', 'rejected') DEFAULT 'pending',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
+-- ------------------------------------------------------------
+-- 22. INVOICE ITEMS
 -- ------------------------------------------------------------
 DROP TABLE IF EXISTS invoice_items;
 CREATE TABLE invoice_items (
@@ -689,7 +781,7 @@ CREATE TABLE invoice_items (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ------------------------------------------------------------
--- 19. INVOICE AUDIT LOG
+-- 23. INVOICE AUDIT LOG
 -- ------------------------------------------------------------
 DROP TABLE IF EXISTS invoice_audit_log;
 CREATE TABLE invoice_audit_log (
@@ -711,7 +803,7 @@ CREATE TABLE invoice_audit_log (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ------------------------------------------------------------
--- 20. BANNERS (with all enhancements)
+-- 24. BANNERS (Hero & Promotional)
 -- ------------------------------------------------------------
 DROP TABLE IF EXISTS banners;
 CREATE TABLE banners (
@@ -740,7 +832,7 @@ CREATE TABLE banners (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ------------------------------------------------------------
--- 21. REPORTING VIEWS
+-- 25. REPORTING VIEWS
 -- ------------------------------------------------------------
 CREATE OR REPLACE VIEW invoice_summary_view AS
 SELECT
@@ -801,31 +893,7 @@ END$$
 -- USA:    NDUS-50001, NDUS-50002, ...
 -- ------------------------------------------------------------
 
-DROP PROCEDURE IF EXISTS generate_order_number$$
-
-CREATE PROCEDURE generate_order_number(IN p_country VARCHAR(2), OUT new_order_number VARCHAR(25))
-BEGIN
-  DECLARE next_number INT;
-  DECLARE v_prefix    VARCHAR(10);
-  
-  IF p_country = 'CA' THEN
-    SET v_prefix = 'DG-';
-    INSERT INTO order_sequences (year, month, last_number, prefix)
-      VALUES (1, 1, 10001, v_prefix)
-    ON DUPLICATE KEY UPDATE last_number = last_number + 1;
-    
-    SELECT last_number INTO next_number FROM order_sequences WHERE year = 1 AND month = 1;
-  ELSE
-    SET v_prefix = 'NDUS-';
-    INSERT INTO order_sequences (year, month, last_number, prefix)
-      VALUES (2, 1, 50001, v_prefix)
-    ON DUPLICATE KEY UPDATE last_number = last_number + 1;
-    
-    SELECT last_number INTO next_number FROM order_sequences WHERE year = 2 AND month = 1;
-  END IF;
-  
-  SET new_order_number = CONCAT(v_prefix, next_number);
-END$$
+  -- Duplicate procedure removed. Single definition at end of file.
 
 DELIMITER ;
 -- ------------------------------------------------------------
@@ -873,154 +941,7 @@ ON DUPLICATE KEY UPDATE name = VALUES(name);
 --  The inserts below assume the category and brand strings match the inserted values.
 --  For brevity, we show a representative sample; the full file should include all 20+ products.)
 
--- ------------------------------------------------------------
--- 9. SEED DATA
--- ------------------------------------------------------------
-
-
-
--- 1. Create 'brands' table
-CREATE TABLE IF NOT EXISTS brands (
-    id CHAR(36) PRIMARY KEY,
-    name VARCHAR(100) NOT NULL,
-    name_ar VARCHAR(100),
-    description TEXT,
-    description_ar TEXT,
-    logo_url VARCHAR(255),
-    website VARCHAR(255),
-    is_active TINYINT(1) DEFAULT 1,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- 2. Create 'banners' table
-CREATE TABLE IF NOT EXISTS banners (
-    id CHAR(36) PRIMARY KEY,
-    title VARCHAR(255),
-    subtitle VARCHAR(255),
-    image_url VARCHAR(255) NOT NULL,
-    link VARCHAR(255),
-    position INT DEFAULT 0,
-    position_type VARCHAR(50) DEFAULT 'generic',
-    is_active TINYINT(1) DEFAULT 1,
-    valid_from DATETIME DEFAULT NULL,
-    valid_to DATETIME DEFAULT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- 3. Create 'product_color_variants' table
-CREATE TABLE IF NOT EXISTS product_color_variants (
-    id CHAR(36) PRIMARY KEY,
-    product_id CHAR(36) NOT NULL,
-    sku VARCHAR(100) DEFAULT NULL,
-    amazon_sku VARCHAR(100) DEFAULT NULL,
-    canada_sku VARCHAR(100) DEFAULT NULL,
-    color_name VARCHAR(100),
-    color_code VARCHAR(50),
-    stock INT DEFAULT 0,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    INDEX idx_pcv_product (product_id),
-    INDEX idx_pcv_sku (sku),
-    FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- 4. Create 'tax_rates' table
-CREATE TABLE IF NOT EXISTS tax_rates (
-    id CHAR(36) PRIMARY KEY,
-    country VARCHAR(2) NOT NULL,
-    state_province VARCHAR(50) NOT NULL,
-    tax_type VARCHAR(50) NOT NULL,
-    tax_rate DECIMAL(5, 2) NOT NULL,
-    is_active TINYINT(1) DEFAULT 1,
-    effective_from DATE DEFAULT NULL,
-    effective_to DATE DEFAULT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- 5. Create 'invoice_sequences' table
-CREATE TABLE IF NOT EXISTS invoice_sequences (
-    year INT NOT NULL,
-    month INT NOT NULL,
-    last_number INT DEFAULT 0,
-    prefix VARCHAR(10) DEFAULT 'INV',
-    PRIMARY KEY (year, month)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- 6. Create 'invoices' table
-CREATE TABLE IF NOT EXISTS invoices (
-    id CHAR(36) PRIMARY KEY,
-    order_id CHAR(36) NOT NULL,
-    user_id CHAR(36),
-    invoice_number VARCHAR(50) NOT NULL UNIQUE,
-    invoice_date DATETIME DEFAULT CURRENT_TIMESTAMP,
-    due_date DATETIME,
-    status ENUM('draft', 'issued', 'paid', 'overdue', 'cancelled') DEFAULT 'draft',
-    subtotal DECIMAL(12, 2) NOT NULL,
-    tax_amount DECIMAL(12, 2) DEFAULT 0,
-    shipping_amount DECIMAL(12, 2) DEFAULT 0,
-    discount_amount DECIMAL(12, 2) DEFAULT 0,
-    total_amount DECIMAL(12, 2) NOT NULL,
-    currency VARCHAR(3) DEFAULT 'USD',
-    tax_rate DECIMAL(5, 2),
-    tax_type VARCHAR(50),
-    discount_code VARCHAR(50),
-    billing_name VARCHAR(255),
-    billing_email VARCHAR(255),
-    billing_phone VARCHAR(50),
-    billing_address JSON,
-    shipping_address JSON,
-    payment_method VARCHAR(50),
-    payment_status VARCHAR(50),
-    payment_reference VARCHAR(255),
-    paid_at DATETIME,
-    pdf_url VARCHAR(255),
-    pdf_generated_at DATETIME,
-    notes TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    INDEX idx_inv_order (order_id),
-    INDEX idx_inv_user (user_id),
-    FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- 7. Create 'invoice_items' table
-CREATE TABLE IF NOT EXISTS invoice_items (
-    id CHAR(36) PRIMARY KEY,
-    invoice_id CHAR(36) NOT NULL,
-    product_id CHAR(36),
-    product_name VARCHAR(255) NOT NULL,
-    product_sku VARCHAR(100),
-    color_variant_id CHAR(36),
-    color_name VARCHAR(100),
-    quantity INT NOT NULL,
-    unit_price DECIMAL(12, 2) NOT NULL,
-    tax_per_item DECIMAL(12, 2) DEFAULT 0,
-    subtotal DECIMAL(12, 2) NOT NULL,
-    total DECIMAL(12, 2) NOT NULL,
-    line_item_number INT,
-    INDEX idx_ii_invoice (invoice_id),
-    FOREIGN KEY (invoice_id) REFERENCES invoices(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- 8. Create 'invoice_audit_log' table
-CREATE TABLE IF NOT EXISTS invoice_audit_log (
-    id CHAR(36) PRIMARY KEY,
-    invoice_id CHAR(36) NOT NULL,
-    action VARCHAR(100) NOT NULL,
-    user_id CHAR(36),
-    details JSON,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_ial_invoice (invoice_id),
-    FOREIGN KEY (invoice_id) REFERENCES invoices(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-
--- 9. Helper procedure to add columns safely (if your MySQL supports it)
--- Since we can't reliably use procedures in one-shot, we'll try simple ALTERs
--- that might fail if column exists, but we catch those in the JS wrapper.
+-- (Redundant seed data schema removed)
 
 
 
@@ -1078,7 +999,7 @@ INSERT INTO products (
       'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon%20Listing%20Images/Dirt%20Lock-20260122T171825Z-1-001/Dirt%20Lock/Dirt%20Lock%20(white)%20B088PZXQY1/4.%20Product%20Fitting%20&%20Dimensions.webp',
       'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon%20Listing%20Images/Dirt%20Lock-20260122T171825Z-1-001/Dirt%20Lock/Dirt%20Lock%20(white)%20B088PZXQY1/5.%20Product%20Uses.webp'
     ),
-    'yellow', JSON_ARRAY(
+    'gold', JSON_ARRAY(
       'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon%20Listing%20Images/Dirt%20Lock-20260122T171825Z-1-001/Dirt%20Lock/Dirt%20Lock%20(yellow)%20B07P9CWKLJ/1.%20Hero%20Image.webp',
       'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon%20Listing%20Images/Dirt%20Lock-20260122T171825Z-1-001/Dirt%20Lock/Dirt%20Lock%20(yellow)%20B07P9CWKLJ/2.%20Product%20Features.webp',
       'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon%20Listing%20Images/Dirt%20Lock-20260122T171825Z-1-001/Dirt%20Lock/Dirt%20Lock%20(yellow)%20B07P9CWKLJ/3.%20How%20it%20works.webp',
@@ -1134,7 +1055,7 @@ INSERT INTO products (
     JSON_OBJECT('name', 'Black', 'value', 'black', 'sku', 'DLRP-BLACK-1-stickerless', 'asin', 'B07CKC4M9D', 'amazon_sku', 'DLRP-BLACK-1-stickerless', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon%20Listing%20Images/Dirt%20Lock-20260122T171825Z-1-001/Dirt%20Lock/Dirt%20Lock%20(black)%20B07CKC4M9D/1.%20Hero%20Image.webp', 'price', 24.99),
     JSON_OBJECT('name', 'Red', 'value', 'red', 'sku', 'DLRP-RED-2-stickerless', 'asin', 'B07CKG1VCH', 'amazon_sku', 'DLRP-RED-2-stickerless', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon%20Listing%20Images/Dirt%20Lock-20260122T171825Z-1-001/Dirt%20Lock/Dirt%20Lock%20(red)%20B07CKG1VCH/1.%20Hero%20Image.webp', 'price', 24.99),
     JSON_OBJECT('name', 'White', 'value', 'white', 'sku', 'DLRP-W-stickerless', 'asin', 'B07P8BMSTH', 'amazon_sku', 'DLRP-W-stickerless', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon%20Listing%20Images/Dirt%20Lock-20260122T171825Z-1-001/Dirt%20Lock/Dirt%20Lock%20(white)%20B088PZXQY1/1.%20Hero%20Image.webp', 'price', 24.99),
-    JSON_OBJECT('name', 'Yellow', 'value', 'yellow', 'sku', 'DLRP-G-stickerless', 'asin', 'B07P9CWKLJ', 'amazon_sku', 'DLRP-G-stickerless', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon%20Listing%20Images/Dirt%20Lock-20260122T171825Z-1-001/Dirt%20Lock/Dirt%20Lock%20(yellow)%20B07P9CWKLJ/1.%20Hero%20Image.webp', 'price', 24.99)
+    JSON_OBJECT('name', 'Gold', 'value', 'gold', 'sku', 'DLRP-G-stickerless', 'asin', 'B07P9CWKLJ', 'amazon_sku', 'DLRP-G-stickerless', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon%20Listing%20Images/Dirt%20Lock-20260122T171825Z-1-001/Dirt%20Lock/Dirt%20Lock%20(yellow)%20B07P9CWKLJ/1.%20Hero%20Image.webp', 'price', 24.99)
   ),
   JSON_OBJECT(
     'main', JSON_OBJECT('url', 'https://www.youtube.com/embed/2LndE9cD63A', 'title', 'DETAIL GUARDZ Dirt Lock Car Wash Insert', 'description', 'The original Dirt Lock is the ultimate tool for a swirl-free wash. See how the patented Venturi system traps grit and debris effectively, keeping your wash water clean.'),
@@ -1423,10 +1344,10 @@ INSERT INTO products (
     'manufacturer', 'DETAIL GUARDZ Canada'
   ),
   JSON_ARRAY(
-    JSON_OBJECT('name', 'Black + 650ML Cleaner', 'value', 'black-cleaner', 'sku', 'DIRT LOCK-PWSBL', 'asin', 'B07VGMKW7S', 'amazon_sku', 'DIRT LOCK-PWSBL', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon%20Listing%20Images/Pad%20Washer%20Images/Black%20+%20650ML%20Cleaner.webp', 'price', 58.99, 'title', 'The Detail Guardz - Dirt Lock Pad Washer System Attachment with Spray Cleaner (Black)', 'url', 'https://www.amazon.com/Detail-Guardz-Attachment-Without-Cleaner/dp/B07VGMKW7S/ref=pd_cer_fm_1/135-9153945-0013018?pd_rd_r=457f8f31-4d35-4d41-86e7-f8ad048dcd17&pd_rd_wg=vU41E&pd_rd_w=ynUdM&pd_rd_i=B07XL4CL1T&th=1'),
-    JSON_OBJECT('name', 'White + 650ML Cleaner', 'value', 'white-cleaner', 'sku', 'DIRT LOCK-PWSW-1', 'asin', 'B08KTV77ZC', 'amazon_sku', 'DIRT LOCK-PWSW-1', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon%20Listing%20Images/Pad%20Washer%20Images/White%20+%20650ML%20Cleaner.webp', 'price', 58.99, 'title', 'DETAIL GUARDZ The Dirt Lock Pad Washer System Attachment with Spray Cleaner (White)', 'url', 'https://www.amazon.com/Detail-Guardz-Attachment-Without-Cleaner/dp/B08KTV77ZC/ref=pd_cer_fm_1/135-9153945-0013018?pd_rd_r=457f8f31-4d35-4d41-86e7-f8ad048dcd17&pd_rd_wg=vU41E&pd_rd_w=ynUdM&pd_rd_i=B07XL4CL1T&th=1'),
-    JSON_OBJECT('name', 'black', 'value', 'black', 'sku', 'DIRT LOCK-PWS-BLACK', 'asin', 'B07XL4CL1T', 'amazon_sku', 'DIRT LOCK-PWS-BLACK', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon%20Listing%20Images/Pad%20Washer%20Images/black.webp', 'price', 49.99, 'title', 'The Detail Guardz - Dirt Lock Pad Washer System Attachment (Black)', 'url', 'https://www.amazon.com/Detail-Guardz-Attachment-Without-Cleaner/dp/B07XL4CL1T/ref=pd_cer_fm_1/135-9153945-0013018?pd_rd_r=457f8f31-4d35-4d41-86e7-f8ad048dcd17&pd_rd_wg=vU41E&pd_rd_w=ynUdM&pd_rd_i=B07XL4CL1T&th=1'),
-    JSON_OBJECT('name', 'white', 'value', 'white', 'sku', 'DIRT LOCK-PWS-WHITE-1', 'asin', 'B08KTVWVMJ', 'amazon_sku', 'DIRT LOCK-PWS-WHITE-1', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon%20Listing%20Images/Pad%20Washer%20Images/white.webp', 'price', 49.99, 'title', 'DETAIL GUARDZ The Dirt Lock Pad Washer System Attachment (White)', 'url', 'https://www.amazon.com/Detail-Guardz-Attachment-Without-Cleaner/dp/B08KTVWVMJ/ref=pd_cer_fm_1/135-9153945-0013018?pd_rd_r=457f8f31-4d35-4d41-86e7-f8ad048dcd17&pd_rd_wg=vU41E&pd_rd_w=ynUdM&pd_rd_i=B07XL4CL1T&th=1')
+    JSON_OBJECT('name', 'Black + 650ML Cleaner', 'value', 'black-cleaner', 'sku', 'DIRT LOCK-PWSBL', 'asin', 'B07VGMKW7S', 'amazon_sku', 'DIRT LOCK-PWSBL', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon%20Listing%20Images/Pad%20Washer%20Images/Black%20+%20650ML%20Cleaner.webp', 'price', 58.99, 'title', 'The Detail Guardz - Dirt Lock Pad Washer System Attachment with Spray Cleaner (Black)'),
+    JSON_OBJECT('name', 'White + 650ML Cleaner', 'value', 'white-cleaner', 'sku', 'DIRT LOCK-PWSW-1', 'asin', 'B08KTV77ZC', 'amazon_sku', 'DIRT LOCK-PWSW-1', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon%20Listing%20Images/Pad%20Washer%20Images/White%20+%20650ML%20Cleaner.webp', 'price', 58.99, 'title', 'DETAIL GUARDZ The Dirt Lock Pad Washer System Attachment with Spray Cleaner (White)'),
+    JSON_OBJECT('name', 'Black', 'value', 'black', 'sku', 'DIRT LOCK-PWS-BLACK', 'asin', 'B07XL4CL1T', 'amazon_sku', 'DIRT LOCK-PWS-BLACK', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon%20Listing%20Images/Pad%20Washer%20Images/black.webp', 'price', 49.99, 'title', 'The Detail Guardz - Dirt Lock Pad Washer System Attachment (Black)'),
+    JSON_OBJECT('name', 'White', 'value', 'white', 'sku', 'DIRT LOCK-PWS-WHITE-1', 'asin', 'B08KTVWVMJ', 'amazon_sku', 'DIRT LOCK-PWS-WHITE-1', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon%20Listing%20Images/Pad%20Washer%20Images/white.webp', 'price', 49.99, 'title', 'DETAIL GUARDZ The Detail Guardz - Dirt Lock Pad Washer System Attachment (White)')
   ),
   JSON_OBJECT(
     'main', JSON_OBJECT('url', 'https://www.youtube.com/embed/_ZHI-xV6XLg', 'title', 'DETAIL GUARDZ Dirt Lock Pad Washer System', 'description', 'See how the SEMA Award-winning Dirt Lock Pad Washer System cleans your polishing pads safely and gently in seconds.'),
@@ -1696,7 +1617,7 @@ INSERT INTO products (
   NULL,
   JSON_ARRAY('Heavy duty plastic construction', 'Metal handle for durability', 'Perfect fit for Dirt Lock filters', 'Made In Canada'),
   JSON_ARRAY('Dirt Lock bucket filter', 'All accessories'),
-  4.8, 45, 1, 1.2, 2.65, '30.5x30.5x38.1', '12x12x15',
+  4.8, 45, 100, 1.2, 2.65, '30.5x30.5x38.1', '12x12x15',
   NULL,
   'Premium',
   NULL,
@@ -1789,7 +1710,7 @@ INSERT INTO products (
     'Chemical & crush resistant'
   ),
   JSON_ARRAY('3-8 Gallon Round Pails'),
-  4.9, 156, 1, 0.490, 1.08, '26.5x26.5x6.5', '10.4x10.4x2.6',
+  4.9, 156, 100, 0.490, 1.08, '26.5x26.5x6.5', '10.4x10.4x2.6',
   JSON_OBJECT(
     'heroImage', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon%20Listing%20Images/Dirt%20Lock-20260122T171825Z-1-001/about%20section%20large.jpg',
     'heroImageAlt', 'Dirt Lock Bucket Filter Insert',
@@ -1819,13 +1740,7 @@ INSERT INTO products (
     'itemDiameter', '10.3 - 10.7 in',
     'manufacturer', 'DETAIL GUARDZ Canada'
   ),
-  JSON_ARRAY(
-    JSON_OBJECT('name', 'Blue', 'value', 'blue', 'sku', 'CAD-C21-V-BLUE', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon%20Listing%20Images/Dirt%20Lock-20260122T171825Z-1-001/Dirt%20Lock/Dirt%20Lock%20(blue)%20B07CKLPJZR/1.%20Hero%20Image.webp', 'price', 32.99, 'weight_kg', 0.49, 'weight_lb', 1.08, 'dimensions', '26.5x26.5x6.5', 'dimensions_imperial', '10.4x10.4x2.6'),
-    JSON_OBJECT('name', 'Black', 'value', 'black', 'sku', 'CAD-C21-V-BLACK', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon%20Listing%20Images/Dirt%20Lock-20260122T171825Z-1-001/Dirt%20Lock/Dirt%20Lock%20(black)%20B07CKC4M9D/1.%20Hero%20Image.webp', 'price', 32.99, 'weight_kg', 0.49, 'weight_lb', 1.08, 'dimensions', '26.5x26.5x6.5', 'dimensions_imperial', '10.4x10.4x2.6'),
-    JSON_OBJECT('name', 'Red', 'value', 'red', 'sku', 'CAD-C21-V-RED', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon%20Listing%20Images/Dirt%20Lock-20260122T171825Z-1-001/Dirt%20Lock/Dirt%20Lock%20(red)%20B07CKG1VCH/1.%20Hero%20Image.webp', 'price', 32.99, 'weight_kg', 0.49, 'weight_lb', 1.08, 'dimensions', '26.5x26.5x6.5', 'dimensions_imperial', '10.4x10.4x2.6'),
-    JSON_OBJECT('name', 'White', 'value', 'white', 'sku', 'CAD-C21-V-WHITE', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon%20Listing%20Images/Dirt%20Lock-20260122T171825Z-1-001/Dirt%20Lock/Dirt%20Lock%20(white)%20B088PZXQY1/1.%20Hero%20Image.webp', 'price', 32.99, 'weight_kg', 0.49, 'weight_lb', 1.08, 'dimensions', '26.5x26.5x6.5', 'dimensions_imperial', '10.4x10.4x2.6'),
-    JSON_OBJECT('name', 'Gold', 'value', 'gold', 'sku', 'CAD-C21-V-GOLD', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon%20Listing%20Images/Dirt%20Lock-20260122T171825Z-1-001/Dirt%20Lock/Dirt%20Lock%20(yellow)%20B07P9CWKLJ/1.%20Hero%20Image.webp', 'price', 32.99, 'weight_kg', 0.49, 'weight_lb', 1.08, 'dimensions', '26.5x26.5x6.5', 'dimensions_imperial', '10.4x10.4x2.6')
-  ),
+  JSON_ARRAY(),
   JSON_OBJECT(
     'main', JSON_OBJECT('url', 'https://www.youtube.com/embed/2LndE9cD63A', 'title', 'DETAIL GUARDZ Dirt Lock Car Wash Insert', 'description', 'Our patented design utilizes the motion of your hand to pump and trap debris underneath the screen. Every time you pump your hand in the bucket you are cycling the dirt underneath the screen.'),
     'additional', JSON_ARRAY(
@@ -1891,7 +1806,7 @@ INSERT INTO products (
   ),
   JSON_ARRAY(' Dirt Lock bucket filter', 'Pad washer attachment', 'Hook and loop handle', 'Storage bracket'),
   JSON_ARRAY('All polishing pads 1-10 inches'),
-  4.7, 42, 1, 1.5, 3.31, '30x30x40', '11.8x11.8x15.7',
+  4.7, 42, 100, 1.5, 3.31, '30x30x40', '11.8x11.8x15.7',
   JSON_OBJECT(
     'heroImage', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon%20Listing%20Images/Pad%20Washer%20Images/about%20section%20large.jpg',
     'heroImageAlt', 'Dirt Lock Pad Washer System',
@@ -1915,8 +1830,8 @@ INSERT INTO products (
     'manufacturer', 'DETAIL GUARDZ Canada'
   ),
   JSON_ARRAY(
-    JSON_OBJECT('name', 'White', 'value', 'white', 'sku', 'CAD-2CF16-V-WHITE', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada%20Products/DIRTLOCK-PWSPadWasherBundle-White_main_720x/DIRTLOCK-PWSPadWasherBundle-White_main_720x.webp', 'price', 79.99, 'weight_kg', 1.5, 'weight_lb', 3.31, 'dimensions', '30x30x40', 'dimensions_imperial', '11.8x11.8x15.7'),
-    JSON_OBJECT('name', 'Black', 'value', 'black', 'sku', 'CAD-2CF16-V-BLACK', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada%20Products/DIRTLOCK-PWSPadWasherBundle-White_main_720x/DIRTLOCK-PWSPadWasherBundle_Main_Black_720x.webp', 'price', 79.99, 'weight_kg', 1.5, 'weight_lb', 3.31, 'dimensions', '30x30x40', 'dimensions_imperial', '11.8x11.8x15.7')
+    JSON_OBJECT('name', 'White', 'value', 'white', 'sku', 'CAD-2CF16-V-WHITE', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada%20Products/DIRTLOCK-PWSPadWasherBundle-White_main_720x/DIRTLOCK-PWSPadWasherBundle-White_main_720x.webp', 'price', 79.99, 'stock', 100, 'in_stock', 1, 'weight_kg', 1.5, 'weight_lb', 3.31, 'dimensions', '30x30x40', 'dimensions_imperial', '11.8x11.8x15.7'),
+    JSON_OBJECT('name', 'Black', 'value', 'black', 'sku', 'CAD-2CF16-V-BLACK', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada%20Products/DIRTLOCK-PWSPadWasherBundle-White_main_720x/DIRTLOCK-PWSPadWasherBundle_Main_Black_720x.webp', 'price', 79.99, 'stock', 100, 'in_stock', 1, 'weight_kg', 1.5, 'weight_lb', 3.31, 'dimensions', '30x30x40', 'dimensions_imperial', '11.8x11.8x15.7')
   ),
   JSON_OBJECT(
     'main', JSON_OBJECT('url', 'https://www.youtube.com/embed/_ZHI-xV6XLg', 'title', 'DETAIL GUARDZ Dirt Lock Pad Washer System', 'description', 'The ultimate pad washing kit! Clean your polishing pads quickly and gently with our complete system.'),
@@ -1979,7 +1894,7 @@ INSERT INTO products (
   ),
   JSON_ARRAY('Dirt Lock bucket filter', 'Pad washer attachment', 'Hook and loop handle', 'Storage bracket', 'Pad spray cleaner 650ML'),
   JSON_ARRAY('All polishing pads 1-10 inches'),
-  4.9, 28, 1, 2.1, 4.63, '32x32x45', '12.6x12.6x17.7',
+  4.9, 28, 100, 2.1, 4.63, '32x32x45', '12.6x12.6x17.7',
   JSON_OBJECT(
     'heroImage', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon%20Listing%20Images/Pad%20Washer%20Images/about%20section%20large.jpg',
     'heroImageAlt', 'Dirt Lock Pad Washer System With Cleaner',
@@ -2003,8 +1918,8 @@ INSERT INTO products (
     'manufacturer', 'DETAIL GUARDZ Canada'
   ),
   JSON_ARRAY(
-    JSON_OBJECT('name', 'White', 'value', 'white', 'sku', 'CAD-760C-V-WHITE', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada%20Products/DIRT%20LOCK%20-%20COMPLETE%20PAD%20WASHER%20KIT%20WITH%20CLEANER/DIRTLOCK-PWSWSCPadWasherBundle-White_main_-WithCleaner_720x.webp', 'price', 89.99, 'weight_kg', 2.1, 'weight_lb', 4.63, 'dimensions', '32x32x45', 'dimensions_imperial', '12.6x12.6x17.7'),
-    JSON_OBJECT('name', 'Black', 'value', 'black', 'sku', 'CAD-760C-V-BLACK', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada%20Products/DIRT%20LOCK%20-%20COMPLETE%20PAD%20WASHER%20KIT%20WITH%20CLEANER/DIRTLOCK-PWSWSCPadWasherBundle_Main_-WithCleaner-BLACK_720x.webp', 'price', 89.99, 'weight_kg', 2.1, 'weight_lb', 4.63, 'dimensions', '32x32x45', 'dimensions_imperial', '12.6x12.6x17.7')
+    JSON_OBJECT('name', 'White', 'value', 'white', 'sku', 'CAD-760C-V-WHITE', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada%20Products/DIRT%20LOCK%20-%20COMPLETE%20PAD%20WASHER%20KIT%20WITH%20CLEANER/DIRTLOCK-PWSWSCPadWasherBundle-White_main_-WithCleaner_720x.webp', 'price', 89.99, 'stock', 100, 'in_stock', 1, 'weight_kg', 2.1, 'weight_lb', 4.63, 'dimensions', '32x32x45', 'dimensions_imperial', '12.6x12.6x17.7'),
+    JSON_OBJECT('name', 'Black', 'value', 'black', 'sku', 'CAD-760C-V-BLACK', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada%20Products/DIRT%20LOCK%20-%20COMPLETE%20PAD%20WASHER%20KIT%20WITH%20CLEANER/DIRTLOCK-PWSWSCPadWasherBundle_Main_-WithCleaner-BLACK_720x.webp', 'price', 89.99, 'stock', 100, 'in_stock', 1, 'weight_kg', 2.1, 'weight_lb', 4.63, 'dimensions', '32x32x45', 'dimensions_imperial', '12.6x12.6x17.7')
   ),
   JSON_OBJECT(
     'main', JSON_OBJECT('url', 'https://www.youtube.com/embed/_ZHI-xV6XLg', 'title', 'DETAIL GUARDZ Dirt Lock Pad Washer System With Cleaner', 'description', 'The ultimate pad washing kit including 650ML pad spray cleaner. Clean your polishing pads quickly and gently with our complete system.'),
@@ -2064,7 +1979,7 @@ INSERT INTO products (
   ),
   JSON_ARRAY('180° Coverage (expandable to 360°)', 'Vertical cleaning surface', 'Snaps into Dirt Lock filter'),
   JSON_ARRAY('Dirt Lock Bucket Filter', '3-8 Gallon Pails'),
-  4.6, 34, 1, 0.8, 1.76, '32x20x15', '12.6x7.9x5.9',
+  4.6, 34, 100, 0.8, 1.76, '32x20x15', '12.6x7.9x5.9',
   JSON_OBJECT(
     'heroImage', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon%20Listing%20Images/Scrub%20Wall-20260122T171828Z-1-001/ABOUT%20SECTION%20LARGE.jpg',
     'heroImageAlt', 'Dirt Lock Scrub Wall System',
@@ -2093,8 +2008,8 @@ INSERT INTO products (
     'manufacturer', 'DETAIL GUARDZ Canada'
   ),
   JSON_ARRAY(
-    JSON_OBJECT('name', 'Black', 'value', 'black', 'sku', 'CAD-A49-V-BLACK', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada%20Products/DIRT%20LOCK%20-%20COMPLETE%20SCRUB%20WALL%20KIT/DIRTLOCK-SW180-BLACK_720x%20mainimage.webp', 'price', 59.99, 'weight_kg', 0.8, 'weight_lb', 1.76, 'dimensions', '32x20x15', 'dimensions_imperial', '12.6x7.9x5.9'),
-    JSON_OBJECT('name', 'White', 'value', 'white', 'sku', 'CAD-A49-V-WHITE', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada%20Products/DIRT%20LOCK%20-%20COMPLETE%20SCRUB%20WALL%20KIT/DIRTLOCK-SW180_WHITE_-MainImage_720x.webp', 'price', 59.99, 'weight_kg', 0.8, 'weight_lb', 1.76, 'dimensions', '32x20x15', 'dimensions_imperial', '12.6x7.9x5.9')
+    JSON_OBJECT('name', 'Black', 'value', 'black', 'sku', 'CAD-A49-V-BLACK', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada%20Products/DIRT%20LOCK%20-%20COMPLETE%20SCRUB%20WALL%20KIT/DIRTLOCK-SW180-BLACK_720x%20mainimage.webp', 'price', 59.99, 'stock', 100, 'in_stock', 1, 'weight_kg', 0.8, 'weight_lb', 1.76, 'dimensions', '32x20x15', 'dimensions_imperial', '12.6x7.9x5.9'),
+    JSON_OBJECT('name', 'White', 'value', 'white', 'sku', 'CAD-A49-V-WHITE', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada%20Products/DIRT%20LOCK%20-%20COMPLETE%20SCRUB%20WALL%20KIT/DIRTLOCK-SW180_WHITE_-MainImage_720x.webp', 'price', 59.99, 'stock', 100, 'in_stock', 1, 'weight_kg', 0.8, 'weight_lb', 1.76, 'dimensions', '32x20x15', 'dimensions_imperial', '12.6x7.9x5.9')
   ),
   JSON_OBJECT(
     'main', JSON_OBJECT('url', 'https://www.youtube.com/embed/wgR1NE6h6Zk', 'title', 'DETAIL GUARDZ Dirt Lock Scrub Wall 180/360', 'description', 'The Dirt Lock Scrub Wall attachment is a vertical extension of the Dirt Lock''s pressurized cleaning power.'),
@@ -2171,7 +2086,7 @@ INSERT INTO products (
   ),
   JSON_ARRAY('Full car setup (4 pieces)', 'Eliminates hose snags', 'Durable industrial plastic'),
   JSON_ARRAY('All tires'),
-  4.9, 145, 1, 0.9, 1.98, '34x15x15', '13.4x5.9x5.9',
+  4.9, 145, 100, 0.9, 1.98, '34x15x15', '13.4x5.9x5.9',
   JSON_OBJECT(
     'heroImage', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon%20Listing%20Images/4-Pack%20Hose%20Guide-20260122T171823Z-1-001/about%20section%20large.jpg',
     'heroImageAlt', 'Detail Guardz Hose Guide 4-Pack under tire',
@@ -2242,7 +2157,7 @@ INSERT INTO products (
   NULL,
   JSON_ARRAY('Quickly breaks down polish and wax', 'Easy to rinse', 'Concentrated formula'),
   JSON_ARRAY('All polishing pads'),
-  4.6, 42, 1, 0.7, 1.54, '10x10x25', '3.9x3.9x9.8',
+  4.6, 42, 100, 0.7, 1.54, '10x10x25', '3.9x3.9x9.8',
   NULL,
   NULL,
   NULL,
@@ -2291,7 +2206,7 @@ INSERT INTO products (
   NULL,
   JSON_ARRAY('4L Bulk Size', 'Free 650ML Bottle', 'Economic Refill'),
   JSON_ARRAY('All polishing pads'),
-  5.0, 15, 1, 4.5, 9.92, '20x20x35', '7.9x7.9x13.8',
+  5.0, 15, 100, 4.5, 9.92, '20x20x35', '7.9x7.9x13.8',
   NULL,
   NULL,
   NULL,
@@ -2351,7 +2266,7 @@ INSERT INTO products (
   ),
   JSON_ARRAY('Push activated pump', 'Soft rounded scrubbing ridges', 'Enhanced filtering action'),
   JSON_ARRAY('3-8 Gallon Pails'),
-  4.7, 56, 1, 0.75, 1.65, '25x20x15', '9.8x7.9x5.9',
+  4.7, 56, 100, 0.75, 1.65, '25x20x15', '9.8x7.9x5.9',
   JSON_OBJECT(
     'heroImage', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon%20Listing%20Images/Scrub%20&%20Pump%20Images-20260312T173939Z-1-001/ABOUT%20SECTION%20LARGE.jpg',
     'heroImageAlt', 'Dirt Lock Scrub and Pump System',
@@ -2380,8 +2295,8 @@ INSERT INTO products (
     'manufacturer', 'DETAIL GUARDZ Canada'
   ),
   JSON_ARRAY(
-    JSON_OBJECT('name', 'Black', 'value', 'black', 'sku', 'CAD-11E6-V-BLACK', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada%20Products/DIRT%20LOCK%20-%20COMPLETE%20SCRUB%20AND%20PUMP%20KIT/DirtLockScrubAndPump-Black_Alone_925c3cf5-57d1-4602-b9a6-96d4d800d55d_720x-variant.webp', 'price', 39.99),
-    JSON_OBJECT('name', 'White', 'value', 'white', 'sku', 'CAD-11E6-V-WHITE', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada%20Products/DIRT%20LOCK%20-%20COMPLETE%20SCRUB%20AND%20PUMP%20KIT/Dirt_Lock_Scrub_And_Pump_-_White_Alone_720x-variant.webp', 'price', 39.99)
+    JSON_OBJECT('name', 'Black', 'value', 'black', 'sku', 'CAD-11E6-V-BLACK', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada%20Products/DIRT%20LOCK%20-%20COMPLETE%20SCRUB%20AND%20PUMP%20KIT/DirtLockScrubAndPump-Black_Alone_925c3cf5-57d1-4602-b9a6-96d4d800d55d_720x-variant.webp', 'price', 39.99, 'stock', 100, 'in_stock', 1),
+    JSON_OBJECT('name', 'White', 'value', 'white', 'sku', 'CAD-11E6-V-WHITE', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada%20Products/DIRT%20LOCK%20-%20COMPLETE%20SCRUB%20AND%20PUMP%20KIT/Dirt_Lock_Scrub_And_Pump_-_White_Alone_720x-variant.webp', 'price', 39.99, 'stock', 100, 'in_stock', 1)
   ),
   JSON_OBJECT(
     'main', JSON_OBJECT('url', 'https://www.youtube.com/embed/Ck9pNdgxRp4', 'title', 'DETAIL GUARDZ Dirt Lock Scrub and Pump Attachment', 'description', 'Save $5.00 CAD by purchasing this as a kit! Includes Scrub And Pump Attachment and Dirt Lock Bucket Filter.'),
@@ -2426,7 +2341,7 @@ INSERT INTO products (
   NULL,
   JSON_ARRAY('100% Korean Microfiber', 'Dense sponge core for glide', 'Ultra-soft threads'),
   JSON_ARRAY('All vehicles'),
-  5.0, 12, 1, 0.2, 0.44, '25x18x5', '9.8x7.1x2.0',
+  5.0, 12, 100, 0.2, 0.44, '25x18x5', '9.8x7.1x2.0',
   NULL,
   NULL,
   NULL,
@@ -2486,7 +2401,7 @@ INSERT INTO products (
   ),
   JSON_ARRAY('Ultra soft material', 'High-density sponge', 'Vibrant colors'),
   JSON_ARRAY('All vehicles'),
-  4.9, 18, 1, 0.15, 0.33, '25x18x5', '9.8x7.1x2.0',
+  4.9, 18, 100, 0.15, 0.33, '25x18x5', '9.8x7.1x2.0',
   NULL,
   NULL,
   NULL,
@@ -2496,8 +2411,8 @@ INSERT INTO products (
     'manufacturer', 'Purestar'
   ),
   JSON_ARRAY(
-    JSON_OBJECT('name', 'Purple', 'value', 'purple', 'sku', 'CAD-114-V-PURPLE', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada%20Products/ULTRA%20SOFT%20COLOR-POP%20WASH%20MITT/ssum_colorpop-mitt_purple_720x.webp', 'price', 13.99, 'weight_kg', 0.15, 'weight_lb', 0.33, 'dimensions', '25x18x5', 'dimensions_imperial', '9.8x7.1x2.0'),
-    JSON_OBJECT('name', 'Green', 'value', 'green', 'sku', 'CAD-114-V-GREEN', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada%20Products/ULTRA%20SOFT%20COLOR-POP%20WASH%20MITT/ssum_colorpop-mitt_green_720x.webp', 'price', 13.99, 'weight_kg', 0.15, 'weight_lb', 0.33, 'dimensions', '25x18x5', 'dimensions_imperial', '9.8x7.1x2.0')
+    JSON_OBJECT('name', 'Purple', 'value', 'purple', 'sku', 'CAD-114-V-PURPLE', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada%20Products/ULTRA%20SOFT%20COLOR-POP%20WASH%20MITT/ssum_colorpop-mitt_purple_720x.webp', 'price', 13.99, 'stock', 100, 'in_stock', 1, 'weight_kg', 0.15, 'weight_lb', 0.33, 'dimensions', '25x18x5', 'dimensions_imperial', '9.8x7.1x2.0'),
+    JSON_OBJECT('name', 'Green', 'value', 'green', 'sku', 'CAD-114-V-GREEN', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada%20Products/ULTRA%20SOFT%20COLOR-POP%20WASH%20MITT/ssum_colorpop-mitt_green_720x.webp', 'price', 13.99, 'stock', 100, 'in_stock', 1, 'weight_kg', 0.15, 'weight_lb', 0.33, 'dimensions', '25x18x5', 'dimensions_imperial', '9.8x7.1x2.0')
   ),
   NULL,
   JSON_ARRAY(
@@ -2537,7 +2452,7 @@ INSERT INTO products (
   NULL,
   JSON_ARRAY('100% Cotton', 'Pre-shrunk', 'Double sided logo'),
   JSON_ARRAY('N/A'),
-  5.0, 15, 1, 0.25, 0.55, '30x25x2', '11.8x9.8x0.8',
+  5.0, 15, 100, 0.25, 0.55, '30x25x2', '11.8x9.8x0.8',
   NULL,
   NULL,
   NULL,
@@ -2547,7 +2462,7 @@ INSERT INTO products (
     'manufacturer', 'DETAIL GUARDZ Canada'
   ),
   JSON_ARRAY(
-    JSON_OBJECT('name', 'White', 'value', 'white', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada%20Products/APPAREL%20%20MERCHANDISE/TDGSHORTSLEEVESHIRT-WHITE_720x.webp', 'price', 24.99)
+    JSON_OBJECT('name', 'White', 'value', 'white', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada%20Products/APPAREL%20%20MERCHANDISE/TDGSHORTSLEEVESHIRT-WHITE_720x.webp', 'price', 24.99, 'stock', 100, 'in_stock', 1)
   ),
   NULL,
   JSON_ARRAY(
@@ -2593,7 +2508,7 @@ INSERT INTO products (
   NULL,
   JSON_ARRAY('11oz Capacity', 'Premium Ceramic', 'Classic Logo'),
   JSON_ARRAY('N/A'),
-  4.9, 22, 1, 0.4, 0.88, '12x12x12', '4.7x4.7x4.7',
+  4.9, 22, 100, 0.4, 0.88, '12x12x12', '4.7x4.7x4.7',
   NULL,
   NULL,
   NULL,
@@ -2641,7 +2556,7 @@ INSERT INTO products (
   NULL,
   JSON_ARRAY('13"x19" Size', 'High quality print', 'Classic motion design'),
   JSON_ARRAY('N/A'),
-  4.8, 10, 1, 0.3, 0.66, '48x33x0.5', '18.9x13x0.2',
+  4.8, 10, 100, 0.3, 0.66, '48x33x0.5', '18.9x13x0.2',
   NULL,
   NULL,
   NULL,
@@ -2689,7 +2604,7 @@ INSERT INTO products (
   NULL,
   JSON_ARRAY('Added padding', 'Durable surface', 'Non-slip base'),
   JSON_ARRAY('N/A'),
-  4.7, 14, 1, 0.2, 0.44, '25x20x0.5', '9.8x7.9x0.2',
+  4.7, 14, 100, 0.2, 0.44, '25x20x0.5', '9.8x7.9x0.2',
   NULL,
   NULL,
   NULL,
@@ -2737,7 +2652,7 @@ INSERT INTO products (
   NULL,
   JSON_ARRAY('Lobster closure clasp', 'UV resistant materials', 'Vibrant blue color'),
   JSON_ARRAY('N/A'),
-  5.0, 8, 1, 0.05, 0.11, '20x5x1', '7.9x2x0.4',
+  5.0, 8, 100, 0.05, 0.11, '20x5x1', '7.9x2x0.4',
   NULL,
   NULL,
   NULL,
@@ -2907,66 +2822,7 @@ ON DUPLICATE KEY UPDATE tax_rate = VALUES(tax_rate);
 -- ------------------------------------------------------------
 
 
--- ------------------------------------------------------------
--- 29. RETURN REQUESTS (Customer-initiated returns)
--- ------------------------------------------------------------
-DROP TABLE IF EXISTS return_requests;
-CREATE TABLE return_requests (
-  id               CHAR(36)      PRIMARY KEY DEFAULT (UUID()),
-  order_id         CHAR(36)      NOT NULL,
-  customer_id      CHAR(36)      DEFAULT NULL,
-  items            JSON          NOT NULL, -- Array of { sku, quantity }
-  reason_code      VARCHAR(100)  NOT NULL,
-  customer_feedback TEXT         DEFAULT NULL,
-  status           ENUM('pending', 'approved', 'rejected') DEFAULT 'pending',
-  created_at       DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at       DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
-  FOREIGN KEY (customer_id) REFERENCES users(id) ON DELETE SET NULL,
-  INDEX idx_return_order (order_id),
-  INDEX idx_return_status (status)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- ------------------------------------------------------------
--- 28. FINAL CLEANUP
--- ------------------------------------------------------------
-
--- ------------------------------------------------------------
--- 23. CONTACT TICKETS (Customer Queries)
--- ------------------------------------------------------------
-DROP TABLE IF EXISTS contact_tickets;
-CREATE TABLE contact_tickets (
-  id               CHAR(36)      PRIMARY KEY DEFAULT (UUID()),
-  ticket_number    VARCHAR(20)   NOT NULL UNIQUE,
-  name             VARCHAR(255)  NOT NULL,
-  email            VARCHAR(255)  NOT NULL,
-  subject          VARCHAR(255)  NOT NULL,
-  message          TEXT          NOT NULL,
-  country          VARCHAR(10)   NOT NULL DEFAULT 'US',
-  status           ENUM('open', 'in_progress', 'resolved', 'closed') DEFAULT 'open',
-  priority         ENUM('low', 'medium', 'high', 'urgent') DEFAULT 'medium',
-  source           VARCHAR(50)   DEFAULT 'web_form',
-  assigned_to      CHAR(36)      DEFAULT NULL,
-  internal_notes   TEXT          DEFAULT NULL,
-  response_message TEXT          DEFAULT NULL,
-  responded_at     DATETIME      DEFAULT NULL,
-  created_at       DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at       DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  FOREIGN KEY (assigned_to) REFERENCES users(id) ON DELETE SET NULL,
-  INDEX idx_ticket_email (email),
-  INDEX idx_ticket_status (status),
-  INDEX idx_ticket_country (country),
-  INDEX idx_ticket_created (created_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-DROP TABLE IF EXISTS ticket_sequences;
-CREATE TABLE ticket_sequences (
-  year         INT NOT NULL,
-  month        INT NOT NULL,
-  last_number  INT NOT NULL DEFAULT 0,
-  prefix       VARCHAR(10) DEFAULT 'TK',
-  PRIMARY KEY (year, month)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- (Duplicate return/ticket definitions removed)
 
 
 -- ------------------------------------------------------------
@@ -2984,24 +2840,33 @@ BEGIN
 END //
 
 DROP PROCEDURE IF EXISTS generate_order_number //
-CREATE PROCEDURE generate_order_number(IN p_country VARCHAR(10), OUT new_order_number VARCHAR(25))
+CREATE PROCEDURE generate_order_number(IN p_country VARCHAR(10), IN p_is_fake BOOLEAN, OUT new_order_number VARCHAR(25))
 BEGIN
   DECLARE next_number INT;
   DECLARE v_prefix    VARCHAR(10);
   
-  IF p_country = 'CA' THEN
+  -- Logic for isolated Test Orders (FAKE)
+  IF p_is_fake THEN
+      SET v_prefix = IF(p_country = 'CA', 'DG-FAKE-', 'NDUS-FAKE-');
+      INSERT INTO order_sequences (year, month, last_number, prefix)
+        VALUES (9, 9, 25001, v_prefix)
+      ON DUPLICATE KEY UPDATE last_number = last_number + 1;
+      SELECT last_number INTO next_number FROM order_sequences WHERE year = 9 AND month = 9;
+  
+  -- Normal Canadian Orders
+  ELSEIF p_country = 'CA' THEN
       SET v_prefix = 'DG-';
       INSERT INTO order_sequences (year, month, last_number, prefix)
         VALUES (1, 1, 10001, v_prefix)
       ON DUPLICATE KEY UPDATE last_number = last_number + 1;
-      
       SELECT last_number INTO next_number FROM order_sequences WHERE year = 1 AND month = 1;
+  
+  -- Normal USA Orders
   ELSE
       SET v_prefix = 'NDUS-';
       INSERT INTO order_sequences (year, month, last_number, prefix)
         VALUES (2, 1, 50001, v_prefix)
       ON DUPLICATE KEY UPDATE last_number = last_number + 1;
-      
       SELECT last_number INTO next_number FROM order_sequences WHERE year = 2 AND month = 1;
   END IF;
   

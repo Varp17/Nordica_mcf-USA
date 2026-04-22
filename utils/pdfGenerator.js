@@ -7,7 +7,12 @@ import { PassThrough } from "stream";
  * Generates professional, high-fidelity PDF invoices for Nordica Ecom / Detail Guardz.
  */
 
-const LOGO_TEXT = "DETAIL GUARDZ";
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const LOGO_PATH = path.join(__dirname, '../../admin-frontend/public/logo.png');
+
 const PRIMARY_COLOR = "#2563eb"; // Modern Blue
 const TEXT_COLOR = "#1f2937";
 const LIGHT_GRAY = "#f3f4f6";
@@ -49,7 +54,11 @@ function formatDate(date) {
  */
 function drawInvoice(doc, data) {
   // --- HEADER ---
-  doc.fontSize(24).fillColor(PRIMARY_COLOR).font('Helvetica-Bold').text(LOGO_TEXT, 50, 50);
+  try {
+    doc.image(LOGO_PATH, 50, 45, { width: 120 });
+  } catch (err) {
+    doc.fontSize(24).fillColor(PRIMARY_COLOR).font('Helvetica-Bold').text("DETAIL GUARDZ", 50, 50);
+  }
 
   doc
     .fontSize(10)

@@ -208,4 +208,54 @@ router.get('/:id/pdf', async (req, res) => {
     }
 });
 
+/**
+ * GET /api/admin/invoices/order/:orderId/view
+ * View invoice PDF by Order ID (used by order manifest)
+ */
+router.get('/order/:orderId/view', async (req, res) => {
+    try {
+        const { orderId } = req.params;
+        const { token } = req.query;
+
+        // If direct browser link (with token query param) or standard header
+        const authToken = token || req.headers.authorization?.split(' ')[1];
+        if (!authToken) {
+            return res.status(401).json({ error: 'Authorization header or token missing' });
+        }
+
+        // Fetch invoice for this order
+        const [rows] = await db.execute('SELECT pdf_url, invoice_number, id FROM invoices WHERE order_id = ?', [orderId]);
+        
+        if (rows.length === 0 || !rows[0].pdf_url) {
+            // Attempt to generate if missing (Safety fallback)
+            logger.info(`Invoice missing for order ${orderId}, attempting on-demand generation`);
+            const genResult = await invoiceService.createInvoiceFromOrder(orderId);
+            if (!genResult.success) {
+                return res.status(404).json({ error: 'Invoice PDF not found and could not be generated' });
+            }
+            return res.redirect(genResult.s3Url);
+        }
+
+        const pdfUrl = rows[0].pdf_url;
+
+        // If it's an S3 URL, redirect immediately
+        if (pdfUrl.startsWith('http')) {
+            return res.redirect(pdfUrl);
+        }
+
+        // Otherwise, serve from local file system
+        const relativePath = pdfUrl.startsWith('/') ? pdfUrl.substring(1) : pdfUrl;
+        const filePath = path.join(process.cwd(), relativePath);
+
+        if (fs.existsSync(filePath)) {
+            res.download(filePath, `invoice_${rows[0].invoice_number}.pdf`);
+        } else {
+            res.status(404).json({ error: 'Invoice PDF file not found locally' });
+        }
+    } catch (error) {
+        logger.error('Error viewing order invoice:', error);
+        res.status(500).json({ error: 'Failed to view invoice' });
+    }
+});
+
 export default router;

@@ -472,6 +472,12 @@ router.post('/capture', async (req, res) => {
       [captureId, isVerified, order.id]
     );
 
+    // Mark lead as recovered if it exists
+    await connection.execute(
+      "UPDATE abandoned_checkouts SET status = 'recovered', order_id = ? WHERE email = ? AND status = 'pending'",
+      [order.id, order.customer_email]
+    ).catch(e => logger.warn(`Lead recovery update failed for ${order.customer_email}: ${e.message}`));
+
     await connection.commit();
     connection = null;
 
@@ -530,6 +536,8 @@ router.post('/capture', async (req, res) => {
           `UPDATE orders SET payment_status = 'failed', notes = ?, updated_at = NOW() WHERE id = ? AND payment_status != 'paid'`,
           [`Payment capture failed: ${errorMsg}`, order.id]
         );
+        // Notify customer
+        emailService.sendPaymentFailureEmail(order, errorMsg).catch(e => logger.error(`Failed to send payment failure email: ${e.message}`));
       } catch (updateErr) {
         logger.error(`Failed to update order status after capture failure: ${updateErr.message}`);
       }

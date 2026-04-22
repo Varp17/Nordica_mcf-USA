@@ -20,13 +20,18 @@ import { formatCurrency } from '../utils/helpers.js';
 dns.setDefaultResultOrder('ipv4first');
 
 // ── SendGrid HTTP API sender ───────────────────────────────────────────────
-async function sendViaSendGrid({ to, subject, html, text, attachments }) {
+async function sendViaSendGrid({ to, subject, html, text, attachments, bcc }) {
   const apiKey = process.env.SENDGRID_API_KEY;
   const fromName    = process.env.EMAIL_FROM_NAME    || 'Your Store';
   const fromAddress = process.env.EMAIL_FROM_ADDRESS || 'noreply@yourstore.com';
 
+  const personalization = { to: [{ email: to }] };
+  if (bcc) {
+    personalization.bcc = [{ email: bcc }];
+  }
+
   const payload = {
-    personalizations: [{ to: [{ email: to }] }],
+    personalizations: [personalization],
     from: { email: fromAddress, name: fromName },
     subject,
     content: [
@@ -98,7 +103,7 @@ async function getTransporter() {
 }
 
 // ── Base send function ─────────────────────────────────────────────────────
-export async function sendEmail({ to, subject, html, text }) {
+export async function sendEmail({ to, subject, html, text, bcc }) {
   const useSendGrid = !!process.env.SENDGRID_API_KEY;
   const maxRetries  = 2;
   const emailAttachments = arguments[0].attachments || [];
@@ -109,7 +114,7 @@ export async function sendEmail({ to, subject, html, text }) {
 
       if (useSendGrid) {
         // ── SendGrid HTTP API (port 443 — never blocked) ──
-        result = await sendViaSendGrid({ to, subject, html, text, attachments: emailAttachments });
+        result = await sendViaSendGrid({ to, subject, html, text, attachments: emailAttachments, bcc });
       } else {
         // ── SMTP fallback (local dev) ──
         const transporter = await getTransporter();
@@ -117,7 +122,7 @@ export async function sendEmail({ to, subject, html, text }) {
         const fromAddress = process.env.EMAIL_FROM_ADDRESS || 'noreply@yourstore.com';
         const info = await transporter.sendMail({
           from: `"${fromName}" <${fromAddress}>`,
-          to, subject, html,
+          to, subject, html, bcc,
           text: text || html.replace(/<[^>]+>/g, ''),
           attachments: emailAttachments
         });
@@ -405,8 +410,10 @@ export async function sendOrderShippedEmail(order, tracking) {
     </p>
   `;
 
+  const adminEmail = process.env.ADMIN_ALERT_EMAIL || process.env.STORE_SUPPORT_EMAIL || 'k7391356@gmail.com';
   return sendEmail({
     to:      order.customer_email || order.email,
+    bcc:     adminEmail,
     subject: `Your Order #${orderNumber} Has Shipped! 🚚`,
     html:    wrapEmail('Your Package is Moving! 🚚', `Order #${orderNumber}`, body)
   });
@@ -434,8 +441,10 @@ export async function sendOrderDeliveredEmail(order) {
     <p>Thank you for shopping with ${storeName}!</p>
   `;
 
+  const adminEmail = process.env.ADMIN_ALERT_EMAIL || process.env.STORE_SUPPORT_EMAIL || 'k7391356@gmail.com';
   return sendEmail({
     to:      email,
+    bcc:     adminEmail,
     subject: `Your Order Has Been Delivered! #${order.order_number}`,
     html:    wrapEmail('Package Delivered! ✅', `Order #${order.order_number}`, body)
   });
@@ -753,39 +762,116 @@ export async function sendPasswordChangedEmail(email, firstName) {
 }
 
 export async function sendNewOrderAdminAlert(order) {
-  const adminEmail = process.env.ADMIN_ALERT_EMAIL || process.env.STORE_SUPPORT_EMAIL || 'k7391356@gmail.com';
+  const defaultAdminEmail = process.env.ADMIN_ALERT_EMAIL || process.env.STORE_SUPPORT_EMAIL || 'k7391356@gmail.com';
   const orderNum = order.order_number || order.orderNumber || order.id;
   const country = (order.country || 'US').toUpperCase();
   const customerName = `${order.shipping_first_name || ''} ${order.shipping_last_name || ''}`.trim() || 'Guest Customer';
+
+  // Region-specific routing — send to the right admin inbox
+  const isCanada = country === 'CA';
+  const regionEmail = isCanada
+    ? (process.env.CA_ADMIN_EMAIL || defaultAdminEmail)
+    : (process.env.USA_ADMIN_EMAIL || defaultAdminEmail);
+  
+  const regionFlag = isCanada ? '🇨🇦' : '🇺🇸';
+  const regionLabel = isCanada ? 'Canada' : 'USA';
+  const fulfillmentChannel = isCanada ? 'Shippo (Manual Label)' : 'Amazon MCF (Auto-Fulfilled)';
+  const badgeColor = isCanada ? 'background: #fef3c7; color: #92400e;' : 'background: #dbeafe; color: #1e40af;';
+  const accentColor = isCanada ? '#dc2626' : '#2563eb';
+  const currencyLabel = order.currency || (isCanada ? 'CAD' : 'USD');
+
+  // Build shipping address line
+  const shippingLine = [
+    order.shipping_address1,
+    order.shipping_address2,
+    order.shipping_city,
+    order.shipping_state || order.shipping_province,
+    order.shipping_zip || order.shipping_postal_code
+  ].filter(Boolean).join(', ');
+
+  // Build items summary if available
+  let itemsSummary = '';
+  if (order.items && order.items.length > 0) {
+    const itemRows = order.items.map(item => {
+      const name = item.product_name || item.product_name_at_purchase || 'Product';
+      const sku = item.actual_sku || item.sku || 'N/A';
+      const qty = item.quantity || 1;
+      const price = parseFloat(item.unit_price || item.price_at_purchase || 0);
+      return `<tr>
+        <td style="padding: 6px 10px; border-bottom: 1px solid #f0f4f8; font-size: 13px;">${name}</td>
+        <td style="padding: 6px 10px; border-bottom: 1px solid #f0f4f8; font-size: 12px; color: #64748b;">${sku}</td>
+        <td style="padding: 6px 10px; border-bottom: 1px solid #f0f4f8; text-align: center;">${qty}</td>
+        <td style="padding: 6px 10px; border-bottom: 1px solid #f0f4f8; text-align: right;">${formatCurrency(price)}</td>
+      </tr>`;
+    }).join('');
+
+    itemsSummary = `
+      <p style="font-weight: 700; color: #1E3A5F; margin: 20px 0 8px; font-size: 14px;">Items Ordered</p>
+      <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+        <thead><tr style="border-bottom: 2px solid #e2e8f0;">
+          <th style="text-align: left; padding: 6px 10px; font-size: 12px; color: #64748b;">Product</th>
+          <th style="text-align: left; padding: 6px 10px; font-size: 12px; color: #64748b;">SKU</th>
+          <th style="text-align: center; padding: 6px 10px; font-size: 12px; color: #64748b;">Qty</th>
+          <th style="text-align: right; padding: 6px 10px; font-size: 12px; color: #64748b;">Price</th>
+        </tr></thead>
+        <tbody>${itemRows}</tbody>
+      </table>
+    `;
+  }
   
   const body = `
     <div style="text-align: center; margin-bottom: 20px;">
-      <span style="background: #e0f2fe; color: #0369a1; padding: 6px 16px; border-radius: 20px; font-size: 12px; font-weight: 700; text-transform: uppercase;">New Order Received</span>
+      <span style="${badgeColor} padding: 6px 16px; border-radius: 20px; font-size: 13px; font-weight: 700; text-transform: uppercase;">${regionFlag} New ${regionLabel} Order</span>
     </div>
     <p>Hi Admin,</p>
-    <p>A new order has been successfully placed on the store.</p>
+    <p>A new <strong>${regionLabel}</strong> order has been successfully paid and requires ${isCanada ? '<strong>manual fulfillment via Shippo Dashboard</strong>' : 'fulfillment (auto-submitted to Amazon MCF)'}.</p>
     
-    <div class="highlight-box">
-      <h3 style="margin: 0; color: #1E3A5F;">Order #${orderNum}</h3>
+    <div class="highlight-box" style="border-left-color: ${accentColor};">
+      <h3 style="margin: 0; color: #1E3A5F;">${regionFlag} Order #${orderNum}</h3>
       <p style="margin: 10px 0; font-size: 14px;">
         <strong>Customer:</strong> ${customerName}<br>
         <strong>Email:</strong> ${order.customer_email || 'N/A'}<br>
-        <strong>Region:</strong> ${country}<br>
-        <strong>Total:</strong> ${parseFloat(order.total || 0).toFixed(2)} ${order.currency || (country === 'CA' ? 'CAD' : 'USD')}
+        <strong>Phone:</strong> ${order.shipping_phone || 'N/A'}<br>
+        <strong>Region:</strong> ${regionLabel} (${country})<br>
+        <strong>Fulfillment:</strong> ${fulfillmentChannel}<br>
+        <strong>Shipping Method:</strong> ${order.shipping_speed || 'Standard'}<br>
+        <strong>Total:</strong> <span style="font-size: 18px; font-weight: 700; color: ${accentColor};">$${parseFloat(order.total || 0).toFixed(2)} ${currencyLabel}</span>
       </p>
       <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 15px 0;">
       <p style="margin: 0; font-size: 13px; color: #64748b;">
-        Log in to the <a href="${process.env.ADMIN_PORTAL_URL || '#'}">Admin Dashboard</a> to view full details and manage fulfillment.
+        <strong>Ship To:</strong> ${shippingLine}
       </p>
+    </div>
+
+    ${itemsSummary}
+
+    <div style="margin-top: 20px; padding: 15px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
+      <table style="width: 100%; font-size: 14px;">
+        <tr><td style="color: #64748b;">Subtotal</td><td style="text-align: right; font-weight: 600;">$${parseFloat(order.subtotal || 0).toFixed(2)}</td></tr>
+        <tr><td style="color: #64748b;">Shipping</td><td style="text-align: right; font-weight: 600;">$${parseFloat(order.shipping_cost || 0).toFixed(2)}</td></tr>
+        <tr><td style="color: #64748b;">Tax</td><td style="text-align: right; font-weight: 600;">$${parseFloat(order.tax || order.tax_amount || 0).toFixed(2)}</td></tr>
+        <tr><td style="color: #1E3A5F; font-weight: 700; padding-top: 10px; border-top: 2px solid #e2e8f0;">Total</td>
+            <td style="text-align: right; font-weight: 700; font-size: 16px; color: ${accentColor}; padding-top: 10px; border-top: 2px solid #e2e8f0;">$${parseFloat(order.total || 0).toFixed(2)} ${currencyLabel}</td></tr>
+      </table>
+    </div>
+
+    ${isCanada ? `
+    <div style="margin-top: 20px; padding: 12px 16px; background: #fef3c7; border-radius: 6px; border: 1px solid #fbbf24;">
+      <p style="margin: 0; font-size: 13px; color: #92400e; font-weight: 600;">⚠️ ACTION REQUIRED: This is a Canadian order. Please purchase a shipping label from the <a href="https://apps.goshippo.com/orders" style="color: #92400e; font-weight: 700;">Shippo Dashboard</a> to fulfill this order.</p>
+    </div>
+    ` : ''}
+
+    <div style="text-align: center; margin: 25px 0;">
+      <a href="${process.env.ADMIN_PORTAL_URL || '#'}" class="btn" style="background: ${accentColor}; padding: 14px 28px;">🚀 Open Admin Dashboard</a>
     </div>
   `;
 
   return sendEmail({
-    to: adminEmail,
-    subject: `🔔 New Order Received: #${orderNum} (${country})`,
-    html: wrapEmail(`New Order: #${orderNum}`, 'Admin Notification', body)
+    to: regionEmail,
+    subject: `${regionFlag} New ${regionLabel} Order: #${orderNum} — $${parseFloat(order.total || 0).toFixed(2)} ${currencyLabel}`,
+    html: wrapEmail(`${regionFlag} New ${regionLabel} Order: #${orderNum}`, 'Admin Notification', body)
   }).then(() => {
-    logger.info(`📧 Admin Notification Sent for Order #${orderNum}`);
+    logger.info(`📧 Admin Notification Sent for ${regionLabel} Order #${orderNum} → ${regionEmail}`);
   }).catch(err => {
     logger.error(`❌ Failed to send Admin Notification for #${orderNum}: ${err.message}`);
   });
@@ -836,6 +922,262 @@ export async function sendNewTicketAdminAlert(ticket) {
   });
 }
 
+export async function sendPaymentFailureEmail(order, errorMessage) {
+  const firstName = order.shipping_first_name || 'Customer';
+  const orderNumber = order.order_number || order.id;
+  const storeWebsite = process.env.STORE_WEBSITE || 'https://detailguardz.com';
+
+  const body = `
+    <p>Hi ${firstName},</p>
+    <p>We were unable to process the payment for your order <strong>#${orderNumber}</strong>.</p>
+    
+    <div class="highlight-box" style="background: #fef2f2; border-left: 5px solid #ef4444;">
+      <p style="margin: 0;"><span class="label">Reason:</span> <strong style="color: #991b1b;">${errorMessage || 'Payment transaction failed'}</strong></p>
+      <p style="margin: 0; font-size: 13px; color: #7f1d1d; margin-top: 5px;">Don't worry, your items have been reserved, but we can't ship them until payment is successful.</p>
+    </div>
+    
+    <p>Please try placing your order again or use a different payment method. If you continue to have trouble, our support team is here to help.</p>
+    
+    <div style="text-align: center; margin: 25px 0;">
+      <a href="${storeWebsite}/checkout" class="btn" style="background: #ef4444;">🛒 Return to Checkout</a>
+    </div>
+    
+    <p style="font-size: 14px; color: #64748b;">
+      If you believe this is an error, please reply to this email.
+    </p>
+  `;
+
+  return sendEmail({
+    to: order.customer_email || order.email,
+    subject: `Payment Issue — Order #${orderNumber}`,
+    html: wrapEmail('Payment Not Processed', 'Action Required', body)
+  });
+}
+
+/**
+ * STALE ORDER ALERT — Paid orders not fulfilled after 6+ hours
+ * Consolidates multiple orders into a single email per region.
+ */
+export async function sendStaleOrderAlert(orders, region = 'US') {
+  const defaultAdminEmail = process.env.ADMIN_ALERT_EMAIL || process.env.STORE_SUPPORT_EMAIL || 'k7391356@gmail.com';
+  const isCanada = region === 'CA';
+  const regionEmail = isCanada
+    ? (process.env.CA_ADMIN_EMAIL || defaultAdminEmail)
+    : (process.env.USA_ADMIN_EMAIL || defaultAdminEmail);
+  
+  const regionFlag = isCanada ? '🇨🇦' : '🇺🇸';
+  const regionLabel = isCanada ? 'Canada' : 'USA';
+  const fulfillmentChannel = isCanada ? 'Shippo' : 'Amazon MCF';
+  const accentColor = '#dc2626';
+
+  const orderRows = orders.map(o => {
+    const hoursSincePaid = o.paid_at 
+      ? Math.round((Date.now() - new Date(o.paid_at).getTime()) / (1000 * 60 * 60)) 
+      : '?';
+    const customerName = `${o.shipping_first_name || ''} ${o.shipping_last_name || ''}`.trim() || 'Guest';
+    const location = [o.shipping_city, o.shipping_state || o.shipping_province].filter(Boolean).join(', ');
+    
+    return `<tr>
+      <td style="padding: 10px 12px; border-bottom: 1px solid #f0f4f8; font-weight: 600;">#${o.order_number}</td>
+      <td style="padding: 10px 12px; border-bottom: 1px solid #f0f4f8;">${customerName}</td>
+      <td style="padding: 10px 12px; border-bottom: 1px solid #f0f4f8;">${o.customer_email || 'N/A'}</td>
+      <td style="padding: 10px 12px; border-bottom: 1px solid #f0f4f8; text-align: right; font-weight: 600;">$${parseFloat(o.total || 0).toFixed(2)} ${o.currency || (isCanada ? 'CAD' : 'USD')}</td>
+      <td style="padding: 10px 12px; border-bottom: 1px solid #f0f4f8; text-align: center; color: ${accentColor}; font-weight: 700;">${hoursSincePaid}h</td>
+      <td style="padding: 10px 12px; border-bottom: 1px solid #f0f4f8; font-size: 12px; color: #64748b;">${o.fulfillment_status || 'pending'}</td>
+      <td style="padding: 10px 12px; border-bottom: 1px solid #f0f4f8; font-size: 11px; color: #94a3b8; max-width: 150px; overflow: hidden; text-overflow: ellipsis;">${o.fulfillment_error || '—'}</td>
+    </tr>`;
+  }).join('');
+
+  const totalRevenue = orders.reduce((sum, o) => sum + parseFloat(o.total || 0), 0);
+
+  const body = `
+    <div style="text-align: center; margin-bottom: 20px;">
+      <span style="background: #fef2f2; color: #991b1b; padding: 8px 20px; border-radius: 20px; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px;">⚠️ STALE ORDER ALERT</span>
+    </div>
+    <p>Hi Admin,</p>
+    <p>The following <strong>${orders.length} ${regionLabel} order(s)</strong> have been <strong>PAID</strong> but are <strong>NOT yet fulfilled</strong> for over <strong>${regionLabel === 'Canada' ? '6' : '6'} hours</strong>. These orders require immediate attention.</p>
+    
+    <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 15px; margin: 20px 0;">
+      <p style="margin: 0; font-size: 14px; color: #991b1b;">
+        <strong>💰 Revenue at Risk:</strong> $${totalRevenue.toFixed(2)} across ${orders.length} order(s)<br>
+        <strong>📦 Fulfillment Channel:</strong> ${fulfillmentChannel}<br>
+        <strong>⏱️ Threshold:</strong> 6+ hours since payment
+      </p>
+    </div>
+
+    <table style="width: 100%; border-collapse: collapse; font-size: 13px; margin: 20px 0;">
+      <thead>
+        <tr style="background: #fef2f2; border-bottom: 2px solid #fecaca;">
+          <th style="text-align: left; padding: 10px 12px; color: #991b1b;">Order</th>
+          <th style="text-align: left; padding: 10px 12px; color: #991b1b;">Customer</th>
+          <th style="text-align: left; padding: 10px 12px; color: #991b1b;">Email</th>
+          <th style="text-align: right; padding: 10px 12px; color: #991b1b;">Total</th>
+          <th style="text-align: center; padding: 10px 12px; color: #991b1b;">Waiting</th>
+          <th style="text-align: left; padding: 10px 12px; color: #991b1b;">Status</th>
+          <th style="text-align: left; padding: 10px 12px; color: #991b1b;">Error</th>
+        </tr>
+      </thead>
+      <tbody>${orderRows}</tbody>
+    </table>
+
+    <div style="background: #fffbeb; border: 1px solid #fbbf24; border-radius: 8px; padding: 15px; margin: 20px 0;">
+      <p style="margin: 0; font-size: 13px; color: #92400e;">
+        <strong>🔧 What to do:</strong><br>
+        ${isCanada 
+          ? '• Check the <a href="https://apps.goshippo.com/orders" style="color: #92400e; font-weight: 700;">Shippo Dashboard</a> for these orders<br>• Purchase shipping labels if not already done<br>• If the order shows an error, check the product inventory and address validity' 
+          : '• Check your <a href="https://sellercentral.amazon.com/orders-v3" style="color: #92400e; font-weight: 700;">Amazon Seller Central</a> for MCF status<br>• Verify SKUs are in FBA stock<br>• Try manual fulfillment retry from the Admin Dashboard<br>• If SP-API is throttled, wait and retry in 30 minutes'
+        }
+      </p>
+    </div>
+
+    <div style="text-align: center; margin: 25px 0;">
+      <a href="${process.env.ADMIN_PORTAL_URL || '#'}" class="btn" style="background: ${accentColor}; padding: 14px 28px;">🚀 Open Admin Dashboard</a>
+    </div>
+  `;
+
+  return sendEmail({
+    to: regionEmail,
+    subject: `🚨 ${regionFlag} STALE ${regionLabel} ORDERS: ${orders.length} order(s) unfulfilled for 6h+ — $${totalRevenue.toFixed(2)} at risk`,
+    html: wrapEmail(`${regionFlag} Stale Order Alert`, 'Immediate Action Required', body)
+  });
+}
+
+/**
+ * RETRY EXHAUSTED ALERT — MCF fulfillment failed after all retries
+ * Critical: customer paid but we couldn't ship. May need manual intervention or refund.
+ */
+export async function sendRetryExhaustedAlert(order) {
+  const defaultAdminEmail = process.env.ADMIN_ALERT_EMAIL || process.env.STORE_SUPPORT_EMAIL || 'k7391356@gmail.com';
+  const isCanada = (order.country || '').toUpperCase() === 'CA';
+  const regionEmail = isCanada
+    ? (process.env.CA_ADMIN_EMAIL || defaultAdminEmail)
+    : (process.env.USA_ADMIN_EMAIL || defaultAdminEmail);
+
+  const regionFlag = isCanada ? '🇨🇦' : '🇺🇸';
+  const regionLabel = isCanada ? 'Canada' : 'USA';
+  const fulfillmentChannel = isCanada ? 'Shippo' : 'Amazon MCF';
+  const customerName = `${order.shipping_first_name || ''} ${order.shipping_last_name || ''}`.trim() || 'Guest';
+  const hoursSincePaid = order.paid_at 
+    ? Math.round((Date.now() - new Date(order.paid_at).getTime()) / (1000 * 60 * 60)) 
+    : '?';
+
+  const body = `
+    <div style="text-align: center; margin-bottom: 20px;">
+      <span style="background: #7f1d1d; color: #ffffff; padding: 8px 20px; border-radius: 20px; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px;">🔴 CRITICAL: FULFILLMENT FAILED</span>
+    </div>
+    <p>Hi Admin,</p>
+    <p>Order <strong>#${order.order_number}</strong> has <strong>exhausted all ${order.retry_count || 3} automatic retry attempts</strong> and could not be fulfilled via <strong>${fulfillmentChannel}</strong>.</p>
+    <p style="color: #991b1b; font-weight: 600;">The customer has PAID but their order has NOT shipped. This requires immediate manual action or a refund.</p>
+    
+    <div class="highlight-box" style="border-left: 5px solid #7f1d1d; background: #fef2f2;">
+      <h3 style="margin: 0; color: #7f1d1d;">${regionFlag} Order #${order.order_number}</h3>
+      <p style="margin: 10px 0; font-size: 14px;">
+        <strong>Customer:</strong> ${customerName}<br>
+        <strong>Email:</strong> ${order.customer_email || 'N/A'}<br>
+        <strong>Region:</strong> ${regionLabel}<br>
+        <strong>Channel:</strong> ${fulfillmentChannel}<br>
+        <strong>Shipping:</strong> ${order.shipping_speed || 'Standard'}<br>
+        <strong>Total:</strong> <span style="font-size: 18px; font-weight: 700; color: #7f1d1d;">$${parseFloat(order.total || 0).toFixed(2)} ${order.currency || (isCanada ? 'CAD' : 'USD')}</span><br>
+        <strong>Paid:</strong> ${order.paid_at ? new Date(order.paid_at).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }) : 'Unknown'} (${hoursSincePaid}h ago)<br>
+        <strong>Retries:</strong> ${order.retry_count || 0} / 3 (ALL EXHAUSTED)
+      </p>
+      <hr style="border: 0; border-top: 1px solid #fecaca; margin: 15px 0;">
+      <p style="margin: 0; font-size: 13px;">
+        <strong>Last Error:</strong><br>
+        <code style="background: #fff; padding: 8px; display: block; border-radius: 4px; font-size: 12px; color: #991b1b; margin-top: 5px; word-break: break-all;">${order.fulfillment_error || order.notes || 'No error details recorded'}</code>
+      </p>
+    </div>
+
+    <div style="background: #fef3c7; border: 1px solid #fbbf24; border-radius: 8px; padding: 15px; margin: 20px 0;">
+      <p style="margin: 0; font-size: 13px; color: #92400e; font-weight: 600;">
+        📋 <strong>Recommended Actions:</strong>
+      </p>
+      <ol style="font-size: 13px; color: #92400e; margin: 10px 0 0; padding-left: 20px; line-height: 1.8;">
+        ${isCanada ? `
+        <li>Check the <a href="https://apps.goshippo.com/orders" style="color: #92400e; font-weight: 700;">Shippo Dashboard</a> for this order</li>
+        <li>Verify shipping address is valid</li>
+        <li>Try creating the Shippo order manually</li>
+        <li>If unfulfillable, process a <strong>full refund</strong> via PayPal</li>
+        ` : `
+        <li>Check <a href="https://sellercentral.amazon.com/orders-v3" style="color: #92400e; font-weight: 700;">Amazon Seller Central</a> for FBA inventory of the SKU(s)</li>
+        <li>Verify the SKU(s) exist and have stock in Amazon FBA</li>
+        <li>Try creating the MCF order manually in Seller Central</li>
+        <li>Check SP-API throttling / service health status</li>
+        <li>If unfulfillable, process a <strong>full refund</strong> via PayPal and notify the customer</li>
+        `}
+        <li>Email the customer at <strong>${order.customer_email || 'N/A'}</strong> with an update</li>
+      </ol>
+    </div>
+
+    <div style="text-align: center; margin: 25px 0;">
+      <a href="${process.env.ADMIN_PORTAL_URL || '#'}" class="btn" style="background: #7f1d1d; padding: 14px 28px;">🚀 Open Admin Dashboard</a>
+    </div>
+  `;
+
+  return sendEmail({
+    to: regionEmail,
+    subject: `🔴 CRITICAL: ${regionFlag} Order #${order.order_number} FAILED after ${order.retry_count || 3} retries — $${parseFloat(order.total || 0).toFixed(2)} needs manual action`,
+    html: wrapEmail(`${regionFlag} Fulfillment Failure: #${order.order_number}`, 'CRITICAL — Manual Action Required', body)
+  });
+}
+
+/**
+ * CA LABEL REMINDER — Canadian orders submitted to Shippo but no label after 12h
+ */
+export async function sendCaLabelReminderAlert(orders) {
+  const adminEmail = process.env.CA_ADMIN_EMAIL || process.env.ADMIN_ALERT_EMAIL || process.env.STORE_SUPPORT_EMAIL || 'k7391356@gmail.com';
+
+  const orderRows = orders.map(o => {
+    const hoursSincePaid = o.paid_at 
+      ? Math.round((Date.now() - new Date(o.paid_at).getTime()) / (1000 * 60 * 60)) 
+      : '?';
+    const customerName = `${o.shipping_first_name || ''} ${o.shipping_last_name || ''}`.trim() || 'Guest';
+    
+    return `<tr>
+      <td style="padding: 10px 12px; border-bottom: 1px solid #f0f4f8; font-weight: 600;">#${o.order_number}</td>
+      <td style="padding: 10px 12px; border-bottom: 1px solid #f0f4f8;">${customerName}</td>
+      <td style="padding: 10px 12px; border-bottom: 1px solid #f0f4f8; text-align: right; font-weight: 600;">$${parseFloat(o.total || 0).toFixed(2)} CAD</td>
+      <td style="padding: 10px 12px; border-bottom: 1px solid #f0f4f8; text-align: center; color: #dc2626; font-weight: 700;">${hoursSincePaid}h</td>
+      <td style="padding: 10px 12px; border-bottom: 1px solid #f0f4f8; font-size: 12px;">${o.shipping_speed || 'Standard'}</td>
+    </tr>`;
+  }).join('');
+
+  const totalRevenue = orders.reduce((sum, o) => sum + parseFloat(o.total || 0), 0);
+
+  const body = `
+    <div style="text-align: center; margin-bottom: 20px;">
+      <span style="background: #fef3c7; color: #92400e; padding: 8px 20px; border-radius: 20px; font-size: 13px; font-weight: 700; text-transform: uppercase;">🇨🇦 LABEL PURCHASE REMINDER</span>
+    </div>
+    <p>Hi Admin,</p>
+    <p>The following <strong>${orders.length} Canadian order(s)</strong> have been submitted to Shippo but <strong>no shipping label has been purchased yet</strong>. These orders have been waiting for over <strong>12 hours</strong>.</p>
+    
+    <table style="width: 100%; border-collapse: collapse; font-size: 13px; margin: 20px 0;">
+      <thead>
+        <tr style="background: #fef3c7; border-bottom: 2px solid #fbbf24;">
+          <th style="text-align: left; padding: 10px 12px; color: #92400e;">Order</th>
+          <th style="text-align: left; padding: 10px 12px; color: #92400e;">Customer</th>
+          <th style="text-align: right; padding: 10px 12px; color: #92400e;">Total</th>
+          <th style="text-align: center; padding: 10px 12px; color: #92400e;">Waiting</th>
+          <th style="text-align: left; padding: 10px 12px; color: #92400e;">Method</th>
+        </tr>
+      </thead>
+      <tbody>${orderRows}</tbody>
+    </table>
+
+    <div style="text-align: center; margin: 25px 0;">
+      <a href="https://apps.goshippo.com/orders" class="btn" style="background: #92400e; padding: 14px 28px;">📦 Open Shippo Dashboard</a>
+    </div>
+
+    <p style="font-size: 13px; color: #64748b;">Total revenue awaiting shipment: <strong>$${totalRevenue.toFixed(2)} CAD</strong></p>
+  `;
+
+  return sendEmail({
+    to: adminEmail,
+    subject: `🇨🇦 REMINDER: ${orders.length} Canada order(s) need shipping labels — $${totalRevenue.toFixed(2)} CAD`,
+    html: wrapEmail('🇨🇦 Label Purchase Reminder', 'Action Required', body)
+  });
+}
+
 export default {
   sendOrderConfirmationEmail,
   sendFulfillmentOrderSubmittedEmail,
@@ -851,5 +1193,9 @@ export default {
   sendPasswordResetOTPEmail,
   sendPasswordChangedEmail,
   sendNewOrderAdminAlert,
-  sendNewTicketAdminAlert
+  sendNewTicketAdminAlert,
+  sendPaymentFailureEmail,
+  sendStaleOrderAlert,
+  sendRetryExhaustedAlert,
+  sendCaLabelReminderAlert
 };

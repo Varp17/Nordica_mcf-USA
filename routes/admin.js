@@ -1013,9 +1013,9 @@ router.put(
             const finalStock = (existingV && existingV.amazon_sku) ? existingV.stock : (parseInt(v.stock) || 0);
             
             // Allow updating SKUs if they change in the payload
-            const finalSku = v.sku || existingV.sku;
-            const finalCanadaSku = v.canada_sku || existingV.canada_sku;
-            const finalAmazonSku = v.amazon_sku || existingV.amazon_sku;
+            const finalSku = v.sku || (existingV ? existingV.sku : null);
+            const finalCanadaSku = v.canada_sku || (existingV ? existingV.canada_sku : null);
+            const finalAmazonSku = v.amazon_sku || (existingV ? existingV.amazon_sku : null);
 
             await connection.execute(
               "UPDATE product_color_variants SET color_name=?, color_code=?, stock=?, price=?, sku=?, canada_sku=?, amazon_sku=?, is_active=1 WHERE id=?",
@@ -1067,20 +1067,22 @@ router.put(
           });
         }
 
-        // 4. Update Aggregate Stock and JSON in parent product
-        const aggregateStock = colorOptionsList.reduce((sum, v) => sum + v.stock, 0);
-        const availability = aggregateStock > 0 ? "In Stock" : "Out of Stock";
-        
-        await connection.execute(
-          "UPDATE products SET color_options = ?, in_stock = ?, inventory_cache = ?, availability = ? WHERE id = ?",
-          [
-            JSON.stringify(colorOptionsList),
-            aggregateStock,
-            aggregateStock,
-            availability,
-            id
-          ]
-        );
+        // 4. Update Aggregate Stock and JSON in parent product (Only if variants were actually synced)
+        if (variants.length > 0) {
+          const aggregateStock = colorOptionsList.reduce((sum, v) => sum + v.stock, 0);
+          const availability = aggregateStock > 0 ? "In Stock" : "Out of Stock";
+          
+          await connection.execute(
+            "UPDATE products SET color_options = ?, in_stock = ?, inventory_cache = ?, availability = ? WHERE id = ?",
+            [
+              JSON.stringify(colorOptionsList),
+              aggregateStock,
+              aggregateStock,
+              availability,
+              id
+            ]
+          );
+        }
       }
 
       await connection.commit();
@@ -2471,7 +2473,6 @@ router.post(
         UPDATE orders
         SET shippo_tracking_number = ?,
             shippo_carrier = ?,
-            shippo_tracking_status = 'UNKNOWN',
             shippo_tracking_raw = ?
         WHERE id = ?
         `,
@@ -2513,12 +2514,17 @@ router.get(
            COALESCE(u.first_name, o.shipping_first_name) as customer_first_name,
            COALESCE(u.last_name, o.shipping_last_name) as customer_last_name,
            COALESCE(u.email, o.customer_email) as customer_email,
+           o.tax as tax_amount,
+           o.shipping_cost as shipping_amount,
+           o.fulfillment_channel,
            (SELECT JSON_ARRAYAGG(
               JSON_OBJECT(
                 'id', oi.id, 
                 'product_id', oi.product_id, 
                 'quantity', oi.quantity, 
                 'price_at_purchase', oi.price_at_purchase, 
+                'unit_price', oi.unit_price,
+                'sku', oi.sku,
                 'product_name_at_purchase', oi.product_name_at_purchase, 
                 'image_url_at_purchase', oi.image_url_at_purchase,
                 'image', p.image

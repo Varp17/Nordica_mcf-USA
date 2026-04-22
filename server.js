@@ -45,12 +45,14 @@ import addressRoutes from './routes/addresses.js';
 import adminOrderRoutes from './routes/adminOrders.js';
 import returnRoutes from './routes/returnRoutes.js';
 import ticketRoutes from './routes/ticketRoutes.js';
+import leadsRoutes from './routes/leads.js';
 
 // ── Background Jobs ───────────────────────────────────────────────────────────
 import trackingPoller from './jobs/trackingPoller.js';
 import inventorySync from './jobs/inventorySync.js';
 import stockRecovery from './jobs/stockRecovery.js';
 import retryFailedFulfillments from './jobs/retryFailedFulfillments.js';
+import fulfillmentMonitor from './jobs/fulfillmentMonitor.js';
 import { startStockMonitoring } from './services/stockService.js';
 
 const app = express();
@@ -72,7 +74,7 @@ app.use(cors({
   origin: allowedOrigins.length > 0 ? allowedOrigins : '*',
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin', 'X-Guest-ID']
 }));
 
 // ── Rate Limiting ─────────────────────────────────────────────────────────────
@@ -148,6 +150,7 @@ app.use('/api/invoices', invoiceRoutes);
 app.use('/api/stock', stockRoutes);
 app.use('/api/returns', returnRoutes);
 app.use('/api/tickets', ticketRoutes);
+app.use('/api/leads', leadsRoutes);
 
 // Debug routes — disabled in production for security
 if (process.env.NODE_ENV !== 'production') {
@@ -245,6 +248,7 @@ async function startServer() {
     inventorySync.startInventorySync();
     stockRecovery.start();
     startStockMonitoring();
+    fulfillmentMonitor.start();
     
     const server = app.listen(PORT, () => {
       logger.info(`✅ Server running on port ${PORT}`);
@@ -263,6 +267,7 @@ async function startServer() {
       retryFailedFulfillments.stop();
       inventorySync.stop();
       stockRecovery.stop?.();
+      fulfillmentMonitor.stop();
       
       // 3. Close database pool
       try { await db.end(); } catch (e) { logger.error(`DB close error: ${e.message}`); }

@@ -66,6 +66,14 @@ export async function retryFailedFulfillments() {
       } catch (err) {
         logger.error(`Background Job: Retry failed for order ${order.order_number}: ${err.message}`);
         
+        // Save fulfillment error to order for diagnostic emails
+        try {
+          await db.execute(
+            'UPDATE orders SET fulfillment_error = ? WHERE id = ?',
+            [err.message?.substring(0, 500) || 'Unknown fulfillment error', order.id]
+          );
+        } catch (_) { /* Non-critical */ }
+
         // If we just hit the MAX_RETRIES (retry_count was updated above), mark as cancelled
         if (order.retry_count + 1 >= MAX_RETRIES) {
           logger.warn(`Background Job: Order ${order.order_number} reached MAX_RETRIES (${MAX_RETRIES}). Cancelling order and restoring stock.`);
@@ -78,6 +86,18 @@ export async function retryFailedFulfillments() {
             await Order.restoreStock(order.id);
             
             logger.info(`Background Job: Order ${order.order_number} auto-cancelled successfully.`);
+
+            // Send critical escalation email to admin
+            try {
+              const emailService = (await import('../services/emailService.js')).default;
+              const cancelledOrder = await Order.findById(order.id);
+              if (cancelledOrder) {
+                await emailService.sendRetryExhaustedAlert(cancelledOrder);
+                logger.info(`Background Job: Retry exhausted alert sent for ${order.order_number}`);
+              }
+            } catch (emailErr) {
+              logger.error(`Background Job: Failed to send retry exhausted alert for ${order.order_number}: ${emailErr.message}`);
+            }
           } catch (cancelErr) {
             logger.error(`Background Job: Failed to auto-cancel order ${order.id}: ${cancelErr.message}`);
           }

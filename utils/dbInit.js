@@ -122,10 +122,33 @@ export async function initializeDatabase(db) {
       { col: 'orders.last_retry_at',     sql: "ALTER TABLE orders ADD COLUMN last_retry_at DATETIME DEFAULT NULL" },
       { col: 'orders.invoice_pdf_url',   sql: "ALTER TABLE orders ADD COLUMN invoice_pdf_url VARCHAR(500) DEFAULT NULL" },
       { col: 'orders.fulfillment_channel', sql: "ALTER TABLE orders ADD COLUMN fulfillment_channel VARCHAR(50) DEFAULT NULL" },
+      { col: 'orders.fulfillment_error',   sql: "ALTER TABLE orders ADD COLUMN fulfillment_error TEXT DEFAULT NULL" },
       // Invoices table
       { col: 'invoices.fulfillment_channel', sql: "ALTER TABLE invoices ADD COLUMN fulfillment_channel VARCHAR(50) DEFAULT NULL" },
       // Performance index for retry job
       { col: 'orders.idx_orders_retry',  sql: "ALTER TABLE orders ADD INDEX idx_orders_retry (fulfillment_status, payment_status, retry_count)" },
+      // Fulfillment Monitor columns (alert deduplication)
+      { col: 'orders.stale_alerted_at',       sql: "ALTER TABLE orders ADD COLUMN stale_alerted_at DATETIME DEFAULT NULL" },
+      { col: 'orders.exhausted_alerted_at',   sql: "ALTER TABLE orders ADD COLUMN exhausted_alerted_at DATETIME DEFAULT NULL" },
+      { col: 'orders.ca_label_reminder_at',   sql: "ALTER TABLE orders ADD COLUMN ca_label_reminder_at DATETIME DEFAULT NULL" },
+      { col: 'orders.is_paypal_verified',     sql: "ALTER TABLE orders ADD COLUMN is_paypal_verified TINYINT(1) DEFAULT 0" },
+      { col: 'orders.paid_at',                sql: "ALTER TABLE orders ADD COLUMN paid_at DATETIME DEFAULT NULL" },
+      { col: 'orders.idx_orders_stale_monitor', sql: "ALTER TABLE orders ADD INDEX idx_orders_stale_monitor (payment_status, fulfillment_status, paid_at, stale_alerted_at)" },
+      // Shippo Order ID (missing in some environments)
+      { col: 'orders.shippo_order_id', sql: "ALTER TABLE orders ADD COLUMN shippo_order_id VARCHAR(100) DEFAULT NULL" },
+      { col: 'orders.cancellation_otp', sql: "ALTER TABLE orders ADD COLUMN cancellation_otp VARCHAR(10) DEFAULT NULL" },
+      { col: 'orders.cancellation_otp_expiry', sql: "ALTER TABLE orders ADD COLUMN cancellation_otp_expiry DATETIME DEFAULT NULL" },
+      // Collation Fixes (to prevent "Illegal mix of collations" errors)
+      { col: 'orders.fix_collation',  sql: "ALTER TABLE orders CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci" },
+      { col: 'return_requests.fix_collation', sql: "ALTER TABLE return_requests CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci" },
+      { col: 'ticket_sequences.fix_collation', sql: "ALTER TABLE ticket_sequences CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci" },
+      { col: 'users.fix_collation', sql: "ALTER TABLE users CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci" },
+      // Contact Tickets Missing Columns
+      { col: 'contact_tickets.source',           sql: "ALTER TABLE contact_tickets ADD COLUMN source VARCHAR(50) DEFAULT 'web_form'" },
+      { col: 'contact_tickets.assigned_to',      sql: "ALTER TABLE contact_tickets ADD COLUMN assigned_to CHAR(36) DEFAULT NULL" },
+      { col: 'contact_tickets.internal_notes',   sql: "ALTER TABLE contact_tickets ADD COLUMN internal_notes TEXT DEFAULT NULL" },
+      { col: 'contact_tickets.response_message', sql: "ALTER TABLE contact_tickets ADD COLUMN response_message TEXT DEFAULT NULL" },
+      { col: 'contact_tickets.responded_at',     sql: "ALTER TABLE contact_tickets ADD COLUMN responded_at DATETIME DEFAULT NULL" },
     ];
 
     for (const m of migrations) {

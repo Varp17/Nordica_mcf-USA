@@ -58,6 +58,21 @@ export async function fulfillOrder(orderId) {
 
   // Invoice generation is now handled asynchronously in routes/payment.js or routes/orderRoutes.js
 
+  // MOCK FULFILLMENT: If the order number contains "FAKE", we do not hit real logistics APIs.
+  if (order.order_number.includes('FAKE')) {
+    logger.info(`Mock Fulfillment: Detected test order ${order.order_number}. Skipping real logistics.`);
+    
+    // Simulate a successful submission to a mock channel
+    await _updateOrderStatus(orderId, { 
+       fulfillment_status: 'submitted_to_mock', 
+       fulfillment_channel: 'mock_provider',
+       notes: (order.notes || '') + '\nOrder processed via Mock Fulfillment (Test Mode).'
+    });
+
+    await emailService.sendFulfillmentOrderSubmittedEmail(order).catch(e => logger.error("Submit email err", e));
+    return { success: true, fulfillmentChannel: 'mock_provider', status: 'submitted_to_mock' };
+  }
+
   try {
     let result;
     if (order.country === 'US') {

@@ -70,12 +70,7 @@ export async function createMCFInvoice(orderId) {
         await db.execute(`UPDATE invoices SET pdf_url = ?, pdf_generated_at = NOW() WHERE id = ?`, [s3Url, invoiceId]);
         await db.execute(`UPDATE orders SET invoice_pdf_url = ? WHERE id = ?`, [s3Url, orderId]);
 
-        await sendOrderConfirmationEmail({
-            to: order.customer_email,
-            name: `${order.shipping_first_name} ${order.shipping_last_name}` || 'Valued Customer',
-            order: order,
-            invoicePdf: pdfBuffer
-        });
+        await sendOrderConfirmationEmail(order, pdfBuffer);
 
         logger.info(`✅ [MCF] Invoice ${finalInvNum} created: ${s3Url}`);
         return { success: true, invoiceNumber: finalInvNum, s3Url };
@@ -140,12 +135,7 @@ export async function createShippoInvoice(orderId) {
         await db.execute(`UPDATE invoices SET pdf_url = ?, pdf_generated_at = NOW() WHERE id = ?`, [s3Url, invoiceId]);
         await db.execute(`UPDATE orders SET invoice_pdf_url = ? WHERE id = ?`, [s3Url, orderId]);
 
-        await sendOrderConfirmationEmail({
-            to: order.customer_email,
-            name: `${order.shipping_first_name} ${order.shipping_last_name}` || 'Valued Customer',
-            order: order,
-            invoicePdf: pdfBuffer
-        });
+        await sendOrderConfirmationEmail(order, pdfBuffer);
 
         logger.info(`✅ [SHIPPO] Invoice ${finalInvNum} created: ${s3Url}`);
         return { success: true, invoiceNumber: finalInvNum, s3Url };
@@ -163,3 +153,4 @@ export async function createInvoiceFromOrder(orderId) {
 }
 
 export default { createMCFInvoice, createShippoInvoice, createInvoiceFromOrder };
+

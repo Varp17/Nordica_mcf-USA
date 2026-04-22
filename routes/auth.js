@@ -177,17 +177,78 @@ async function handleLogin(req, res) {
 }
 
 /**
+ * SHARED PASSWORD RECOVERY LOGIC
+ */
+async function handleForgotPassword(req, res) {
+  try {
+    const { email } = req.body;
+    logger.debug("Full Forgot Password Payload:", req.body);
+    
+    if (!email) {
+      return res.status(400).json({ success: false, message: "Email is required" });
+    }
+
+    const trimmedEmail = email.trim().toLowerCase();
+    const [users] = await db.execute("SELECT id, email FROM users WHERE LOWER(email) = ?", [trimmedEmail]);
+    
+    logger.debug(`Forgot Password Query Result: ${users.length} users found for ${trimmedEmail}`);
+
+    if (users.length === 0) {
+      // Return success anyway for security, but we log it internally
+      return res.json({ success: true, message: "If an account exists, a code has been sent." });
+    }
+
+    const otpCode = generateSecureOTP();
+    const otpExpiry = new Date(Date.now() + 15 * 60 * 1000);
+    
+    await db.execute("UPDATE users SET otp_code = ?, otp_expiry = ? WHERE id = ?", [otpCode, otpExpiry, users[0].id]);
+    
+    logger.info(`Sending password reset OTP to ${trimmedEmail}`);
+    await sendPasswordResetOTPEmail(trimmedEmail, otpCode);
+    
+    res.json({ success: true, message: "Reset code sent." });
+  } catch (error) {
+    logger.error(`Forgot password error: ${error.message}`);
+    res.status(500).json({ error: error.message });
+  }
+}
+
+async function handleResetPassword(req, res) {
+  try {
+    const { email, otpCode, newPassword } = req.body;
+    const [users] = await db.execute("SELECT id, first_name, otp_code, otp_expiry FROM users WHERE email = ?", [email]);
+    if (users.length === 0) return res.status(404).json({ success: false, message: "User not found" });
+    const user = users[0];
+
+    if (user.otp_code !== otpCode || new Date() > new Date(user.otp_expiry)) return res.status(400).json({ success: false, message: "Invalid or expired code" });
+
+    const hash = await bcrypt.hash(newPassword, 12);
+    await db.execute("UPDATE users SET password_hash = ?, otp_code = NULL, otp_expiry = NULL WHERE id = ?", [hash, user.id]);
+    sendPasswordChangedEmail(email, user.first_name).catch(e => {});
+    res.json({ success: true, message: "Password reset successful." });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+}
+
+/**
  * ── Root Routes (Elevated for Frontend Compatibility) ───────────────────────────
  */
 
 router.post("/register", authRateLimit, handleRegister);
 router.post("/login", authRateLimit, handleLogin);
 
+// Root level password recovery for storefront compatibility
+router.post("/forgot-password", handleForgotPassword);
+router.post("/reset-password", handleResetPassword);
+
 /**
  * ── Customer Sub-Router ────────────────────────────────────────────────────────
  */
 customerRouter.post("/register", authRateLimit, handleRegister);
 customerRouter.post("/login", authRateLimit, handleLogin);
+customerRouter.post("/forgot-password", handleForgotPassword);
+customerRouter.post("/reset-password", handleResetPassword);
 
 customerRouter.post("/verify-otp", authenticateToken, async (req, res) => {
   try {
@@ -267,40 +328,6 @@ router.post("/guest-verify", async (req, res) => {
       return res.status(400).json({ success: false, message: "Invalid or expired code" });
     }
     res.json({ success: true, message: "Verified." });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-customerRouter.post("/forgot-password", async (req, res) => {
-  try {
-    const { email } = req.body;
-    const [users] = await db.execute("SELECT id FROM users WHERE email = ?", [email]);
-    if (users.length === 0) return res.json({ success: true, message: "If an account exists, a code has been sent." });
-
-    const otpCode = generateSecureOTP();
-    const otpExpiry = new Date(Date.now() + 15 * 60 * 1000);
-    await db.execute("UPDATE users SET otp_code = ?, otp_expiry = ? WHERE id = ?", [otpCode, otpExpiry, users[0].id]);
-    await sendPasswordResetOTPEmail(email, otpCode);
-    res.json({ success: true, message: "Reset code sent." });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-customerRouter.post("/reset-password", async (req, res) => {
-  try {
-    const { email, otpCode, newPassword } = req.body;
-    const [users] = await db.execute("SELECT id, first_name, otp_code, otp_expiry FROM users WHERE email = ?", [email]);
-    if (users.length === 0) return res.status(404).json({ success: false, message: "User not found" });
-    const user = users[0];
-
-    if (user.otp_code !== otpCode || new Date() > new Date(user.otp_expiry)) return res.status(400).json({ success: false, message: "Invalid or expired code" });
-
-    const hash = await bcrypt.hash(newPassword, 12);
-    await db.execute("UPDATE users SET password_hash = ?, otp_code = NULL, otp_expiry = NULL WHERE id = ?", [hash, user.id]);
-    sendPasswordChangedEmail(email, user.first_name).catch(e => {});
-    res.json({ success: true, message: "Password reset successful." });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

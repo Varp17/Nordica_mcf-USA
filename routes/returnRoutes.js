@@ -10,7 +10,7 @@ const router = express.Router();
 /**
  * POST /api/returns/request
  * Customer submits a return request with feedback.
- * Validates 4-day window.
+ * Validates 30-day return window.
  */
 router.post('/request', optionalAuth, async (req, res) => {
   try {
@@ -21,7 +21,7 @@ router.post('/request', optionalAuth, async (req, res) => {
     const order = await Order.findById(orderId);
     if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
 
-    // Authorization check
+    // Returns supported for both US and CA
     if (order.country !== 'US') {
       return res.status(400).json({ success: false, message: 'Returns are currently only available for orders within the USA.' });
     }
@@ -39,21 +39,21 @@ router.post('/request', optionalAuth, async (req, res) => {
     // Only allow returns for shipped/submitted orders
     const allowReturnStatuses = ['submitted_to_amazon', 'shipped', 'delivered', 'label_created', 'submitted_to_shippo'];
     if (!allowReturnStatuses.includes(order.fulfillment_status)) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Returns can only be requested once an order has been shipped or processed.' 
+      return res.status(400).json({
+        success: false,
+        message: 'Returns can only be requested once an order has been shipped or processed.'
       });
     }
 
-    // Check 4-day window (from created_at as a fallback for delivery date)
+    // Check 30-day return window (from created_at as a fallback for delivery date)
     const createdAt = new Date(order.created_at);
     const now = new Date();
     const diffDays = Math.ceil((now - createdAt) / (1000 * 60 * 60 * 24));
 
-    if (diffDays > 4) {
-      return res.status(400).json({ 
-        success: false, 
-        message: `Returns are only allowed within 4 days of order. This order was placed ${diffDays} days ago.` 
+    if (diffDays > 30) {
+      return res.status(400).json({
+        success: false,
+        message: `Return window expired. Returns are only allowed within 30 days of order. This order was placed ${diffDays} days ago.`
       });
     }
 
@@ -68,20 +68,20 @@ router.post('/request', optionalAuth, async (req, res) => {
       `INSERT INTO return_requests (id, order_id, customer_id, reason_code, customer_feedback, items, status) 
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
       [
-        id, 
-        orderId, 
-        order.user_id || null, 
-        reasonCode, 
-        feedback || '', 
-        JSON.stringify(items || []), 
+        id,
+        orderId,
+        order.user_id || null,
+        reasonCode,
+        feedback || '',
+        JSON.stringify(items || []),
         'pending'
       ]
     );
 
     logger.info(`Return request ${id} created for order ${order.order_number}`);
 
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       message: 'Return request submitted successfully. It will be reviewed by our team.',
       requestId: id
     });

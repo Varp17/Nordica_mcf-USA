@@ -12,7 +12,8 @@ export async function createOrder(orderData) {
     await Product.deductStock(orderData.items, conn);
     
     // 1.5 Generate Serial Order Number via Stored Procedure
-    await conn.execute('CALL generate_order_number(?, @orderNum)', [orderData.country || 'US']);
+    const isFake = orderData.isFake || orderData.is_fake || false;
+    await conn.execute('CALL generate_order_number(?, ?, @orderNum)', [orderData.country || 'US', isFake ? 1 : 0]);
     const [[{ orderNumber: serialNum }]] = await conn.execute('SELECT @orderNum AS orderNumber');
     
     const orderId = generateUUID();

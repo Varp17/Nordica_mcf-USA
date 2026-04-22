@@ -153,17 +153,25 @@ export async function createOrder(order) {
     email:   process.env.SHIPPO_FROM_EMAIL   || 'info@nordicaplastics.ca'
   };
 
-  const lineItems = (order.items || []).map(item => ({
-    quantity: parseInt(item.quantity) || 1,
-    sku: item.actual_sku || item.sku || 'N/A',
-    title: item.product_name,
-    total_price: item.total_price,
-    currency: order.currency || 'CAD',
-    weight: parseFloat(parseFloat(item.weight_kg || item.weightKg || 0.5).toFixed(2)),
-    weight_unit: 'kg',
-    url: item.image_url_at_purchase || item.image || item.fallback_image || '',
-    image_url: item.image_url_at_purchase || item.image || item.fallback_image || ''
-  }));
+  const apiBase = process.env.API_BASE_URL || 'https://nordica-ecom.onrender.com';
+  const lineItems = (order.items || []).map(item => {
+    const rawImage = item.image_url_at_purchase || item.image || item.fallback_image || '';
+    const absoluteImage = (rawImage && !rawImage.startsWith('http')) 
+      ? `${apiBase}${rawImage.startsWith('/') ? '' : '/'}${rawImage}` 
+      : rawImage;
+
+    return {
+      quantity: parseInt(item.quantity) || 1,
+      sku: item.actual_sku || item.sku || 'N/A',
+      title: item.product_name || item.productName || 'Product',
+      total_price: (parseFloat(item.price_at_purchase || item.unit_price || 0) * (parseInt(item.quantity) || 1)).toFixed(2),
+      currency: order.currency || 'CAD',
+      weight: parseFloat(parseFloat(item.weight_kg || item.weightKg || 0.5).toFixed(2)),
+      weight_unit: 'kg',
+      url: absoluteImage,
+      image_url: absoluteImage
+    };
+  });
 
   // Check for Fraud/Risk flags to alert the manual fulfillment process
   const isFraudHold = order.fraud_status === 'review' || order.fraud_status === 'rejected' || order.fraud_status === 'flagged';
