@@ -3,7 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import logger from '../utils/logger.js';
 import { generateInvoiceBuffer } from '../utils/pdfGenerator.js';
 import { uploadBuffer } from './s3Service.js';
-import { sendOrderConfirmationEmail } from '../utils/mailer.js';
+import { sendOrderConfirmationEmail } from './emailService.js';
 import Order from '../models/Order.js';
 
 /**
@@ -26,9 +26,9 @@ export async function createMCFInvoice(orderId) {
         if (!order) throw new Error(`Order ${orderId} not found`);
 
         // Generate sequential invoice number
-        const [invNumRows] = await db.execute('CALL generate_invoice_number(@invNum)');
+        await db.execute('CALL generate_invoice_number(?, @invNum)', [order.order_number]);
         const [[{ invoiceNumber: invNum }]] = await db.execute('SELECT @invNum AS invoiceNumber');
-        const finalInvNum = invNum || `INV-US-${new Date().getFullYear()}-${order.order_number}`;
+        const finalInvNum = invNum || `INV-${order.order_number}`;
 
         const invoiceId = uuidv4();
         await db.execute(
@@ -40,9 +40,9 @@ export async function createMCFInvoice(orderId) {
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), 'amazon_mcf')`,
             [
                 invoiceId, orderId, order.user_id, finalInvNum, 'issued',
-                order.subtotal, order.tax, order.shipping_cost, order.total,
-                order.currency, `${order.shipping_first_name} ${order.shipping_last_name}`,
-                order.customer_email, order.shipping_address,
+                parseFloat(order.subtotal || 0), parseFloat(order.tax || 0), parseFloat(order.shipping_cost || 0), parseFloat(order.total || 0),
+                order.currency || 'USD', `${order.shipping_first_name} ${order.shipping_last_name}`,
+                order.customer_email, typeof order.shipping_address === 'object' ? JSON.stringify(order.shipping_address) : order.shipping_address,
                 order.payment_method, order.payment_status, order.payment_reference
             ]
         );
@@ -57,8 +57,8 @@ export async function createMCFInvoice(orderId) {
                 [
                     uuidv4(), invoiceId, item.product_id, 
                     item.product_name_at_purchase || item.product_name, 
-                    item.sku, item.unit_price, item.quantity, 
-                    item.total_price, item.total_price, i + 1
+                    item.sku, parseFloat(item.unit_price || 0), parseInt(item.quantity || 1), 
+                    parseFloat(item.total_price || 0), parseFloat(item.total_price || 0), i + 1
                 ]
             );
         }
@@ -97,9 +97,9 @@ export async function createShippoInvoice(orderId) {
         const order = await Order.findById(orderId);
         if (!order) throw new Error(`Order ${orderId} not found`);
 
-        const [invNumRows] = await db.execute('CALL generate_invoice_number(@invNum)');
+        const [invNumRows] = await db.execute('CALL generate_invoice_number(?, @invNum)', [order.order_number]);
         const [[{ invoiceNumber: invNum }]] = await db.execute('SELECT @invNum AS invoiceNumber');
-        const finalInvNum = invNum || `INV-CA-${new Date().getFullYear()}-${order.order_number}`;
+        const finalInvNum = invNum || `INV-${order.order_number}`;
 
         const invoiceId = uuidv4();
         await db.execute(
@@ -111,9 +111,9 @@ export async function createShippoInvoice(orderId) {
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), 'shippo')`,
             [
                 invoiceId, orderId, order.user_id, finalInvNum, 'issued',
-                order.subtotal, order.tax, order.shipping_cost, order.total,
-                order.currency, `${order.shipping_first_name} ${order.shipping_last_name}`,
-                order.customer_email, order.shipping_address,
+                parseFloat(order.subtotal || 0), parseFloat(order.tax || 0), parseFloat(order.shipping_cost || 0), parseFloat(order.total || 0),
+                order.currency || 'CAD', `${order.shipping_first_name} ${order.shipping_last_name}`,
+                order.customer_email, typeof order.shipping_address === 'object' ? JSON.stringify(order.shipping_address) : order.shipping_address,
                 order.payment_method, order.payment_status, order.payment_reference
             ]
         );
@@ -127,8 +127,8 @@ export async function createShippoInvoice(orderId) {
                 [
                     uuidv4(), invoiceId, item.product_id, 
                     item.product_name_at_purchase || item.product_name, 
-                    item.sku, item.unit_price, item.quantity, 
-                    item.total_price, item.total_price, i + 1
+                    item.sku, parseFloat(item.unit_price || 0), parseInt(item.quantity || 1), 
+                    parseFloat(item.total_price || 0), parseFloat(item.total_price || 0), i + 1
                 ]
             );
         }

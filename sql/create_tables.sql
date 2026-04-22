@@ -239,6 +239,8 @@ CREATE TABLE product_color_variants (
   size             VARCHAR(50)   DEFAULT NULL,
   country          VARCHAR(50)   DEFAULT 'US',
   amazon_sku       VARCHAR(100)  DEFAULT NULL,
+  asin             VARCHAR(20)   DEFAULT NULL,
+  fnsku            VARCHAR(50)   DEFAULT NULL,
   canada_sku       VARCHAR(100)  DEFAULT NULL,
   target_country   ENUM('us', 'canada', 'both') DEFAULT 'us',
   price            DECIMAL(12,2) DEFAULT NULL,
@@ -252,6 +254,7 @@ CREATE TABLE product_color_variants (
   INDEX idx_pcv_product (product_id),
   INDEX idx_pcv_sku (sku),
   INDEX idx_pcv_amazon_sku (amazon_sku),
+  INDEX idx_pcv_asin (asin),
   INDEX idx_pcv_canada_sku (canada_sku),
   INDEX idx_pcv_country (target_country)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -420,6 +423,7 @@ CREATE TABLE orders (
   
   -- Payment Tracking
   payment_method             VARCHAR(50)    DEFAULT NULL,
+  is_paypal_verified         TINYINT(1)     DEFAULT 0,
   payment_reference          VARCHAR(100)   DEFAULT NULL,
   paid_at                    DATETIME       DEFAULT NULL,
   
@@ -777,60 +781,50 @@ WHERE status IN ('issued','paid')
 GROUP BY DATE_FORMAT(invoice_date, '%Y-%m'), currency;
 
 -- ------------------------------------------------------------
--- 22. STORED PROCEDURE — Generate Invoice Number (monthly sequence)
--- ------------------------------------------------------------
--- ------------------------------------------------------------
--- 22. STORED PROCEDURE — Generate Invoice Number
+-- 22. STORED PROCEDURE — Generate Invoice Number (order-linked)
 -- ------------------------------------------------------------
 
 DELIMITER $$
 
 DROP PROCEDURE IF EXISTS generate_invoice_number$$
 
-CREATE PROCEDURE generate_invoice_number(OUT new_invoice_number VARCHAR(20))
+CREATE PROCEDURE generate_invoice_number(IN p_order_number VARCHAR(20), OUT new_invoice_number VARCHAR(30))
 BEGIN
-  DECLARE current_year  INT;
-  DECLARE current_month INT;
-  DECLARE next_number   INT;
-  
-  SET current_year  = YEAR(CURDATE());
-  SET current_month = MONTH(CURDATE());
-  
-  INSERT INTO invoice_sequences (year, month, last_number, prefix)
-    VALUES (current_year, current_month, 1, 'INV')
-  ON DUPLICATE KEY UPDATE last_number = last_number + 1;
-  
-  SELECT last_number INTO next_number
-  FROM invoice_sequences
-  WHERE year = current_year AND month = current_month;
-  
-  SET new_invoice_number = CONCAT(
-    'INV-',
-    LPAD(current_year,  4, '0'), '-',
-    LPAD(current_month, 2, '0'), '-',
-    LPAD(next_number,   5, '0')
-  );
+  -- Invoice number mirrors the order number for easy traceability
+  -- e.g. Order DG-10001 → Invoice INV-DG-10001
+  SET new_invoice_number = CONCAT('INV-', p_order_number);
 END$$
 
 -- ------------------------------------------------------------
--- 22b. STORED PROCEDURE — Generate Order Number
+-- 22b. STORED PROCEDURE — Generate Order Number (region-aware)
+-- Canada: DG-10001, DG-10002, ...
+-- USA:    NDUS-50001, NDUS-50002, ...
 -- ------------------------------------------------------------
 
 DROP PROCEDURE IF EXISTS generate_order_number$$
 
-CREATE PROCEDURE generate_order_number(OUT new_order_number VARCHAR(25))
+CREATE PROCEDURE generate_order_number(IN p_country VARCHAR(2), OUT new_order_number VARCHAR(25))
 BEGIN
-  DECLARE next_number   INT;
+  DECLARE next_number INT;
+  DECLARE v_prefix    VARCHAR(10);
   
-  INSERT INTO order_sequences (year, month, last_number, prefix)
-    VALUES (0, 0, 10001, 'DG')
-  ON DUPLICATE KEY UPDATE last_number = last_number + 1;
+  IF p_country = 'CA' THEN
+    SET v_prefix = 'DG-';
+    INSERT INTO order_sequences (year, month, last_number, prefix)
+      VALUES (1, 1, 10001, v_prefix)
+    ON DUPLICATE KEY UPDATE last_number = last_number + 1;
+    
+    SELECT last_number INTO next_number FROM order_sequences WHERE year = 1 AND month = 1;
+  ELSE
+    SET v_prefix = 'NDUS-';
+    INSERT INTO order_sequences (year, month, last_number, prefix)
+      VALUES (2, 1, 50001, v_prefix)
+    ON DUPLICATE KEY UPDATE last_number = last_number + 1;
+    
+    SELECT last_number INTO next_number FROM order_sequences WHERE year = 2 AND month = 1;
+  END IF;
   
-  SELECT last_number INTO next_number
-  FROM order_sequences
-  WHERE year = 0 AND month = 0;
-  
-  SET new_order_number = CONCAT('DG-', next_number);
+  SET new_order_number = CONCAT(v_prefix, next_number);
 END$$
 
 DELIMITER ;
@@ -1690,7 +1684,7 @@ INSERT INTO products (
   'cad-detailing-bucket',
   'Heavy duty 5 Gallon detailing bucket molded of high-quality plastic with a metal handle.',
   'Our 5 Gallon detailing bucket is molded of heavy duty plastic and a metal handle to withstand years of repeated use. This bucket is the perfect fitment for your Dirt Lock bucket filter and all the accessories that go along with it. Made In Canada.',
-  19.99, NULL,
+  24.99, NULL,
   'Detailing-Accessories', 'DETAIL GUARDZ', 'CAD-78C-V',
   'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Canada%20Products/DETAIL%20GUARDZ%205%20GALLON%20DETAILING%20BUCKET/DETAIL%20GUARDZ%205%20GALLON%20DETAILING%20BUCKET.webp',
   JSON_ARRAY(
@@ -1780,7 +1774,7 @@ INSERT INTO products (
       'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon%20Listing%20Images/Dirt%20Lock-20260122T171825Z-1-001/Dirt%20Lock/Dirt%20Lock%20(white)%20B088PZXQY1/5.%20Product%20Uses.webp'
     ),
     'gold', JSON_ARRAY(
-      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon%20Listing%20Images/Dirt%20Lock-20260122T171825Z-1-001/Dirt%20Lock/Dirt%20Lock%20(black)%20B07CKC4M9D/1.%20Hero%20Image.webp',
+      'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon%20Listing%20Images/Dirt%20Lock-20260122T171825Z-1-001/Dirt%20Lock/Dirt%20Lock%20(yellow)%20B07P9CWKLJ/1.%20Hero%20Image.webp',
       'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon%20Listing%20Images/Dirt%20Lock-20260122T171825Z-1-001/Dirt%20Lock/Dirt%20Lock%20(black)%20B07CKC4M9D/2.%20Product%20Features_V2_Option%202%20(1).webp',
       'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon%20Listing%20Images/Dirt%20Lock-20260122T171825Z-1-001/Dirt%20Lock/Dirt%20Lock%20(black)%20B07CKC4M9D/3.%20How%20it%20works.webp',
       'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon%20Listing%20Images/Dirt%20Lock-20260122T171825Z-1-001/Dirt%20Lock/Dirt%20Lock%20(black)%20B07CKC4M9D/4.%20Product%20Fitting%20%26%20Dimensions.webp',
@@ -1830,7 +1824,7 @@ INSERT INTO products (
     JSON_OBJECT('name', 'Black', 'value', 'black', 'sku', 'CAD-C21-V-BLACK', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon%20Listing%20Images/Dirt%20Lock-20260122T171825Z-1-001/Dirt%20Lock/Dirt%20Lock%20(black)%20B07CKC4M9D/1.%20Hero%20Image.webp', 'price', 32.99, 'weight_kg', 0.49, 'weight_lb', 1.08, 'dimensions', '26.5x26.5x6.5', 'dimensions_imperial', '10.4x10.4x2.6'),
     JSON_OBJECT('name', 'Red', 'value', 'red', 'sku', 'CAD-C21-V-RED', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon%20Listing%20Images/Dirt%20Lock-20260122T171825Z-1-001/Dirt%20Lock/Dirt%20Lock%20(red)%20B07CKG1VCH/1.%20Hero%20Image.webp', 'price', 32.99, 'weight_kg', 0.49, 'weight_lb', 1.08, 'dimensions', '26.5x26.5x6.5', 'dimensions_imperial', '10.4x10.4x2.6'),
     JSON_OBJECT('name', 'White', 'value', 'white', 'sku', 'CAD-C21-V-WHITE', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon%20Listing%20Images/Dirt%20Lock-20260122T171825Z-1-001/Dirt%20Lock/Dirt%20Lock%20(white)%20B088PZXQY1/1.%20Hero%20Image.webp', 'price', 32.99, 'weight_kg', 0.49, 'weight_lb', 1.08, 'dimensions', '26.5x26.5x6.5', 'dimensions_imperial', '10.4x10.4x2.6'),
-    JSON_OBJECT('name', 'Gold', 'value', 'gold', 'sku', 'CAD-C21-V-GOLD', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon%20Listing%20Images/Dirt%20Lock-20260122T171825Z-1-001/Dirt%20Lock/Dirt%20Lock%20(black)%20B07CKC4M9D/1.%20Hero%20Image.webp', 'price', 32.99, 'weight_kg', 0.49, 'weight_lb', 1.08, 'dimensions', '26.5x26.5x6.5', 'dimensions_imperial', '10.4x10.4x2.6')
+    JSON_OBJECT('name', 'Gold', 'value', 'gold', 'sku', 'CAD-C21-V-GOLD', 'image', 'https://detailguardz.s3.us-east-1.amazonaws.com/assets/Amazon%20Listing%20Images/Dirt%20Lock-20260122T171825Z-1-001/Dirt%20Lock/Dirt%20Lock%20(yellow)%20B07P9CWKLJ/1.%20Hero%20Image.webp', 'price', 32.99, 'weight_kg', 0.49, 'weight_lb', 1.08, 'dimensions', '26.5x26.5x6.5', 'dimensions_imperial', '10.4x10.4x2.6')
   ),
   JSON_OBJECT(
     'main', JSON_OBJECT('url', 'https://www.youtube.com/embed/2LndE9cD63A', 'title', 'DETAIL GUARDZ Dirt Lock Car Wash Insert', 'description', 'Our patented design utilizes the motion of your hand to pump and trap debris underneath the screen. Every time you pump your hand in the bucket you are cycling the dirt underneath the screen.'),
@@ -2826,22 +2820,50 @@ WHERE target_country = 'canada'
 -- D. Inventory Cache Migration
 -- Use inventory_cache as a high-level stock indicator for Canada
 UPDATE products SET inventory_cache = 100 
-WHERE target_country = 'canada' AND slug LIKE 'cad-%';
+WHERE target_country = 'canada';
 
 -- E. Ensure all Canada products are marked as IN STOCK
 UPDATE products SET in_stock = 1, availability = 'In Stock'
 WHERE target_country = 'canada';
 
--- F. Ensure all Canada variants have positive stock
+-- F. Ensure all Canada variants have positive stock (Relational Tables)
 UPDATE product_variants SET stock = 100, is_active = 1
 WHERE product_id IN (SELECT id FROM products WHERE target_country = 'canada');
 
--- G. Clean up stale Canada variants to prevent UI duplication
--- This ensures only the current unified variants are shown
+UPDATE product_color_variants SET stock = 100, is_active = 1
+WHERE product_id IN (SELECT id FROM products WHERE target_country = 'canada');
+
+-- G. Robust JSON Stock Fix for Canada (Storefront Metadata)
+-- This ensures the color_options JSON array used by the storefront has correct stock levels
+-- We use index-based updates for the most common variant counts (up to 10 variants)
+UPDATE products 
+SET color_options = JSON_SET(color_options, '$[0].stock', 100, '$[0].in_stock', 1)
+WHERE target_country = 'canada' AND JSON_LENGTH(color_options) >= 1;
+
+UPDATE products 
+SET color_options = JSON_SET(color_options, '$[1].stock', 100, '$[1].in_stock', 1)
+WHERE target_country = 'canada' AND JSON_LENGTH(color_options) >= 2;
+
+UPDATE products 
+SET color_options = JSON_SET(color_options, '$[2].stock', 100, '$[2].in_stock', 1)
+WHERE target_country = 'canada' AND JSON_LENGTH(color_options) >= 3;
+
+UPDATE products 
+SET color_options = JSON_SET(color_options, '$[3].stock', 100, '$[3].in_stock', 1)
+WHERE target_country = 'canada' AND JSON_LENGTH(color_options) >= 4;
+
+UPDATE products 
+SET color_options = JSON_SET(color_options, '$[4].stock', 100, '$[4].in_stock', 1)
+WHERE target_country = 'canada' AND JSON_LENGTH(color_options) >= 5;
+
+UPDATE products 
+SET color_options = JSON_SET(color_options, '$[5].stock', 100, '$[5].in_stock', 1)
+WHERE target_country = 'canada' AND JSON_LENGTH(color_options) >= 6;
+
+-- H. Clean up stale Canada variants to prevent UI duplication
 DELETE FROM product_variants 
 WHERE target_country = 'canada' 
   AND product_id IN (SELECT id FROM products WHERE slug = 'cad-dirt-lock-insert');
-
 
 -- Clear SQL safe updates if needed
 SET SQL_SAFE_UPDATES = 1;
@@ -2886,6 +2908,26 @@ ON DUPLICATE KEY UPDATE tax_rate = VALUES(tax_rate);
 
 
 -- ------------------------------------------------------------
+-- 29. RETURN REQUESTS (Customer-initiated returns)
+-- ------------------------------------------------------------
+DROP TABLE IF EXISTS return_requests;
+CREATE TABLE return_requests (
+  id               CHAR(36)      PRIMARY KEY DEFAULT (UUID()),
+  order_id         CHAR(36)      NOT NULL,
+  customer_id      CHAR(36)      DEFAULT NULL,
+  items            JSON          NOT NULL, -- Array of { sku, quantity }
+  reason_code      VARCHAR(100)  NOT NULL,
+  customer_feedback TEXT         DEFAULT NULL,
+  status           ENUM('pending', 'approved', 'rejected') DEFAULT 'pending',
+  created_at       DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at       DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
+  FOREIGN KEY (customer_id) REFERENCES users(id) ON DELETE SET NULL,
+  INDEX idx_return_order (order_id),
+  INDEX idx_return_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ------------------------------------------------------------
 -- 28. FINAL CLEANUP
 -- ------------------------------------------------------------
 
@@ -2926,8 +2968,49 @@ CREATE TABLE ticket_sequences (
   PRIMARY KEY (year, month)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-SET FOREIGN_KEY_CHECKS = 1;
 
+-- ------------------------------------------------------------
+-- 18. STORED PROCEDURES (Sequences)
+-- ------------------------------------------------------------
+
+DELIMITER //
+
+DROP PROCEDURE IF EXISTS generate_invoice_number //
+CREATE PROCEDURE generate_invoice_number(IN p_order_number VARCHAR(20), OUT new_invoice_number VARCHAR(30))
+BEGIN
+  -- Invoice number mirrors the order number for easy traceability
+  -- e.g. Order DG-10001 → Invoice INV-DG-10001
+  SET new_invoice_number = CONCAT('INV-', p_order_number);
+END //
+
+DROP PROCEDURE IF EXISTS generate_order_number //
+CREATE PROCEDURE generate_order_number(IN p_country VARCHAR(10), OUT new_order_number VARCHAR(25))
+BEGIN
+  DECLARE next_number INT;
+  DECLARE v_prefix    VARCHAR(10);
+  
+  IF p_country = 'CA' THEN
+      SET v_prefix = 'DG-';
+      INSERT INTO order_sequences (year, month, last_number, prefix)
+        VALUES (1, 1, 10001, v_prefix)
+      ON DUPLICATE KEY UPDATE last_number = last_number + 1;
+      
+      SELECT last_number INTO next_number FROM order_sequences WHERE year = 1 AND month = 1;
+  ELSE
+      SET v_prefix = 'NDUS-';
+      INSERT INTO order_sequences (year, month, last_number, prefix)
+        VALUES (2, 1, 50001, v_prefix)
+      ON DUPLICATE KEY UPDATE last_number = last_number + 1;
+      
+      SELECT last_number INTO next_number FROM order_sequences WHERE year = 2 AND month = 1;
+  END IF;
+  
+  SET new_order_number = CONCAT(v_prefix, next_number);
+END //
+
+DELIMITER ;
+
+SET FOREIGN_KEY_CHECKS = 1;
 
 -- ============================================================
 -- END OF UNIFIED SCHEMA

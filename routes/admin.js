@@ -567,29 +567,47 @@ router.get(
 
       let allVariants = [...legacyVariants, ...modernVariants];
 
-      if (allVariants.length === 0 && product.color_options) {
-        // Fallback to legacy color_options JSON if the new tables are empty
+      // 3. Merge with legacy color_options JSON to ensure no variants are "hidden" 
+      // due to partial migration.
+      if (product.color_options) {
         try {
           const legacyColors = typeof product.color_options === 'string'
             ? JSON.parse(product.color_options)
             : product.color_options;
 
           if (Array.isArray(legacyColors)) {
-            allVariants = legacyColors.map(c => ({
-              id: `legacy-${Math.random().toString(36).substr(2, 9)}`,
-              color_name: c.name || c.color_name || c.value,
-              color_code: c.color || c.color_code || "#CCCCCC",
-              amazon_sku: c.amazon_sku || c.sku || null,
-              stock: c.stock || 0,
-              price: c.price || product.price,
-              is_active: 1,
-              images: c.image ? [{ image_url: c.image, is_primary: 1 }] : []
-            }));
+            for (const c of legacyColors) {
+               const variantSku = c.amazon_sku || c.sku;
+               // Check if this variant is already in our table results
+               const exists = allVariants.find(v => 
+                 (v.amazon_sku && v.amazon_sku === c.amazon_sku) || 
+                 (v.sku && v.sku === c.sku) ||
+                 (v.color_name && v.color_name.toLowerCase() === (c.name || c.color_name || '').toLowerCase())
+               );
+
+               if (!exists) {
+                 allVariants.push({
+                   id: `legacy-${Math.random().toString(36).substr(2, 9)}`,
+                   color_name: c.title || c.name || c.color_name || c.value,
+                   color_code: c.color || c.color_code || "#CCCCCC",
+                   amazon_sku: c.amazon_sku || null,
+                   sku: c.sku || null,
+                   stock: c.stock || 0,
+                   price: c.price || product.price,
+                   updated_at: c.updated_at || null,
+                   is_active: 1,
+                   is_json_fallback: true,
+                   images: c.image ? [{ image_url: c.image, is_primary: 1 }] : []
+                 });
+               }
+            }
           }
-        } catch (e) { console.error("Legacy color parse error:", e); }
-      } else {
-        // Fetch images for all variants found in tables
-        for (let v of allVariants) {
+        } catch (e) { console.error("Legacy color merge error:", e); }
+      }
+
+      // Fetch images for all variants found in tables (if they don't have images from JSON already)
+      for (let v of allVariants) {
+        if (!v.images || v.images.length === 0) {
           const [vImgs] = await db.execute(
             "SELECT id, image_url, is_primary FROM product_images WHERE color_variant_id = ? ORDER BY sort_order ASC",
             [v.id]
@@ -597,6 +615,7 @@ router.get(
           v.images = vImgs;
         }
       }
+      
       product.color_variants = allVariants;
 
       res.json(product);
@@ -977,7 +996,7 @@ router.put(
         for (let i = 0; i < variants.length; i++) {
           const v = variants[i];
           let vId = v.id;
-          const isNew = !vId || vId.startsWith('new-');
+          const isNew = !vId || vId.startsWith('new-') || vId.startsWith('legacy-');
 
           if (isNew) {
             vId = uuidv4();
@@ -1015,6 +1034,8 @@ router.put(
 
           // Handle variant-specific images if uploaded
           const vFiles = filesByField[`colorVariantImages_${i}`] || [];
+          let variantImageUrl = v.image || (v.images?.[0]?.image_url);
+
           if (vFiles.length > 0) {
              // For simplicity, we replace variant images if new ones are uploaded
              await connection.execute("DELETE FROM product_images WHERE color_variant_id = ?", [vId]);
@@ -1024,6 +1045,13 @@ router.put(
                  [uuidv4(), id, vFiles[j], 'color_variant', vId, j + 1]
                );
              }
+             variantImageUrl = vFiles[0];
+          } else if (isNew && variantImageUrl) {
+             // If it's a migrated legacy variant, preserve its primary image in the images table
+             await connection.execute(
+               "INSERT IGNORE INTO product_images (id, product_id, image_url, image_type, color_variant_id, sort_order) VALUES (?,?,?,?,?,?)",
+               [uuidv4(), id, variantImageUrl, 'color_variant', vId, 1]
+             );
           }
 
           colorOptionsList.push({
@@ -1034,7 +1062,8 @@ router.put(
             sku: v.sku || null,
             amazon_sku: v.amazon_sku || null,
             in_stock: (parseInt(v.stock) || 0) > 0 ? 1 : 0,
-            price: parseFloat(v.price) || 0
+            price: parseFloat(v.price) || 0,
+            image: variantImageUrl || null
           });
         }
 

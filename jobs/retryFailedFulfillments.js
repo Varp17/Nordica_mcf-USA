@@ -47,6 +47,10 @@ export async function retryFailedFulfillments() {
           continue;
         }
 
+        // If we are about to start the LAST retry and it's already at MAX_RETRIES, 
+        // we actually want to catch the error and cancel it if it fails this time.
+        // Wait, the query already filters by retry_count < MAX_RETRIES.
+        
         logger.info(`Background Job: Retrying fulfillment for order ${order.order_number} (Attempt ${order.retry_count + 1})`);
 
         // Update retry stats BEFORE attempting to prevent double-starts in next cycle if current cycle is slow
@@ -61,7 +65,23 @@ export async function retryFailedFulfillments() {
         logger.info(`Background Job: Successfully retried fulfillment for ${order.order_number}`);
       } catch (err) {
         logger.error(`Background Job: Retry failed for order ${order.order_number}: ${err.message}`);
-        // Status is already 'fulfillment_error', so just leave it for next pass
+        
+        // If we just hit the MAX_RETRIES (retry_count was updated above), mark as cancelled
+        if (order.retry_count + 1 >= MAX_RETRIES) {
+          logger.warn(`Background Job: Order ${order.order_number} reached MAX_RETRIES (${MAX_RETRIES}). Cancelling order and restoring stock.`);
+          
+          try {
+            // Use our new consolidated restoreStock logic
+            const Order = (await import('../models/Order.js')).default;
+            await Order.updateOrderStatus(order.id, 'cancelled', `Fulfillment retries exhausted (${MAX_RETRIES}). Final error: ${err.message}`);
+            await Order.updateFulfillmentStatus(order.id, 'cancelled');
+            await Order.restoreStock(order.id);
+            
+            logger.info(`Background Job: Order ${order.order_number} auto-cancelled successfully.`);
+          } catch (cancelErr) {
+            logger.error(`Background Job: Failed to auto-cancel order ${order.id}: ${cancelErr.message}`);
+          }
+        }
       }
     }
   } catch (err) {

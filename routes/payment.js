@@ -441,6 +441,12 @@ router.post('/capture', async (req, res) => {
     const captureId = captureMeta.id;
     const captureAmount = parseFloat(captureMeta.amount.value);
 
+    // Extract PayPal Payer Verification Status
+    // In PayPal V2, payer.status might be present in sandbox or specific regions/flows.
+    // We explicitly track it to fulfill the "only fulfill paypal verified" requirement.
+    const payerStatus = captureResponse.data.payer?.status;
+    const isVerified = (payerStatus === 'VERIFIED' || process.env.PAYPAL_BYPASS_VERIFICATION === 'true') ? 1 : 0;
+
     // 4. Double check amount matches internal order
     if (Math.abs(captureAmount - parseFloat(order.total)) > 0.02) {
       logger.error(`CRITICAL: Amount mismatch on capture! PayPal: ${captureAmount}, Internal Order ${order.order_number}: ${order.total}`);
@@ -455,8 +461,15 @@ router.post('/capture', async (req, res) => {
 
     // 5. Success - Finalize internal order within the same transaction
     await connection.execute(
-      `UPDATE orders SET payment_status = 'paid', payment_reference = ?, payment_method = 'paypal', paid_at = NOW(), updated_at = NOW() WHERE id = ?`,
-      [captureId, order.id]
+      `UPDATE orders SET 
+        payment_status = 'paid', 
+        payment_reference = ?, 
+        payment_method = 'paypal', 
+        is_paypal_verified = ?,
+        paid_at = NOW(), 
+        updated_at = NOW() 
+       WHERE id = ?`,
+      [captureId, isVerified, order.id]
     );
 
     await connection.commit();

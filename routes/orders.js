@@ -258,7 +258,7 @@ router.post("/", optionalAuth, async (req, res, next) => {
     let cartItems = [];
     if (cartId) {
       [cartItems] = await connection.execute(
-        `SELECT ci.product_id, ci.quantity, p.name, p.price, p.image as image_url, p.in_stock 
+        `SELECT ci.product_id, ci.quantity, p.name, p.price, p.image as image_url, p.in_stock, p.weight_kg, p.dimensions 
          FROM cart_items ci JOIN products p ON ci.product_id = p.id 
          WHERE ci.cart_id = ?`,
         [cartId]
@@ -268,7 +268,7 @@ router.post("/", optionalAuth, async (req, res, next) => {
       const itemIds = req.body.items.map(i => i.product_id);
       if (itemIds.length > 0) {
         const [products] = await connection.execute(
-          `SELECT id as product_id, name, price, image as image_url, in_stock FROM products WHERE id IN (${itemIds.map(() => '?').join(',')})`,
+          `SELECT id as product_id, name, price, image as image_url, in_stock, weight_kg, dimensions FROM products WHERE id IN (${itemIds.map(() => '?').join(',')})`,
           itemIds
         );
         cartItems = req.body.items.map(item => {
@@ -299,9 +299,13 @@ router.post("/", optionalAuth, async (req, res, next) => {
     const total_amount = parseFloat((subtotal + shipping_cost + tax_amount).toFixed(2));
     const shipping_speed = req.body.shippingMethod || req.body.shippingSpeed || 'standard';
 
-    // SECURITY GUARD: Ensure free shipping is ONLY allowed for orders over $100
-    if (shipping_cost === 0 && calculatedSubtotal < 100) {
-      return res.status(403).json({ success: false, message: 'Free shipping only applies to orders over $100.' });
+    // SECURITY GUARD: Ensure free shipping is ONLY allowed for orders over the required threshold
+    const freeShippingThreshold = country === 'CA' ? 120 : 100;
+    if (shipping_cost === 0 && calculatedSubtotal < freeShippingThreshold) {
+      return res.status(403).json({ 
+        success: false, 
+        message: `Free shipping only applies to orders over $${freeShippingThreshold}.` 
+      });
     }
 
     // NEW: Capture Shipping Sustainability Projections ON CREATION
@@ -450,11 +454,11 @@ router.get("/:orderId", optionalAuth, async (req, res) => {
     const params = [orderId];
 
     if (req.user) {
-      query += " AND (o.user_id = ? OR o.guest_email = ?)";
-      params.push(req.user.id, req.user.email);
+      query += " AND (o.user_id = ? OR o.guest_email = ? OR o.customer_email = ?)";
+      params.push(req.user.id, req.user.email, req.user.email);
     } else if (email) {
-      query += " AND o.guest_email = ?";
-      params.push(email);
+      query += " AND (o.guest_email = ? OR o.customer_email = ?)";
+      params.push(email, email);
     } else {
       return res.status(401).json({ error: "Authentication or email required to view order" });
     }
@@ -482,6 +486,22 @@ router.get("/:orderId", optionalAuth, async (req, res) => {
             // Handle cases where the JSON is invalid, maybe return null
             order.shipping_address = null;
         }
+    }
+
+    // GUEST ACCESS WINDOW: 20 minutes expiry for guest view
+    if (!req.user && email) {
+      const createdAt = new Date(order.created_at);
+      const diffMs = Date.now() - createdAt.getTime();
+      const diffMins = diffMs / (1000 * 60);
+
+      if (diffMins > 20) {
+        return res.status(403).json({ 
+          success: false,
+          error: "Guest access window expired", 
+          message: "For security, this order can no longer be viewed as a guest. Please sign in or create an account to view your order details.",
+          expired: true
+        });
+      }
     }
 
     res.json(order);

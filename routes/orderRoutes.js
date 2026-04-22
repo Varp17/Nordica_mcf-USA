@@ -107,7 +107,8 @@ router.post('/', optionalAuth, validateCreateOrder, async (req, res) => {
 
     let serverShippingCost = 0;
     const totalQty = validatedItems.reduce((sum, item) => sum + (item.quantity || 1), 0);
-    const isFree = serverSubtotal >= 100;
+    const freeThreshold = country === 'CA' ? 120 : 100;
+    const isFree = serverSubtotal >= freeThreshold;
 
     if (isFree) {
       serverShippingCost = 0;
@@ -244,7 +245,8 @@ router.post('/shipping-rates', async (req, res) => {
     let rates = [];
 
     const subtotal = validatedItems.reduce((sum, item) => sum + (item.unitPrice * item.quantity), 0);
-    const isFree = subtotal >= 100;
+    const freeThreshold = country === 'CA' ? 120 : 100;
+    const isFree = subtotal >= freeThreshold;
 
     // 2. Fetch rates based on country
     if (country === 'US') {
@@ -386,6 +388,23 @@ router.get('/:orderId', optionalAuth, validateOrderId, async (req, res) => {
       isFullDetail = true;
     }
 
+    // GUEST ACCESS WINDOW: 20 minutes expiry for guest view
+    const { email } = req.query;
+    if (!req.user && email) {
+      const createdAt = new Date(order.created_at);
+      const diffMs = Date.now() - createdAt.getTime();
+      const diffMins = diffMs / (1000 * 60);
+
+      if (diffMins > 20) {
+        return res.status(403).json({ 
+          success: false,
+          error: "Guest access window expired", 
+          message: "For security, this order can no longer be viewed as a guest. Please sign in or create an account to view your order details.",
+          expired: true
+        });
+      }
+    }
+
     return res.json({
       success: true,
       order: _sanitizeOrder(order, isFullDetail)
@@ -450,6 +469,21 @@ router.post('/:orderId/cancel-otp', optionalAuth, async (req, res) => {
       if (!email || email.toLowerCase() !== order.customer_email?.toLowerCase()) {
         return res.status(403).json({ success: false, message: 'Email does not match order record' });
       }
+
+      // GUEST ACCESS WINDOW: 20 minutes expiry for guest cancellation
+      const createdAt = new Date(order.created_at);
+      const diffMs = Date.now() - createdAt.getTime();
+      const diffMins = diffMs / (1000 * 60);
+
+      if (diffMins > 20) {
+        return res.status(403).json({ 
+          success: false,
+          error: "Guest cancellation window expired", 
+          message: "The guest cancellation window has expired. Please sign in or create an account to manage your order.",
+          expired: true
+        });
+      }
+
       targetEmail = email;
     }
 
@@ -503,6 +537,22 @@ router.post('/:orderId/cancel', optionalAuth, validateOrderId, async (req, res) 
 
     if (!isAuthorized) {
       return res.status(403).json({ success: false, message: 'Access denied' });
+    }
+
+    // GUEST ACCESS WINDOW: 20 minutes expiry for guest cancellation finalization
+    if (!req.user && email) {
+      const createdAt = new Date(order.created_at);
+      const diffMs = Date.now() - createdAt.getTime();
+      const diffMins = diffMs / (1000 * 60);
+
+      if (diffMins > 20) {
+        return res.status(403).json({ 
+          success: false,
+          error: "Guest cancellation window expired", 
+          message: "The guest cancellation window has expired. Please sign in or create an account to manage your order.",
+          expired: true
+        });
+      }
     }
 
     // ── 2. OTP & Confirmation Check ──────────────────────────────────────────

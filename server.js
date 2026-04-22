@@ -155,19 +155,14 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 // ── Additional Utility Routes ────────────────────────────────────────────────
-app.get('/api/geoip', async (req, res) => {
-  try {
-    // Basic geoip detection or fallback to CA
-    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
-    res.json({
-      success: true,
-      country: 'CA', // Default for this store
-      ip: ip,
-      source: 'fallback'
-    });
-  } catch (err) {
-    res.json({ success: true, country: 'CA' });
-  }
+app.get('/api/geoip', (req, res) => {
+  res.json({
+    success: true,
+    country: req.country || 'US',
+    currency: req.currency || 'USD',
+    ip: req.headers['x-forwarded-for'] || req.socket.remoteAddress,
+    source: 'region-detect'
+  });
 });
 
 // Error handling

@@ -52,8 +52,10 @@ async function migrate() {
         console.log('🛠️ Normalizing SQL for driver compatibility...');
         sql = sql
             .replace(/^DELIMITER\s+\$\$.*$/gm, '')
+            .replace(/^DELIMITER\s+\/\/.*$/gm, '')
             .replace(/^DELIMITER\s+;.*$/gm, '')
             .replace(/\$\$\s*$/gm, ';')
+            .replace(/\s+\/\/\s*$/gm, ';')
             .replace(/[\u2018\u2019\u201A\u201B]/g, "''") 
             .replace(/[\u201C\u201D\u201E\u201F]/g, '"')
             .replace(/[\u2013\u2014]/g, '-');

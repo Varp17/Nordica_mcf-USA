@@ -124,7 +124,8 @@ export async function sendEmail({ to, subject, html, text }) {
         result = { success: true, messageId: info.messageId };
       }
 
-      logger.info(`Email sent via ${useSendGrid ? 'SendGrid API' : 'SMTP'}: ${subject} → ${to} [${result.messageId}]`);
+      const logId = result.messageId ? (result.messageId.includes('<') ? result.messageId : `[${result.messageId}]`) : '[sg-sent]';
+      logger.info(`Email sent via ${useSendGrid ? 'SendGrid API' : 'SMTP'}: ${subject} → ${to} ${logId}`);
       return result;
 
     } catch (err) {
@@ -216,7 +217,8 @@ function itemsTableHtml(items = [], subtotal, shipping, tax, total) {
     const imageUrl = item.image_url_at_purchase || item.image || '';
     const absoluteImg = imageUrl.startsWith('http') ? imageUrl : `${apiBase}${imageUrl.startsWith('/') ? '' : '/'}${imageUrl}`;
     const productUrl = item.slug ? `${storeWebsite}/products/${item.slug}` : `${storeWebsite}/products`;
-    const price = item.price_at_purchase || item.unit_price || 0;
+    const price = parseFloat(item.price_at_purchase || item.unit_price || 0);
+    const quantity = parseInt(item.quantity || 1);
 
     return `
     <tr>
@@ -229,9 +231,9 @@ function itemsTableHtml(items = [], subtotal, shipping, tax, total) {
         </div>
         <div style="font-size: 11px; color: #888;">SKU: ${item.sku || 'N/A'}</div>
       </td>
-      <td style="text-align:center;">${item.quantity}</td>
+      <td style="text-align:center;">${quantity}</td>
       <td style="text-align:right;">${formatCurrency(price)}</td>
-      <td style="text-align:right;">${formatCurrency(price * item.quantity)}</td>
+      <td style="text-align:right;">${formatCurrency(price * quantity)}</td>
     </tr>`;
   }).join('');
 
@@ -245,11 +247,11 @@ function itemsTableHtml(items = [], subtotal, shipping, tax, total) {
       </tr></thead>
       <tbody>${rows}</tbody>
       <tfoot style="border-top: 2px solid #edf2f7;">
-        <tr class="totals-row"><td colspan="4" style="padding-top: 15px;">Subtotal</td><td style="text-align:right; padding-top: 15px;">${formatCurrency(subtotal)}</td></tr>
-        <tr class="totals-row"><td colspan="4">Shipping</td><td style="text-align:right;">${formatCurrency(shipping || 0)}</td></tr>
-        <tr class="totals-row"><td colspan="4">Tax</td><td style="text-align:right;">${formatCurrency(tax || 0)}</td></tr>
+        <tr class="totals-row"><td colspan="4" style="padding-top: 15px;">Subtotal</td><td style="text-align:right; padding-top: 15px;">${formatCurrency(parseFloat(subtotal || 0))}</td></tr>
+        <tr class="totals-row"><td colspan="4">Shipping</td><td style="text-align:right;">${formatCurrency(parseFloat(shipping || 0))}</td></tr>
+        <tr class="totals-row"><td colspan="4">Tax</td><td style="text-align:right;">${formatCurrency(parseFloat(tax || 0))}</td></tr>
         <tr class="totals-row" style="font-size:16px;"><td colspan="4"><strong>Order Total</strong></td>
-          <td style="text-align:right;"><strong>${formatCurrency(total)}</strong></td></tr>
+          <td style="text-align:right;"><strong>${formatCurrency(parseFloat(total || 0))}</strong></td></tr>
       </tfoot>
     </table>`;
 }
@@ -564,7 +566,7 @@ export async function sendBulkStockAlertEmail(alerts) {
   
   if (usaAlerts.length > 0) {
     const usaEmail = process.env.USA_ADMIN_EMAIL || adminEmail;
-    await sendEmail({
+    const result = await sendEmail({
       to: usaEmail,
       subject: `[INVENTORY] USA Stock Alert — ${usaAlerts.length} items`,
       html: wrapEmail('USA Stock Alert 🇺🇸', 'Inventory Management', `
@@ -572,11 +574,13 @@ export async function sendBulkStockAlertEmail(alerts) {
         ${buildSection('', usaAlerts, '#dc2626')}
       `)
     });
+    const cleanId = result.messageId ? result.messageId.replace(/[<>]/g, '') : 'sg-sent';
+    logger.info(`USA Stock Alert — ${usaAlerts.length} items → ${usaEmail} [USA-ALERT-${cleanId}]`);
   }
 
   if (caAlerts.length > 0) {
     const caEmail = process.env.CA_ADMIN_EMAIL || adminEmail;
-    await sendEmail({
+    const result = await sendEmail({
       to: caEmail,
       subject: `[INVENTORY] Canada Stock Alert — ${caAlerts.length} items`,
       html: wrapEmail('Canada Stock Alert 🇨🇦', 'Inventory Management', `
@@ -584,6 +588,8 @@ export async function sendBulkStockAlertEmail(alerts) {
         ${buildSection('', caAlerts, '#dc2626')}
       `)
     });
+    const cleanId = result.messageId ? result.messageId.replace(/[<>]/g, '') : 'sg-sent';
+    logger.info(`Canada Stock Alert — ${caAlerts.length} items → ${caEmail} [CA-ALERT-${cleanId}]`);
   }
 }
 

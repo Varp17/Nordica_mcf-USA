@@ -20,6 +20,21 @@ export async function fulfillOrder(orderId) {
     throw new Error(`Order ${orderId} is not paid`);
   }
 
+  // Mandatory PayPal Verification Check
+  if (order.payment_method === 'paypal' && !order.is_paypal_verified) {
+    // Only block if bypass flag is NOT set
+    if (process.env.PAYPAL_BYPASS_VERIFICATION !== 'true') {
+      logger.warn(`Order ${order.order_number} cannot be fulfilled: PayPal account NOT verified.`);
+      await _updateOrderStatus(orderId, { 
+        fulfillment_status: 'on_hold_verification', 
+        fulfillment_error: 'PayPal account not verified. Please contact support or use a verified account.' 
+      });
+      return { success: false, message: 'PayPal verification required', status: 'on_hold_verification' };
+    } else {
+      logger.info(`Order ${order.order_number}: PayPal verification check bypassed via environment flag.`);
+    }
+  }
+
   const terminalStatuses = ['shipped', 'delivered', 'submitted_to_amazon', 'label_created'];
   if (terminalStatuses.includes(order.fulfillment_status)) {
     // If the order is already submitted/shipped but we are missing the cost, 

@@ -12,7 +12,7 @@ export async function createOrder(orderData) {
     await Product.deductStock(orderData.items, conn);
     
     // 1.5 Generate Serial Order Number via Stored Procedure
-    await conn.execute('CALL generate_order_number(@orderNum)');
+    await conn.execute('CALL generate_order_number(?, @orderNum)', [orderData.country || 'US']);
     const [[{ orderNumber: serialNum }]] = await conn.execute('SELECT @orderNum AS orderNumber');
     
     const orderId = generateUUID();
@@ -100,8 +100,8 @@ export async function createOrder(orderData) {
            sku, fnsku, product_name, quantity, 
            unit_price, total_price,
            price_at_purchase, product_name_at_purchase, image_url_at_purchase,
-           weight_kg, created_at
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+           weight_kg, dimensions, created_at
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
         [
           generateUUID(), 
           orderId, 
@@ -116,7 +116,8 @@ export async function createOrder(orderData) {
           unitPrice, // price_at_purchase
           productName, // product_name_at_purchase
           imageUrl, // image_url_at_purchase
-          item.weightKg || item.weight_kg || 0.5
+          item.weightKg || item.weight_kg || 0.5,
+          item.dimensions || null
         ]
       );
     }
@@ -288,4 +289,19 @@ export async function updateFulfillmentStatus(orderId, status) {
   return findById(orderId);
 }
 
-export default { createOrder, findById, findByOrderNumber, findByCustomer, updatePaymentStatus, updateFulfillmentStatus, updateOrderStatus, updateOrder };
+/**
+ * Restores stock for a cancelled order
+ */
+export async function restoreStock(orderId) {
+  try {
+    const order = await findById(orderId);
+    if (!order) return;
+    
+    logger.info(`Restoring stock for order ${order.order_number}`);
+    await Product.restoreStock(order.items);
+  } catch (err) {
+    logger.error(`Failed to restore stock for order ${orderId}: ${err.message}`);
+  }
+}
+
+export default { createOrder, findById, findByOrderNumber, findByCustomer, updatePaymentStatus, updateFulfillmentStatus, updateOrderStatus, updateOrder, restoreStock };

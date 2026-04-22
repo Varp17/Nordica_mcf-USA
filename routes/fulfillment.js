@@ -298,8 +298,10 @@ router.post('/rates', async (req, res) => {
       }
     ];
 
+    /* 
+    // REMOVED: Blocking Shippo fetch was causing 10s delays in checkout.
+    // This was only used for internal cost analysis logging.
     try {
-      // Still fetch Shippo rates for internal cost analysis logging
       const pseudoOrder = {
         items: validatedItems,
         shipping_first_name: shipping.firstName || 'Customer',
@@ -313,7 +315,6 @@ router.post('/rates', async (req, res) => {
       if (rates && rates.length > 0) {
         rates.forEach(r => {
           const actualCost = parseFloat(r.amount);
-          // For logging purposes, we match against our flat rates
           const matchedFlatRate = formattedRates.find(f => f.name.toLowerCase().includes(r.serviceName?.toLowerCase() || '')) || formattedRates[0];
           const margin = matchedFlatRate.price - actualCost;
           logger.info(`[SHIPPO COST ANALYSIS - PREVIEW] Service: ${(r.serviceName || r.provider || 'Standard').padEnd(20)} | Shippo Fee: $${actualCost.toFixed(2).padEnd(6)} | Customer (Flat): $${matchedFlatRate.price.toFixed(2).padEnd(6)} | LOSS: $${margin.toFixed(2)}`);
@@ -322,6 +323,7 @@ router.post('/rates', async (req, res) => {
     } catch (err) {
       logger.warn(`Failed to fetch shippo rates for /rates preview logging: ${err.message}`);
     }
+    */
 
     return res.json({ success: true, rates: formattedRates });
   } catch (err) {

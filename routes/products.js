@@ -329,7 +329,21 @@ router.get("/slug/:slug", async (req, res) => {
       [product.id, ...countryTarget]
     );
 
-    const allVariants = [...modernVariants, ...legacyVariants];
+    // DEDUPLICATE VARIANTS BY SKU (Prefer modern over legacy if overlap)
+    const variantMap = new Map();
+    [...modernVariants, ...legacyVariants].forEach(v => {
+      const sku = v.amazon_sku || v.sku;
+      if (!sku) {
+        // If no SKU, fallback to ID as key
+        variantMap.set(v.id, v);
+      } else if (!variantMap.has(sku)) {
+        variantMap.set(sku, v);
+      } else {
+        // If modern variant exists (it was added first), don't overwrite with legacy
+        // But if it's the same table, we just keep the first one found
+      }
+    });
+    const allVariants = Array.from(variantMap.values());
 
     // Fetch all variant-specific images to provide full local gallery for each variant
     const [allVariantImages] = await db.execute(
@@ -504,7 +518,17 @@ router.get("/:id", async (req, res) => {
       [product.id, ...countryTarget]
     );
 
-    const allVariants = [...modernVariants, ...legacyVariants];
+    // DEDUPLICATE VARIANTS BY SKU (Prefer modern over legacy if overlap)
+    const variantMap = new Map();
+    [...modernVariants, ...legacyVariants].forEach(v => {
+      const sku = v.amazon_sku || v.sku;
+      if (!sku) {
+        variantMap.set(v.id, v);
+      } else if (!variantMap.has(sku)) {
+        variantMap.set(sku, v);
+      }
+    });
+    const allVariants = Array.from(variantMap.values());
 
     // Fetch all variant-specific images to provide full local gallery for each variant
     const [allVariantImages] = await db.execute(

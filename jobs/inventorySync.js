@@ -152,7 +152,7 @@ async function runSync() {
               if (c.stock !== q) {
                 colorsUpdated = true;
               }
-              return { ...c, stock: q, in_stock: q > 0 ? 1 : 0 };
+              return { ...c, stock: q, in_stock: q > 0 ? 1 : 0, updated_at: new Date().toISOString() };
             }
             return c;
           });
